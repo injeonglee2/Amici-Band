@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.web.amicicalender.twa",
+      "sha256_cert_fingerprints": [
+        "38:5D:48:E5:FA:B8:A4:42:C6:FA:57:4B:CD:F7:95:29:53:A6:E2:65:19:BB:B6:89:E6:20:3E:B6:51:87:4A:03"
+      ]
+    }
+  }
+]

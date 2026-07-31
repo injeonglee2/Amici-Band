@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const b=require\\('fs'\\).readFileSync\\('public/logo.png'\\);const w=b.readUInt32BE\\(16\\),h=b.readUInt32BE\\(20\\);console.log\\('logo.png',w+'x'+h\\)\")",
+      "Bash(npm run *)",
+      "Bash(node -e \"try{require.resolve\\('sharp'\\);console.log\\('sharp: yes'\\)}catch{console.log\\('sharp: no'\\)}; try{require.resolve\\('pngjs'\\);console.log\\('pngjs: yes'\\)}catch{console.log\\('pngjs: no'\\)}; try{require.resolve\\('canvas'\\);console.log\\('canvas: yes'\\)}catch{console.log\\('canvas: no'\\)}\")",
+      "Bash(node \"C:/Users/LEEINJ~1/AppData/Local/Temp/claude/C--Users-LeeInJeong-OneDrive----VibeCoding-amici-band/727a5772-e3c0-4e4f-84b8-bbc7b41f0c3a/scratchpad/fixlogo.cjs\" public/logo.original.png public/logo.png)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const b=require\\('fs'\\).readFileSync\\('dist/logo.png'\\);console.log\\('dist/logo.png',b.readUInt32BE\\(16\\)+'x'+b.readUInt32BE\\(20\\),'TL',[b[0]].length&&'check'\\)\")",
+      "Read(//c/Users/LeeInJeong/**)",
+      "PowerShell(Get-ChildItem -Path \"$env:USERPROFILE\\\\Downloads\" -Recurse -Filter \"assetlinks.json\" -ErrorAction SilentlyContinue | Select-Object -First 3 FullName; Write-Output \"---content---\"; $f = Get-ChildItem -Path \"$env:USERPROFILE\\\\Downloads\" -Recurse -Filter \"assetlinks.json\" -ErrorAction SilentlyContinue | Select-Object -First 1; if \\($f\\) { Get-Content $f.FullName -Raw })",
+      "Bash(firebase --version)",
+      "Bash(node -e \"try{console.log\\(require\\('firebase/package.json'\\).name, require\\('firebase/package.json'\\).version\\)}catch\\(e\\){console.log\\('no firebase pkg'\\)}\")",
+      "Bash(npm install *)",
+      "Bash(./node_modules/.bin/firebase --version)",
+      "Bash(./node_modules/.bin/firebase login:list)",
+      "Bash(npx tsc *)",
+      "Bash(npx oxlint *)",
+      "Bash(echo \"=== tsc EXIT $? ===\")",
+      "Bash(node \"C:/Users/LEEINJ~1/AppData/Local/Temp/claude/C--Users-LeeInJeong-OneDrive----VibeCoding-amici-band/727a5772-e3c0-4e4f-84b8-bbc7b41f0c3a/scratchpad/shiftlogo.cjs\" public/logo.prev.png public/logo.png 22)",
+      "Bash(echo \"=== tsc $? ===\")",
+      "Bash(node --check functions/index.js)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('functions/package.json'\\)\\); JSON.parse\\(require\\('fs'\\).readFileSync\\('firebase.json'\\)\\); console.log\\('json OK'\\)\")"
+    ]
+  }
+}

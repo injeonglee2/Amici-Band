@@ -1,0 +1,13 @@
+/* 기본 템플릿 스타일 제거 — 실제 디자인은 styles.css 에 있음 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
