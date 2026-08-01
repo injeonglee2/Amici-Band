@@ -2,6 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    // 관리자 여부: 본인 멤버 문서의 admin 필드가 true (콘솔에서만 부여)
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.get('admin', false) == true;
+    }
 
     // 멤버 프로필: 로그인하면 읽기 가능, 본인 문서만 쓰기
     // 단, admin(관리자) 필드는 스스로 켤 수 없음 — 콘솔에서만 부여
@@ -18,11 +24,11 @@ service cloud.firestore {
       allow read, write: if signedIn();
     }
 
-    // 일정: 로그인한 멤버는 읽기/생성/수정 가능, 삭제는 만든 사람만
+    // 일정: 로그인한 멤버는 읽기 가능, 생성·수정은 관리자만, 삭제는 관리자 또는 만든 사람
     match /events/{eventId} {
       allow read: if signedIn();
-      allow create, update: if signedIn();
-      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+      allow create, update: if isAdmin();
+      allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid);
 
       // 참석 투표: 로그인하면 읽기 가능, 본인 투표만 쓰기 (문서 id == uid)
       match /attendance/{uid} {

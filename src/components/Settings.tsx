@@ -5,6 +5,7 @@ import { notificationPermission, pushConfigured, requestPushToken } from '../mes
 import type { Place } from '../types'
 import { CopyButton } from './CopyButton'
 import Toast, { useToast } from './Toast'
+import { useSheetSwipe } from './useSheetSwipe'
 
 type Editing = Place | 'new' | null
 
@@ -145,6 +146,7 @@ function NotifCard() {
 }
 
 function PlaceForm({ editing, onClose }: { editing: Place | null; onClose: () => void }) {
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [name, setName] = useState(editing?.name ?? '')
   const [address, setAddress] = useState(editing?.address ?? '')
   const [busy, setBusy] = useState(false)
@@ -192,8 +194,10 @@ function PlaceForm({ editing, onClose }: { editing: Place | null; onClose: () =>
 
   return (
     <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet">
-        <div className="grab" />
+      <div className="sheet" ref={sheetRef}>
+        <div className="grab-zone" {...grabHandlers}>
+          <div className="grab" />
+        </div>
         <h2>{editing ? '장소 수정' : '장소 추가'}</h2>
 
         <div className="field">

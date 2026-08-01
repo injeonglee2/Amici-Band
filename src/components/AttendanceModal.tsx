@@ -14,6 +14,7 @@ import {
 import { lateOptions, leaveOptions, parseDate, weekday } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import ConfirmDialog from './ConfirmDialog'
+import { useSheetSwipe } from './useSheetSwipe'
 
 const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
 
@@ -21,16 +22,20 @@ export default function AttendanceModal({
   ev,
   list,
   members,
+  mode,
   readOnly = false,
   onClose,
 }: {
   ev: BandEvent
   list: Attendance[]
   members: Member[]
+  /** 'vote' = 투표 입력창, 'summary' = 참석 현황 요약 */
+  mode: 'vote' | 'summary'
   readOnly?: boolean
   onClose: () => void
 }) {
   const { user, member } = useAuth()
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [saving, setSaving] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [noteText, setNoteText] = useState('')
@@ -127,12 +132,16 @@ export default function AttendanceModal({
     }
   }
 
+  const heading = mode === 'vote' ? '참석 투표' : readOnly ? '참석 결과' : '참석 현황'
+
   return (
     <>
       <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="sheet">
-          <div className="grab" />
-          <h2>{readOnly ? '참석 결과' : '참석 투표'}</h2>
+        <div className="sheet" ref={sheetRef}>
+          <div className="grab-zone" {...grabHandlers}>
+            <div className="grab" />
+          </div>
+          <h2>{heading}</h2>
 
           <div className="modal-evhead" style={{ ['--k' as string]: TYPE_META[ev.type].color }}>
             <div className="tag"><TypeGlyph type={ev.type} className="type-ico" />{TYPE_META[ev.type].label}</div>
@@ -140,124 +149,136 @@ export default function AttendanceModal({
             <p>{d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}</p>
           </div>
 
-          {!readOnly && (
-            <div className="vote-row">
-              {ORDER.map((s) => (
-                <button
-                  key={s}
-                  className={'vote-btn' + (mine?.status === s ? ' on' : '')}
-                  style={{ ['--k' as string]: STATUS_META[s].color }}
-                  onClick={() => choose(s)}
-                  disabled={saving}
-                >
-                  {STATUS_META[s].label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {!readOnly && mine?.status === 'late' && (
-            <div className="time-pick">
-              <label>도착 예정 시각</label>
-              <select value={mine.arriveTime ?? lateOpts[0]} onChange={(e) => setTime('arriveTime', e.target.value)}>
-                {lateOpts.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          {!readOnly && mine?.status === 'leave' && (
-            <div className="time-pick">
-              <label>조퇴 시각</label>
-              <select value={mine.leaveTime ?? leaveOpts[leaveOpts.length - 1]} onChange={(e) => setTime('leaveTime', e.target.value)}>
-                {leaveOpts.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {!readOnly && mine && (
-            <textarea
-              className="note-input"
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              onBlur={saveNote}
-              placeholder="사유·한마디 (선택)"
-              rows={2}
-              maxLength={100}
-            />
-          )}
-
-          {/* 인원 · 시간 상세 집계 */}
-          <div className="tally">
-            {ORDER.map((s) => {
-              const people = byStatus(s)
-              return (
-                <div key={s} className="tally-col">
-                  <div className="tally-head" style={{ ['--k' as string]: STATUS_META[s].color }}>
-                    <span className="dot" />
+          {/* ── 투표 모드 ── */}
+          {mode === 'vote' && (
+            <>
+              <div className="vote-row">
+                {ORDER.map((s) => (
+                  <button
+                    key={s}
+                    className={'vote-btn' + (mine?.status === s ? ' on' : '')}
+                    style={{ ['--k' as string]: STATUS_META[s].color }}
+                    onClick={() => choose(s)}
+                    disabled={saving}
+                  >
                     {STATUS_META[s].label}
-                    <b>{people.length}</b>
-                  </div>
-                  <ul>
-                    {people.length === 0 && <li className="muted">-</li>}
-                    {people.map((p) => (
-                      <li key={p.uid}>
-                        {p.name}
-                        {p.status === 'late' && p.arriveTime && <em> · {p.arriveTime}</em>}
-                        {p.status === 'leave' && p.leaveTime && <em> · {p.leaveTime}</em>}
-                        {p.note && <span className="li-note">{p.note}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )
-            })}
-            {undecided.length > 0 && (
-              <div className="tally-col undecided" style={{ ['--k' as string]: 'var(--undecided)' }}>
-                <div className="tally-head">
-                  <span className="dot" />
-                  미정
-                  <b>{undecided.length}</b>
-                </div>
-                <ul>
-                  {undecided.map((m) => (
-                    <li key={m.uid}>{m.name}</li>
-                  ))}
-                </ul>
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
 
-          {/* 파트별 참석 (참석·늦참·조퇴 기준) */}
-          <div className="part-tally">
-            <div className="part-tally-title">파트별 참석</div>
-            <div className="part-tally-grid">
-              {partStats.map(({ part, attendees, total }) => (
-                <div key={part} className="part-cell">
-                  <div className="part-head">{PART_META[part].label} <b>{attendees.length}</b><span>/{total}</span></div>
-                  <ul>
-                    {attendees.length === 0 && <li className="muted">-</li>}
-                    {attendees.map((m) => (
-                      <li key={m.uid}>{m.name}</li>
+              {mine?.status === 'late' && (
+                <div className="time-pick">
+                  <label>도착 예정 시각</label>
+                  <select value={mine.arriveTime ?? lateOpts[0]} onChange={(e) => setTime('arriveTime', e.target.value)}>
+                    {lateOpts.map((t) => (
+                      <option key={t} value={t}>{t}</option>
                     ))}
-                  </ul>
+                  </select>
                 </div>
-              ))}
-            </div>
-          </div>
+              )}
+              {mine?.status === 'leave' && (
+                <div className="time-pick">
+                  <label>조퇴 시각</label>
+                  <select value={mine.leaveTime ?? leaveOpts[leaveOpts.length - 1]} onChange={(e) => setTime('leaveTime', e.target.value)}>
+                    {leaveOpts.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-          {canRemind && (
-            <button type="button" className="btn primary block remind-btn" onClick={sendReminder} disabled={reminding}>
-              {reminding ? '보내는 중…' : `미정 ${undecided.length}명에게 투표 요청`}
-            </button>
+              {mine && (
+                <textarea
+                  className="note-input"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onBlur={saveNote}
+                  placeholder="사유·한마디 (선택)"
+                  rows={2}
+                  maxLength={100}
+                />
+              )}
+
+              <div className="actions">
+                <button type="button" className="btn primary block" onClick={onClose}>확인</button>
+              </div>
+            </>
           )}
-          {remindMsg && <p className="remind-msg">{remindMsg}</p>}
 
-          <div className="actions">
-            <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
-          </div>
+          {/* ── 요약 모드 ── */}
+          {mode === 'summary' && (
+            <>
+              {/* 인원 · 시간 상세 집계 */}
+              <div className="tally">
+                {ORDER.map((s) => {
+                  const people = byStatus(s)
+                  return (
+                    <div key={s} className="tally-col">
+                      <div className="tally-head" style={{ ['--k' as string]: STATUS_META[s].color }}>
+                        <span className="dot" />
+                        {STATUS_META[s].label}
+                        <b>{people.length}</b>
+                      </div>
+                      <ul>
+                        {people.length === 0 && <li className="muted">-</li>}
+                        {people.map((p) => (
+                          <li key={p.uid}>
+                            {p.name}
+                            {p.status === 'late' && p.arriveTime && <em> · {p.arriveTime}</em>}
+                            {p.status === 'leave' && p.leaveTime && <em> · {p.leaveTime}</em>}
+                            {p.note && <span className="li-note">{p.note}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })}
+                {undecided.length > 0 && (
+                  <div className="tally-col undecided" style={{ ['--k' as string]: 'var(--undecided)' }}>
+                    <div className="tally-head">
+                      <span className="dot" />
+                      미정
+                      <b>{undecided.length}</b>
+                    </div>
+                    <ul>
+                      {undecided.map((m) => (
+                        <li key={m.uid}>{m.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* 파트별 참석 (참석·늦참·조퇴 기준) */}
+              <div className="part-tally">
+                <div className="part-tally-title">파트별 참석</div>
+                <div className="part-tally-grid">
+                  {partStats.map(({ part, attendees, total }) => (
+                    <div key={part} className="part-cell">
+                      <div className="part-head">{PART_META[part].label} <b>{attendees.length}</b><span>/{total}</span></div>
+                      <ul>
+                        {attendees.length === 0 && <li className="muted">-</li>}
+                        {attendees.map((m) => (
+                          <li key={m.uid}>{m.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {canRemind && (
+                <button type="button" className="btn primary block remind-btn" onClick={sendReminder} disabled={reminding}>
+                  {reminding ? '보내는 중…' : `미정 ${undecided.length}명에게 투표 요청`}
+                </button>
+              )}
+              {remindMsg && <p className="remind-msg">{remindMsg}</p>}
+
+              <div className="actions">
+                <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

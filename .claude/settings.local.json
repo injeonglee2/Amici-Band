@@ -20,7 +20,8 @@
       "Bash(node \"C:/Users/LEEINJ~1/AppData/Local/Temp/claude/C--Users-LeeInJeong-OneDrive----VibeCoding-amici-band/727a5772-e3c0-4e4f-84b8-bbc7b41f0c3a/scratchpad/shiftlogo.cjs\" public/logo.prev.png public/logo.png 22)",
       "Bash(echo \"=== tsc $? ===\")",
       "Bash(node --check functions/index.js)",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('functions/package.json'\\)\\); JSON.parse\\(require\\('fs'\\).readFileSync\\('firebase.json'\\)\\); console.log\\('json OK'\\)\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('functions/package.json'\\)\\); JSON.parse\\(require\\('fs'\\).readFileSync\\('firebase.json'\\)\\); console.log\\('json OK'\\)\")",
+      "Bash(cd \"C:/Users/ilob7/Documents/VibeCoding/Amici Band/Amici-Band\" && echo \"=== project settings ===\" && cat .claude/settings.json 2>/dev/null; cat .claude/settings.local.json 2>/dev/null; echo \"=== user settings statusline ===\" && cat ~/.claude/settings.json 2>/dev/null)"
     ]
   }
 }

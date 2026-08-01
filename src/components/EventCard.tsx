@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
 import { deleteEvent, watchAttendance } from '../data'
 import {
@@ -32,16 +32,26 @@ export default function EventCard({
   onEdit: () => void
   toast: ToastState
 }) {
-  const { user } = useAuth()
-  const [modalOpen, setModalOpen] = useState(false)
+  const { user, member } = useAuth()
+  const [modal, setModal] = useState<null | 'vote' | 'summary'>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [att, setAtt] = useState<Attendance[]>([])
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [noteOverflow, setNoteOverflow] = useState(false)
+  const noteRef = useRef<HTMLParagraphElement>(null)
   const t = TYPE_META[ev.type]
   const d = parseDate(ev.date)
   const past = dayDiff(ev.date) < 0
-  const canDelete = !!user && ev.createdBy === user.uid
+  const isAdmin = !!member?.admin
+  const canDelete = !!user && (ev.createdBy === user.uid || isAdmin)
 
   useEffect(() => watchAttendance(ev.id, setAtt), [ev.id])
+  // 메모가 1줄을 넘겨 잘리는지 측정 (접힌 상태에서만 의미 있음) → 넘칠 때만 펼치기 버튼 노출
+  useLayoutEffect(() => {
+    const el = noteRef.current
+    if (!el || noteOpen) return
+    setNoteOverflow(el.scrollHeight > el.clientHeight + 1)
+  }, [ev.note, noteOpen])
   const mine = useMemo(() => att.find((a) => a.uid === user?.uid), [att, user])
   const undecidedCount = useMemo(() => {
     const voted = new Set(att.map((a) => a.uid))
@@ -61,20 +71,7 @@ export default function EventCard({
 
   return (
     <>
-      <div
-        className="event"
-        style={{ ['--k' as string]: t.color }}
-        role="button"
-        tabIndex={0}
-        aria-label={`${ev.title} 참석 ${past ? '결과' : '투표'}`}
-        onClick={() => setModalOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setModalOpen(true)
-          }
-        }}
-      >
+      <div className="event" style={{ ['--k' as string]: t.color }}>
         <TypeGlyph type={ev.type} className={'wm wm-' + ev.type} />
         <div className="event-row">
           <div className="datebox">
@@ -99,22 +96,55 @@ export default function EventCard({
               )}
             </div>
           </div>
-          {past ? (
-            canDelete && (
-              <button className="edit-btn del" onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }} aria-label="삭제">
+          <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+            {!past && (
+              <button className="card-vote" onClick={() => setModal('vote')} aria-label="참석 투표" title="참석 투표">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 11 3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+              </button>
+            )}
+            {!past && isAdmin && (
+              <button className="edit-btn" onClick={onEdit} aria-label="수정">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              </button>
+            )}
+            {past && canDelete && (
+              <button className="edit-btn del" onClick={() => setConfirmDelete(true)} aria-label="삭제">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
               </button>
-            )
-          ) : (
-            <button className="edit-btn" onClick={(e) => { e.stopPropagation(); onEdit() }} aria-label="수정">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-            </button>
-          )}
+            )}
+          </div>
         </div>
 
-        {ev.note && <p className="event-note">{ev.note}</p>}
+        {ev.note && (
+          <div className={'event-note' + (noteOpen ? ' open' : '')}>
+            <p className="event-note-text" ref={noteRef}>{ev.note}</p>
+            {(noteOverflow || noteOpen) && (
+              <button
+                type="button"
+                className="note-toggle"
+                onClick={() => setNoteOpen((v) => !v)}
+                aria-expanded={noteOpen}
+                aria-label={noteOpen ? '메모 접기' : '메모 펼치기'}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+            )}
+          </div>
+        )}
 
-        <div className="attend-summary">
+        <div
+          className="attend-summary"
+          role="button"
+          tabIndex={0}
+          aria-label={`${ev.title} 참석 ${past ? '결과' : '현황'}`}
+          onClick={() => setModal('summary')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setModal('summary')
+            }
+          }}
+        >
           {ORDER.map((s) => {
             const n = att.filter((a) => a.status === s).length
             return (
@@ -137,8 +167,8 @@ export default function EventCard({
         </div>
       </div>
 
-      {modalOpen && (
-        <AttendanceModal ev={ev} list={att} members={members} readOnly={past} onClose={() => setModalOpen(false)} />
+      {modal && (
+        <AttendanceModal ev={ev} list={att} members={members} mode={modal} readOnly={past} onClose={() => setModal(null)} />
       )}
 
       {confirmDelete && (

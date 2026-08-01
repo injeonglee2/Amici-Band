@@ -16,6 +16,7 @@ type Filter = 'all' | EventType
 
 export default function Main() {
   const { member, signOutUser } = useAuth()
+  const isAdmin = !!member?.admin
   const [events, setEvents] = useState<BandEvent[]>([])
   const [places, setPlaces] = useState<Place[]>([])
   const [members, setMembers] = useState<Member[]>([])
@@ -184,8 +185,12 @@ export default function Main() {
           <div className="hero empty">
             <p>
               다가오는 일정이 없어요.
-              <br />
-              아래 <b>+ 일정 추가</b>로 첫 일정을 등록해 보세요.
+              {isAdmin && (
+                <>
+                  <br />
+                  아래 <b>+ 일정 추가</b>로 첫 일정을 등록해 보세요.
+                </>
+              )}
             </p>
           </div>
         ))}
@@ -216,10 +221,12 @@ export default function Main() {
         )}
       </main>
 
-      <button className="fab" onClick={openAdd}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-        일정 추가
-      </button>
+      {isAdmin && (
+        <button className="fab" onClick={openAdd}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          일정 추가
+        </button>
+      )}
 
       {formOpen && (
         <EventForm editing={editing} places={places} onClose={() => setFormOpen(false)} />

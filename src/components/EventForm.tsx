@@ -11,6 +11,7 @@ import {
 } from '../types'
 import { todayStr, toMin } from '../time'
 import { TypeGlyph } from './TypeGlyph'
+import { useSheetSwipe } from './useSheetSwipe'
 
 export default function EventForm({
   editing,
@@ -22,6 +23,7 @@ export default function EventForm({
   onClose: () => void
 }) {
   const { user } = useAuth()
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [type, setType] = useState<EventType>(editing?.type ?? 'practice')
   const [title, setTitle] = useState(editing?.title ?? '')
   const [date, setDate] = useState(editing?.date ?? todayStr())
@@ -87,8 +89,10 @@ export default function EventForm({
 
   return (
     <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet">
-        <div className="grab" />
+      <div className="sheet" ref={sheetRef}>
+        <div className="grab-zone" {...grabHandlers}>
+          <div className="grab" />
+        </div>
         <h2>{editing ? '일정 수정' : '일정 추가'}</h2>
 
         <div className="field">
