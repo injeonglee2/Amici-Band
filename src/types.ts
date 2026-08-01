@@ -21,11 +21,14 @@ export interface BandEvent {
   createdAt: number
 }
 
-/** 설정 페이지에서 관리하는 장소 (이름 + 주소) */
+/** 장소 관리에서 관리하는 장소 (이름 + 주소 + 메모) */
 export interface Place {
   id: string
   name: string // 장소 이름 (메인에 표시)
-  address: string // 주소 (복사 버튼이 복사하는 값)
+  address: string // 주소 (지도 검색으로 선택된 값 — 복사 버튼이 복사)
+  lat?: number // 위도 (지도 검색 결과)
+  lng?: number // 경도 (지도 검색 결과)
+  memo?: string // 주차장·비밀번호 등 자유 메모 (선택)
   createdAt: number
 }
 

@@ -9,6 +9,7 @@ import EventCard from './EventCard'
 import EventForm from './EventForm'
 import { TypeGlyph } from './TypeGlyph'
 import Settings from './Settings'
+import PlacesView from './Places'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 
@@ -22,6 +23,8 @@ export default function Main() {
   const [members, setMembers] = useState<Member[]>([])
   const [filter, setFilter] = useState<Filter>('all')
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
+  const [nav, setNav] = useState<'home' | 'places'>('home')
+  const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -41,7 +44,18 @@ export default function Main() {
       }),
     [],
   )
-  useEffect(() => watchPlaces(setPlaces), [])
+  useEffect(
+    () =>
+      watchPlaces(setPlaces, (e) => {
+        const code = (e as { code?: string })?.code ?? ''
+        setPlacesErr(
+          code === 'permission-denied'
+            ? '장소를 불러올 권한이 없어요. Firestore 보안 규칙을 다시 게시해 주세요.'
+            : '장소를 불러오지 못했어요.' + (code ? ` (${code})` : ''),
+        )
+      }),
+    [],
+  )
   useEffect(() => watchMembers(setMembers), [])
   useEffect(() => {
     startForegroundNotifications()
@@ -112,10 +126,10 @@ export default function Main() {
             <img src="/logo.png" alt="Amici Band" />
           </div>
           <div className="brand">
-            <h1>Amici Band</h1>
-            <p>연습 · 공연 일정</p>
+            <h1>{nav === 'places' ? '장소' : 'Amici Band'}</h1>
+            <p>{nav === 'places' ? '주차·비밀번호 등 메모를 남겨두세요' : '연습 · 공연 일정'}</p>
           </div>
-          <button className="ghost-btn icon" onClick={() => setSettingsOpen(true)} aria-label="장소 관리 설정" title="장소 관리">
+          <button className="ghost-btn icon" onClick={() => setSettingsOpen(true)} aria-label="설정" title="설정">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
@@ -135,6 +149,8 @@ export default function Main() {
         </div>
       </header>
 
+      {nav === 'home' ? (
+      <>
       <div className="segmented" role="tablist">
         <button role="tab" aria-selected={tab === 'upcoming'} className={tab === 'upcoming' ? 'on' : ''} onClick={() => setTab('upcoming')}>
           다가오는
@@ -227,6 +243,31 @@ export default function Main() {
           일정 추가
         </button>
       )}
+      </>
+      ) : (
+        <PlacesView places={places} loadErr={placesErr} toast={toast} />
+      )}
+
+      <nav className="bottom-nav" role="tablist" aria-label="주 메뉴">
+        <button
+          role="tab"
+          aria-selected={nav === 'home'}
+          className={'navitem' + (nav === 'home' ? ' on' : '')}
+          onClick={() => setNav('home')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+          일정
+        </button>
+        <button
+          role="tab"
+          aria-selected={nav === 'places'}
+          className={'navitem' + (nav === 'places' ? ' on' : '')}
+          onClick={() => setNav('places')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
+          장소
+        </button>
+      </nav>
 
       {formOpen && (
         <EventForm editing={editing} places={places} onClose={() => setFormOpen(false)} />

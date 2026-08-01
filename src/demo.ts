@@ -36,7 +36,7 @@ const initialMembers: Member[] = [
 ]
 
 const initialPlaces: Place[] = [
-  { id: 'p1', name: '영화동 합주실', address: '경기도 수원시 장안구 영화동 424-16', createdAt: now },
+  { id: 'p1', name: '영화동 합주실', address: '경기도 수원시 장안구 영화동 424-16', memo: '주차: 건물 뒤편 공영주차장 (합주실 이름 대면 2시간 무료)\n현관 비밀번호: 1234*', createdAt: now },
   { id: 'p2', name: '메챠카말레온', address: '서울 마포구 어울마당로 45', createdAt: now },
 ]
 
