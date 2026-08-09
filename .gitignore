@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Firebase Auth 사용자 export (이메일 등 개인정보) — 절대 커밋 금지
+users.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

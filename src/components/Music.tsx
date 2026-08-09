@@ -23,6 +23,8 @@ import SetlistPlayer from './SetlistPlayer'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
+import { DEMO } from '../demo'
+import { exportErrorMessage, exportPlaylistToYouTube, YouTubeExportError, type ExportResult } from '../ytexport'
 
 type EditingList = Playlist | 'new' | null
 
@@ -209,6 +211,10 @@ function PlaylistDetail({
   const [editingTrack, setEditingTrack] = useState<Track | null>(null)
   // 삭제 확인 다이얼로그 (재생목록/곡 공용)
   const [confirm, setConfirm] = useState<{ message: string; label: string; run: () => Promise<void> } | null>(null)
+  // 유튜브 내보내기
+  const [exportAsk, setExportAsk] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportDone, setExportDone] = useState<ExportResult | null>(null)
 
   // 드래그 정렬용: 화면에 그릴 순서(items). 드래그 중이 아니면 tracks 와 동기화
   const [items, setItems] = useState<Track[]>([])
@@ -255,6 +261,35 @@ function PlaylistDetail({
   // 곡이 끝나면 다음 곡으로 (연속재생). 마지막 곡이면 그대로 멈춤
   function onTrackEnded() {
     if (playingIndex >= 0 && playingIndex < items.length - 1) setPlayingId(items[playingIndex + 1].id)
+  }
+
+  /* ----- 유튜브(=유튜브 뮤직) 재생목록으로 내보내기 ----- */
+  function startExport() {
+    if (DEMO) {
+      toast.show('데모에서는 내보내기를 쓸 수 없어요')
+      return
+    }
+    if (items.length === 0) return
+    setExportAsk(true)
+  }
+  async function runExport() {
+    const videoIds = items.map((t) => t.videoId).filter(Boolean)
+    if (videoIds.length === 0) return
+    setExporting(true)
+    try {
+      const result = await exportPlaylistToYouTube(playlist.name, videoIds, (a, t) =>
+        toast.show(`${a} / ${t}곡 저장 중…`),
+      )
+      setExportDone(result)
+      toast.show(`유튜브에 ${result.added}곡 저장했어요`)
+    } catch (e) {
+      const code = e instanceof YouTubeExportError ? e.code : ''
+      const msg = exportErrorMessage(code)
+      if (msg) toast.show(msg) // 취소(CANCELLED)는 빈 문자열 → 조용히 무시
+      console.error(e)
+    } finally {
+      setExporting(false)
+    }
   }
 
   /* ----- 제목 인라인 수정 ----- */
@@ -468,6 +503,16 @@ function PlaylistDetail({
                   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                   전체 재생
                 </button>
+                <button className="btn subtle export-btn" onClick={startExport} disabled={exporting} title="유튜브 재생목록으로 저장">
+                  {exporting ? (
+                    '저장 중…'
+                  ) : (
+                    <>
+                      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 15V9l5 3-5 3zM21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" opacity="0" /><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      유튜브 저장
+                    </>
+                  )}
+                </button>
               </div>
             )}
             <div className="list track-list">
@@ -574,6 +619,33 @@ function PlaylistDetail({
             void c.run()
           }}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {exportAsk && (
+        <ConfirmDialog
+          message={`이 재생목록(${items.length}곡)을 내 유튜브 계정에 재생목록으로 저장할까요? 유튜브 로그인·권한 창이 떠요.`}
+          confirmLabel="저장"
+          cancelLabel="취소"
+          onConfirm={() => {
+            setExportAsk(false)
+            void runExport()
+          }}
+          onCancel={() => setExportAsk(false)}
+        />
+      )}
+
+      {exportDone && (
+        <ConfirmDialog
+          message={`유튜브에 "${playlist.name}" 재생목록을 저장했어요 (${exportDone.added}/${exportDone.total}곡). 유튜브 뮤직에서 열까요?`}
+          confirmLabel="열기"
+          cancelLabel="닫기"
+          onConfirm={() => {
+            const url = exportDone.url
+            setExportDone(null)
+            window.open(url, '_blank', 'noopener')
+          }}
+          onCancel={() => setExportDone(null)}
         />
       )}
     </>

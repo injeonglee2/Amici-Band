@@ -683,9 +683,12 @@ button { font-family: inherit; }
 .playlist-chev { flex: none; width: 18px; height: 18px; color: var(--ink-faint); }
 
 /* ---------- 음악: 상세 헤더 ---------- */
+/* 제목(헤더)과 아래 목록을 위·아래 구분선으로 분리한 헤더 밴드 */
 .detail-bar {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 20px; border-top: 1px solid var(--line);
+  padding: 10px 20px 12px; margin-bottom: 4px;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 40%, transparent);
 }
 /* 뒤로가기: "<" 화살표만 버튼 */
 .detail-back {
@@ -763,10 +766,12 @@ button { font-family: inherit; }
 }
 .playlist-option > span { font-size: 14px; font-weight: 600; color: var(--ink); }
 
-/* 셋리스트 상단 액션: 전체 재생 */
+/* 셋리스트 상단 액션: 전체 재생 + 유튜브 저장 */
 .setlist-actions { display: flex; gap: 8px; margin: 12px 0 4px; }
 .play-all { flex: 1; justify-content: center; gap: 8px; }
 .play-all svg { width: 16px; height: 16px; }
+.export-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.export-btn svg { width: 16px; height: 16px; }
 
 /* 상세 헤더: 편집 모드 제목 입력 + 완료/삭제 */
 .detail-title-input {
