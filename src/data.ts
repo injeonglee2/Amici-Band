@@ -10,7 +10,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { db, fbApp } from './firebase'
 import { DEMO, demoDb } from './demo'
-import type { Attendance, BandEvent, Member, Place, WebPushSubscription } from './types'
+import type { Attendance, BandEvent, Member, Place, Playlist, Track, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -165,6 +165,74 @@ export async function setAttendance(eventId: string, att: Attendance): Promise<v
 export async function clearAttendance(eventId: string, uid: string): Promise<void> {
   if (DEMO) return demoDb.clearAttendance(eventId, uid)
   await deleteDoc(doc(db, 'events', eventId, 'attendance', uid))
+}
+
+/* ---------------- playlists (음악 재생목록) ---------------- */
+export function watchPlaylists(
+  cb: (playlists: Playlist[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) return demoDb.watchPlaylists(cb)
+  return onSnapshot(
+    collection(db, 'playlists'),
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Playlist, 'id'>) }))
+      // 최근에 만든 재생목록이 위로
+      list.sort((a, b) => b.createdAt - a.createdAt)
+      cb(list)
+    },
+    (err) => {
+      console.error('watchPlaylists', err)
+      onError?.(err)
+    },
+  )
+}
+
+export async function savePlaylist(p: Playlist): Promise<void> {
+  if (DEMO) return demoDb.savePlaylist(p)
+  const { id, ...data } = p
+  await setDoc(doc(db, 'playlists', id), data, { merge: true })
+}
+
+export async function deletePlaylist(id: string): Promise<void> {
+  if (DEMO) return demoDb.deletePlaylist(id)
+  // 주의: 하위 tracks 문서는 클라이언트에서 개별 삭제해야 완전히 제거됨.
+  // 재생목록 문서만 지워도 목록에서는 사라지므로 우선 문서만 삭제.
+  await deleteDoc(doc(db, 'playlists', id))
+}
+
+/* ---------------- tracks (playlists/{id}/tracks/{trackId}) ---------------- */
+export function watchTracks(
+  playlistId: string,
+  cb: (tracks: Track[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) return demoDb.watchTracks(playlistId, cb)
+  return onSnapshot(
+    collection(db, 'playlists', playlistId, 'tracks'),
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Track, 'id'>) }))
+      // 사용자가 정한 순서(order)대로. order 없으면 담은 시각으로 대체
+      list.sort((a, b) => (a.order ?? a.addedAt) - (b.order ?? b.addedAt))
+      cb(list)
+    },
+    (err) => {
+      console.error('watchTracks', err)
+      onError?.(err)
+    },
+  )
+}
+
+export async function saveTrack(playlistId: string, t: Track): Promise<void> {
+  if (DEMO) return demoDb.saveTrack(playlistId, t)
+  const { id, ...rest } = t
+  const data = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+  await setDoc(doc(db, 'playlists', playlistId, 'tracks', id), data)
+}
+
+export async function deleteTrack(playlistId: string, trackId: string): Promise<void> {
+  if (DEMO) return demoDb.deleteTrack(playlistId, trackId)
+  await deleteDoc(doc(db, 'playlists', playlistId, 'tracks', trackId))
 }
 
 export function newId(): string {

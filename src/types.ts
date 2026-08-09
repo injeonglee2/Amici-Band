@@ -32,6 +32,29 @@ export interface Place {
   createdAt: number
 }
 
+/** 음악 재생목록 (폴더 개념) — 하단 네비의 '음악' 탭 */
+export interface Playlist {
+  id: string
+  name: string // 재생목록 이름
+  showAdder?: boolean // 곡 추가한 사람 이름 표시 여부 (기본: 표시)
+  createdBy: string
+  createdAt: number
+}
+
+/** 재생목록 안의 곡 (유튜브 링크로 추가) — playlists/{id}/tracks/{trackId} */
+export interface Track {
+  id: string
+  url: string // 원본 유튜브 링크
+  videoId: string // 유튜브 영상 ID (임베드·썸네일용)
+  title: string // 곡 제목 (링크에서 자동 입력, 수정 가능)
+  artist: string // 가수/아티스트 (링크에서 자동 입력, 수정 가능)
+  thumbnail?: string // 썸네일 URL
+  order?: number // 재생목록 내 정렬 순서 (작을수록 위. 기본값은 addedAt)
+  addedBy: string // 추가한 사람 uid
+  addedByName?: string // 추가한 사람 이름 스냅샷 (표시용)
+  addedAt: number
+}
+
 export type AttendStatus = 'present' | 'late' | 'leave' | 'absent'
 
 export const STATUS_META: Record<AttendStatus, { label: string; color: string }> = {

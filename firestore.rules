@@ -24,6 +24,16 @@ service cloud.firestore {
       allow read, write: if signedIn();
     }
 
+    // 음악 재생목록: 로그인한 멤버는 읽기/쓰기 가능 (공동 관리)
+    match /playlists/{playlistId} {
+      allow read, write: if signedIn();
+
+      // 재생목록 안의 곡
+      match /tracks/{trackId} {
+        allow read, write: if signedIn();
+      }
+    }
+
     // 일정: 로그인한 멤버는 읽기 가능, 생성·수정은 관리자만, 삭제는 관리자 또는 만든 사람
     match /events/{eventId} {
       allow read: if signedIn();

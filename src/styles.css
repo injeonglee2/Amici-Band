@@ -78,7 +78,8 @@ button { font-family: inherit; }
 }
 
 .top {
-  position: sticky; top: 0; z-index: 20; padding: 20px 20px 14px;
+  position: sticky; top: 0; z-index: 20;
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 14px;
   background: linear-gradient(180deg, rgba(10, 10, 18, 0.82), rgba(10, 10, 18, 0.35));
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line);
@@ -661,6 +662,166 @@ button { font-family: inherit; }
 .empty-state { text-align: center; padding: 44px 20px; color: var(--ink-soft); }
 .empty-state svg { width: 40px; height: 40px; opacity: 0.4; margin-bottom: 10px; }
 .empty-state p { margin: 0; font-size: 14px; }
+
+/* ---------- 음악: 재생목록 목록 (폴더) ---------- */
+.playlist-list { margin-top: 12px; gap: 8px; }
+.playlist-row {
+  width: 100%; text-align: left; appearance: none; cursor: pointer;
+  display: flex; align-items: center; gap: 13px; background: var(--surface); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); padding: 14px 14px; backdrop-filter: blur(14px); box-shadow: var(--shadow);
+  transition: background 0.14s, border-color 0.14s;
+}
+.playlist-row:hover { background: var(--surface-2); }
+.playlist-ico {
+  flex: none; width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.playlist-ico svg { width: 21px; height: 21px; }
+.playlist-info { flex: 1; min-width: 0; }
+.playlist-info h3 { margin: 0; font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.playlist-chev { flex: none; width: 18px; height: 18px; color: var(--ink-faint); }
+
+/* ---------- 음악: 상세 헤더 ---------- */
+.detail-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 20px; border-top: 1px solid var(--line);
+}
+/* 뒤로가기: "<" 화살표만 버튼 */
+.detail-back {
+  flex: none; appearance: none; cursor: pointer; background: transparent; border: none;
+  display: grid; place-items: center; width: 34px; height: 34px; margin-left: -6px; border-radius: 10px;
+  color: var(--ink-soft); transition: background 0.14s, color 0.14s;
+}
+.detail-back:hover { background: var(--surface-2); color: var(--ink); }
+.detail-back svg { width: 22px; height: 22px; }
+.detail-title {
+  flex: 1; min-width: 0; margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.detail-bar .edit-btn { flex: none; }
+
+/* ---------- 음악: 곡 목록 ---------- */
+.track-list { margin-top: 12px; gap: 8px; }
+.track-row {
+  display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); padding: 8px 8px 8px 8px; backdrop-filter: blur(14px); box-shadow: var(--shadow);
+}
+.track-row.playing { border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.track-link {
+  flex: 1; min-width: 0; appearance: none; border: none; background: transparent; cursor: pointer;
+  display: flex; align-items: center; gap: 12px; text-align: left; text-decoration: none; color: inherit;
+}
+.track-thumb {
+  flex: none; position: relative; width: 68px; height: 44px; border-radius: 9px; overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+.track-thumb.sm { width: 54px; height: 36px; }
+.track-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.track-play {
+  position: absolute; inset: 0; display: grid; place-items: center; color: #fff;
+  background: rgba(0, 0, 0, 0.28); opacity: 0; transition: opacity 0.14s;
+}
+.track-link:hover .track-play { opacity: 1; }
+.track-row.playing .track-play { opacity: 1; color: #fff;
+  background: color-mix(in srgb, var(--accent) 55%, rgba(0, 0, 0, 0.35)); }
+.track-play svg { width: 20px; height: 20px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
+.track-info { flex: 1; min-width: 0; }
+.track-info h3 { margin: 0; font-size: 14.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track-row.playing .track-info h3 { color: var(--accent); }
+.track-info p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 곡을 추가한 사람 — 제목/가수와 떨어진 행 오른쪽에 이름만 표기 */
+.track-adder {
+  flex: none; align-self: center; max-width: 84px; margin-left: 4px; padding-left: 10px;
+  font-size: 11.5px; color: var(--ink-faint); text-align: right;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.track-del { flex: none; align-self: center; }
+
+/* 순서 편집: 드래그 손잡이 + 끌리는 행 */
+.drag-handle {
+  flex: none; align-self: stretch; display: grid; place-items: center; width: 40px; margin: -8px -8px -8px 0;
+  color: var(--ink-faint); cursor: grab; touch-action: none;
+}
+.drag-handle:active { cursor: grabbing; }
+.drag-handle svg { width: 22px; height: 22px; }
+.track-row.dragging {
+  position: relative; z-index: 20; cursor: grabbing;
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: var(--shadow-lift); background: var(--surface-solid);
+}
+.reorder-hint { margin: 10px 2px 8px; }
+
+/* 재생목록 편집 옵션 행 */
+.playlist-option {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 0;
+  padding: 12px 14px; background: var(--surface); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow);
+}
+.playlist-option > span { font-size: 14px; font-weight: 600; color: var(--ink); }
+
+/* 셋리스트 상단 액션: 전체 재생 */
+.setlist-actions { display: flex; gap: 8px; margin: 12px 0 4px; }
+.play-all { flex: 1; justify-content: center; gap: 8px; }
+.play-all svg { width: 16px; height: 16px; }
+
+/* 상세 헤더: 편집 모드 제목 입력 + 완료/삭제 */
+.detail-title-input {
+  flex: 1; min-width: 0; font: inherit; font-size: 18px; font-weight: 800; letter-spacing: -0.02em;
+  color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line-strong);
+  border-radius: 10px; padding: 6px 10px;
+}
+.detail-title-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.edit-btn.done { color: var(--accent); }
+.edit-btn.done:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.edit-btn.danger-ico:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+
+/* 앱 내 재생기 (셋리스트 연속재생) */
+.player {
+  position: sticky; top: 0; z-index: 6; margin: 8px 0 12px;
+  background: var(--surface-solid); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); overflow: hidden; box-shadow: var(--shadow-lift);
+}
+.player-video { position: relative; aspect-ratio: 16 / 9; background: #000; }
+.player-video > div, .player-video iframe {
+  position: absolute; inset: 0; width: 100% !important; height: 100% !important; border: 0;
+}
+.player-bar { display: flex; align-items: center; gap: 6px; padding: 9px 10px; }
+.player-now { flex: 1; min-width: 0; padding: 0 2px; }
+.player-now b { display: block; font-size: 13.5px; font-weight: 700; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-now span { display: block; font-size: 11.5px; color: var(--ink-soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-ctrl {
+  flex: none; appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink-soft);
+  width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+  transition: background 0.12s, color 0.12s;
+}
+.player-ctrl:hover:not(:disabled) { color: var(--ink); background: var(--surface-2); }
+.player-ctrl:disabled { opacity: 0.35; cursor: not-allowed; }
+.player-ctrl svg { width: 20px; height: 20px; }
+
+/* 곡 추가 시트 — 링크 미리보기 썸네일 */
+.track-preview { margin: 0 0 14px; border-radius: 12px; overflow: hidden; background: rgba(255, 255, 255, 0.06);
+  aspect-ratio: 16 / 9; }
+.track-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.err-text { color: var(--pink); }
+
+/* 토글 스위치 (설정) */
+.switch {
+  flex: none; appearance: none; cursor: pointer; width: 46px; height: 28px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--surface-2); padding: 0; position: relative;
+  transition: background 0.16s, border-color 0.16s;
+}
+.switch.on { background: var(--accent); border-color: var(--accent); }
+.switch-knob {
+  position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); transition: transform 0.16s;
+}
+.switch.on .switch-knob { transform: translateX(18px); }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { *, .toast, .sheet { animation: none !important; transition: none !important; } }

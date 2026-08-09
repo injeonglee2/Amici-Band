@@ -7,7 +7,7 @@
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, BandEvent, Member, Place } from './types'
+import type { Attendance, BandEvent, Member, Place, Playlist, Track } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
@@ -90,9 +90,22 @@ function makeCollection<T>(initial: T[]): Collection<T> {
   }
 }
 
+const initialPlaylists: Playlist[] = [
+  { id: 'pl1', name: '이번 공연 셋리스트', createdBy: 'demo-user', createdAt: now },
+  { id: 'pl2', name: '연습하고 싶은 곡', createdBy: 'demo-user', createdAt: now - 1000 },
+]
+
+const initialTracks: Record<string, Track[]> = {
+  pl1: [
+    { id: 't1', url: 'https://www.youtube.com/watch?v=fJ9rUzIMcZQ', videoId: 'fJ9rUzIMcZQ', title: 'Bohemian Rhapsody', artist: 'Queen', thumbnail: 'https://img.youtube.com/vi/fJ9rUzIMcZQ/mqdefault.jpg', order: now, addedBy: 'demo-user', addedByName: '김데모', addedAt: now },
+    { id: 't2', url: 'https://www.youtube.com/watch?v=1w7OgIMMRc4', videoId: '1w7OgIMMRc4', title: 'Sweet Child O\' Mine', artist: "Guns N' Roses", thumbnail: 'https://img.youtube.com/vi/1w7OgIMMRc4/mqdefault.jpg', order: now + 1000, addedBy: 'demo-user', addedByName: '이기타', addedAt: now + 1000 },
+  ],
+}
+
 const eventsCol = makeCollection<BandEvent>(initialEvents)
 const placesCol = makeCollection<Place>(initialPlaces)
 const membersCol = makeCollection<Member>(initialMembers)
+const playlistsCol = makeCollection<Playlist>(initialPlaylists)
 
 // 참석은 이벤트별 컬렉션
 const attendanceCols = new Map<string, Collection<Attendance>>()
@@ -101,6 +114,17 @@ function attendanceCol(eventId: string): Collection<Attendance> {
   if (!col) {
     col = makeCollection<Attendance>(initialAttendance[eventId] ?? [])
     attendanceCols.set(eventId, col)
+  }
+  return col
+}
+
+// 재생목록별 곡 컬렉션 (참석 컬렉션과 동일한 패턴)
+const trackCols = new Map<string, Collection<Track>>()
+function trackCol(playlistId: string): Collection<Track> {
+  let col = trackCols.get(playlistId)
+  if (!col) {
+    col = makeCollection<Track>(initialTracks[playlistId] ?? [])
+    trackCols.set(playlistId, col)
   }
   return col
 }
@@ -121,4 +145,18 @@ export const demoDb = {
   setAttendance: (eventId: string, att: Attendance) =>
     attendanceCol(eventId).upsert(att, (x) => x.uid),
   clearAttendance: (eventId: string, uid: string) => attendanceCol(eventId).remove(uid, (x) => x.uid),
+
+  watchPlaylists: (cb: Sub<Playlist[]>) => {
+    return playlistsCol.watch((list) => cb([...list].sort((a, b) => b.createdAt - a.createdAt)))
+  },
+  savePlaylist: (p: Playlist) => playlistsCol.upsert(p, (x) => x.id),
+  deletePlaylist: (id: string) => playlistsCol.remove(id, (x) => x.id),
+
+  watchTracks: (playlistId: string, cb: Sub<Track[]>) =>
+    trackCol(playlistId).watch((list) =>
+      cb([...list].sort((a, b) => (a.order ?? a.addedAt) - (b.order ?? b.addedAt))),
+    ),
+  saveTrack: (playlistId: string, t: Track) => trackCol(playlistId).upsert(t, (x) => x.id),
+  deleteTrack: (playlistId: string, trackId: string) =>
+    trackCol(playlistId).remove(trackId, (x) => x.id),
 }

@@ -10,6 +10,7 @@ import EventForm from './EventForm'
 import { TypeGlyph } from './TypeGlyph'
 import Settings from './Settings'
 import PlacesView from './Places'
+import MusicView from './Music'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
@@ -24,7 +25,7 @@ export default function Main() {
   const [members, setMembers] = useState<Member[]>([])
   const [filter, setFilter] = useState<Filter>('all')
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
-  const [nav, setNav] = useState<'home' | 'places'>('home')
+  const [nav, setNav] = useState<'home' | 'places' | 'music'>('home')
   const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -132,8 +133,14 @@ export default function Main() {
             <img src="/logo.png" alt="Amici Band" />
           </div>
           <div className="brand">
-            <h1>{nav === 'places' ? '장소' : 'Amici Band'}</h1>
-            <p>{nav === 'places' ? '주차·비밀번호 등 메모를 남겨두세요' : '연습 · 공연 일정'}</p>
+            <h1>{nav === 'places' ? '장소' : nav === 'music' ? '음악' : 'Amici Band'}</h1>
+            <p>
+              {nav === 'places'
+                ? '주차·비밀번호 등 메모를 남겨두세요'
+                : nav === 'music'
+                  ? '재생목록에 유튜브 곡을 담아보세요'
+                  : '연습 · 공연 일정'}
+            </p>
           </div>
           <button className="ghost-btn icon" onClick={() => setSettingsOpen(true)} aria-label="설정" title="설정">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -250,11 +257,22 @@ export default function Main() {
         </button>
       )}
       </>
-      ) : (
+      ) : nav === 'places' ? (
         <PlacesView places={places} loadErr={placesErr} toast={toast} />
+      ) : (
+        <MusicView toast={toast} />
       )}
 
       <nav className="bottom-nav" role="tablist" aria-label="주 메뉴">
+        <button
+          role="tab"
+          aria-selected={nav === 'music'}
+          className={'navitem' + (nav === 'music' ? ' on' : '')}
+          onClick={() => setNav('music')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+          음악
+        </button>
         <button
           role="tab"
           aria-selected={nav === 'home'}
