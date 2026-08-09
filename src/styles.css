@@ -804,6 +804,21 @@ button { font-family: inherit; }
 .player-ctrl:disabled { opacity: 0.35; cursor: not-allowed; }
 .player-ctrl svg { width: 20px; height: 20px; }
 
+/* 편집 모드: 곡 정보 수정 아이콘 */
+.track-edit-ico { flex: none; align-self: center; color: var(--ink-faint); }
+.track-link:hover .track-edit-ico { color: var(--ink-soft); }
+.track-edit-ico svg { width: 15px; height: 15px; }
+
+/* 곡 추가 시트 — 재생목록 URL 일괄 가져오기 박스 */
+.import-box {
+  margin: 0 0 14px; padding: 12px; border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.import-box-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.import-box-head svg { flex: none; width: 18px; height: 18px; color: var(--accent); }
+.import-box .hint { margin-top: 8px; }
+
 /* 곡 추가 시트 — 링크 미리보기 썸네일 */
 .track-preview { margin: 0 0 14px; border-radius: 12px; overflow: hidden; background: rgba(255, 255, 255, 0.06);
   aspect-ratio: 16 / 9; }

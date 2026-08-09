@@ -10,7 +10,15 @@ import {
   watchTracks,
 } from '../data'
 import type { Playlist, Track } from '../types'
-import { fetchYouTubeMeta, parseVideoId, thumbnailUrl, watchUrl } from '../youtube'
+import {
+  fetchPlaylistItems,
+  fetchYouTubeMeta,
+  parsePlaylistId,
+  parseVideoId,
+  PlaylistImportError,
+  thumbnailUrl,
+  watchUrl,
+} from '../youtube'
 import SetlistPlayer from './SetlistPlayer'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
@@ -195,9 +203,10 @@ function PlaylistDetail({
   const [loadErr, setLoadErr] = useState('')
   const [adding, setAdding] = useState(false)
   const [playingId, setPlayingId] = useState<string | null>(null)
-  // 편집 모드: 제목 인라인 수정 + 곡 드래그 정렬 + 삭제
+  // 편집 모드: 제목 인라인 수정 + 곡 드래그 정렬 + 삭제 + 곡 정보 수정
   const [editMode, setEditMode] = useState(false)
   const [titleDraft, setTitleDraft] = useState(playlist.name)
+  const [editingTrack, setEditingTrack] = useState<Track | null>(null)
   // 삭제 확인 다이얼로그 (재생목록/곡 공용)
   const [confirm, setConfirm] = useState<{ message: string; label: string; run: () => Promise<void> } | null>(null)
 
@@ -451,7 +460,7 @@ function PlaylistDetail({
                     <span className="switch-knob" />
                   </button>
                 </div>
-                <p className="hint reorder-hint">곡 오른쪽 손잡이를 잡고 위아래로 끌어 순서를 바꿀 수 있어요.</p>
+                <p className="hint reorder-hint">곡을 누르면 제목·가수를 수정할 수 있어요. 오른쪽 손잡이를 잡고 위아래로 끌면 순서가 바뀝니다.</p>
               </>
             ) : (
               <div className="setlist-actions">
@@ -474,15 +483,20 @@ function PlaylistDetail({
                 >
                   {editMode ? (
                     <>
-                      <div className="track-thumb sm">
-                        {t.thumbnail || t.videoId ? (
-                          <img src={t.thumbnail || thumbnailUrl(t.videoId)} alt="" loading="lazy" />
-                        ) : null}
-                      </div>
-                      <div className="track-info">
-                        <h3>{t.title || '(제목 없음)'}</h3>
-                        {t.artist && <p>{t.artist}</p>}
-                      </div>
+                      <button className="track-link" onClick={() => setEditingTrack(t)} aria-label="곡 정보 수정">
+                        <div className="track-thumb sm">
+                          {t.thumbnail || t.videoId ? (
+                            <img src={t.thumbnail || thumbnailUrl(t.videoId)} alt="" loading="lazy" />
+                          ) : null}
+                        </div>
+                        <div className="track-info">
+                          <h3>{t.title || '(제목 없음)'}</h3>
+                          {t.artist && <p>{t.artist}</p>}
+                        </div>
+                        <span className="track-edit-ico" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                        </span>
+                      </button>
                       <button className="edit-btn track-del" onClick={() => removeTrack(t)} aria-label="곡 빼기">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
                       </button>
@@ -539,6 +553,15 @@ function PlaylistDetail({
         <TrackForm playlistId={playlist.id} toast={toast} onClose={() => setAdding(false)} />
       )}
 
+      {editingTrack && (
+        <TrackEditForm
+          playlistId={playlist.id}
+          track={editingTrack}
+          toast={toast}
+          onClose={() => setEditingTrack(null)}
+        />
+      )}
+
       {confirm && (
         <ConfirmDialog
           message={confirm.message}
@@ -557,7 +580,114 @@ function PlaylistDetail({
   )
 }
 
-/* ---------------- 곡 추가 시트 (유튜브 링크 → 제목·가수 자동 입력) ---------------- */
+/* ---------------- 곡 정보 수정 시트 (제목·가수) ---------------- */
+function TrackEditForm({
+  playlistId,
+  track,
+  toast,
+  onClose,
+}: {
+  playlistId: string
+  track: Track
+  toast: ToastState
+  onClose: () => void
+}) {
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  const [title, setTitle] = useState(track.title)
+  const [artist, setArtist] = useState(track.artist)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const valid = title.trim().length > 0
+
+  async function save() {
+    if (!valid || busy) return
+    setBusy(true)
+    setErr('')
+    try {
+      // saveTrack 은 문서 전체를 덮어쓰므로 기존 필드를 유지한 채 제목·가수만 교체
+      await saveTrack(playlistId, { ...track, title: title.trim(), artist: artist.trim() })
+      toast.show('곡 정보를 수정했어요')
+      onClose()
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? ''
+      setErr(
+        code === 'permission-denied'
+          ? '저장 권한이 없어요. Firestore 보안 규칙을 다시 게시해 주세요.'
+          : '저장에 실패했어요.' + (code ? ` (${code})` : ''),
+      )
+      console.error(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" ref={sheetRef}>
+        <div className="grab-zone" {...grabHandlers}>
+          <div className="grab" />
+        </div>
+        <h2>곡 정보 수정</h2>
+
+        {(track.thumbnail || track.videoId) && (
+          <div className="track-preview">
+            <img src={track.thumbnail || thumbnailUrl(track.videoId)} alt="" />
+          </div>
+        )}
+
+        <div className="field">
+          <label htmlFor="te-title">곡 제목</label>
+          <input
+            id="te-title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="예) Bohemian Rhapsody"
+            maxLength={120}
+            autoFocus
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="te-artist">가수 (선택)</label>
+          <input
+            id="te-artist"
+            type="text"
+            value={artist}
+            onChange={(e) => setArtist(e.target.value)}
+            placeholder="예) Queen"
+            maxLength={80}
+          />
+        </div>
+
+        {err && <p className="err small">{err}</p>}
+
+        <div className="actions">
+          <button type="button" className="btn subtle" onClick={onClose} disabled={busy}>취소</button>
+          <button type="button" className="btn primary" onClick={save} disabled={!valid || busy}>{busy ? '저장 중…' : '저장'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function importErrorMessage(code: string): string {
+  switch (code) {
+    case 'NOT_FOUND':
+      return '재생목록을 찾을 수 없어요. 비공개라면 유튜브에서 공개·일부공개로 바꾼 뒤 다시 시도해 주세요.'
+    case 'FORBIDDEN':
+      return '가져올 수 없어요. YouTube Data API가 켜져 있는지(키 설정) 확인이 필요해요.'
+    case 'QUOTA':
+      return '오늘 YouTube API 사용량을 초과했어요. 잠시 후 다시 시도해 주세요.'
+    case 'NO_KEY':
+      return 'YouTube API 키가 설정돼 있지 않아요.'
+    default:
+      return '재생목록을 가져오지 못했어요.'
+  }
+}
+
+/* ---------------- 곡 추가 시트 (유튜브 링크 → 제목·가수 자동 입력 / 재생목록 일괄 가져오기) ---------------- */
 function TrackForm({
   playlistId,
   toast,
@@ -571,10 +701,13 @@ function TrackForm({
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [url, setUrl] = useState('')
   const [videoId, setVideoId] = useState<string | null>(null)
+  const [listId, setListId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
   const [fetching, setFetching] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importMsg, setImportMsg] = useState('')
   const [err, setErr] = useState('')
   const [hint, setHint] = useState('')
   // 같은 링크로 중복 조회 방지 + 최신 조회만 반영
@@ -600,13 +733,58 @@ function TrackForm({
     }
   }
 
-  // 링크 입력이 바뀌면 영상 ID 를 파싱하고, 유효하면 메타데이터 자동 조회
+  // 링크 입력이 바뀌면 영상 ID·재생목록 ID 를 파싱. 영상이면 메타데이터 자동 조회
   function onUrlChange(v: string) {
     setUrl(v)
     setErr('')
+    setListId(parsePlaylistId(v))
     const id = parseVideoId(v)
     setVideoId(id)
     if (id) loadMeta(id)
+  }
+
+  // 재생목록 URL 의 곡을 모두 이 재생목록에 담기
+  async function importAll() {
+    if (!listId || importing) return
+    setImporting(true)
+    setErr('')
+    setImportMsg('곡 목록을 불러오는 중…')
+    try {
+      const songs = await fetchPlaylistItems(listId)
+      if (songs.length === 0) {
+        setImportMsg('')
+        setErr('가져올 곡이 없어요. (비공개이거나 빈 재생목록일 수 있어요)')
+        return
+      }
+      const base = Date.now()
+      let done = 0
+      for (const s of songs) {
+        const t: Track = {
+          id: newId(),
+          url: s.url,
+          videoId: s.videoId,
+          title: s.title,
+          artist: s.artist,
+          thumbnail: s.thumbnail,
+          order: base + done,
+          addedBy: member?.uid ?? '',
+          addedByName: member?.name,
+          addedAt: base + done,
+        }
+        await saveTrack(playlistId, t)
+        done++
+        setImportMsg(`${done} / ${songs.length}곡 담는 중…`)
+      }
+      toast.show(`${done}곡을 담았어요`)
+      onClose()
+    } catch (e) {
+      const code = e instanceof PlaylistImportError ? e.code : (e as { code?: string })?.code ?? ''
+      setImportMsg('')
+      setErr(importErrorMessage(code))
+      console.error(e)
+    } finally {
+      setImporting(false)
+    }
   }
 
   const valid = !!videoId && title.trim().length > 0
@@ -673,11 +851,24 @@ function TrackForm({
             autoFocus
           />
           <p className="hint">
-            링크를 넣으면 제목·가수를 자동으로 채워줘요.
+            링크를 넣으면 제목·가수를 자동으로 채워줘요. 재생목록(플레이리스트) 링크를 넣으면 곡을 한 번에 가져올 수 있어요.
             {fetching && <> <b>불러오는 중…</b></>}
-            {!fetching && url.trim() && !videoId && <> <b className="err-text">유튜브 링크가 아니에요.</b></>}
+            {!fetching && url.trim() && !videoId && !listId && <> <b className="err-text">유튜브 링크가 아니에요.</b></>}
           </p>
         </div>
+
+        {listId && (
+          <div className="import-box">
+            <div className="import-box-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h13M3 12h13M3 18h9M17 12l4 2-4 2z" /></svg>
+              <span>재생목록 링크예요 — 곡을 한 번에 가져올 수 있어요.</span>
+            </div>
+            <button type="button" className="btn primary block" onClick={importAll} disabled={importing}>
+              {importing ? importMsg || '가져오는 중…' : '이 재생목록의 곡 전체 가져오기'}
+            </button>
+            <p className="hint">공개·일부공개 재생목록만 가져올 수 있어요. (비공개는 불가)</p>
+          </div>
+        )}
 
         {videoId && (
           <div className="track-preview">

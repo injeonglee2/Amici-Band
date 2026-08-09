@@ -5,6 +5,22 @@
  * youtube.com/oembed 가 CORS 로 막히는 경우를 대비해 noembed.com 으로 폴백한다.
  */
 
+/** 유튜브(및 유튜브 뮤직) URL 에서 재생목록 ID(list=) 를 추출. 실패 시 null */
+export function parsePlaylistId(input: string): string | null {
+  const raw = input.trim()
+  if (!raw) return null
+  try {
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`)
+    const list = url.searchParams.get('list')
+    if (list && /^[\w-]+$/.test(list)) return list
+  } catch {
+    /* URL 아님 */
+  }
+  // 순수 재생목록 ID 를 붙여넣은 경우 (PL... 등)
+  if (/^[A-Za-z0-9_-]{12,}$/.test(raw)) return raw
+  return null
+}
+
 /** 다양한 형태의 유튜브 URL 에서 영상 ID(11자)를 추출. 실패 시 null */
 export function parseVideoId(input: string): string | null {
   const raw = input.trim()
@@ -136,4 +152,85 @@ export function loadYouTubeIframeApi(): Promise<void> {
     }
   })
   return apiPromise
+}
+
+/* ---------------- 재생목록(플레이리스트) 곡 일괄 추출 (YouTube Data API v3) ---------------- */
+// 전용 키(VITE_YOUTUBE_API_KEY)가 있으면 우선, 없으면 같은 구글 프로젝트의 Firebase 키로 폴백
+const YT_API_KEY =
+  (import.meta.env.VITE_YOUTUBE_API_KEY as string | undefined) ||
+  (import.meta.env.VITE_FB_API_KEY as string | undefined) ||
+  ''
+
+export function youtubeApiAvailable(): boolean {
+  return !!YT_API_KEY
+}
+
+export interface ImportedSong {
+  videoId: string
+  title: string
+  artist: string
+  thumbnail: string
+  url: string
+}
+
+export class PlaylistImportError extends Error {
+  code: string
+  constructor(code: string) {
+    super(code)
+    this.code = code
+    this.name = 'PlaylistImportError'
+  }
+}
+
+/**
+ * 공개/일부공개 재생목록의 곡을 모두 추출. (비공개 재생목록은 API 키로 읽을 수 없음)
+ * 삭제·비공개 항목은 건너뛴다. 최대 1000곡(안전장치).
+ */
+export async function fetchPlaylistItems(playlistId: string): Promise<ImportedSong[]> {
+  if (!YT_API_KEY) throw new PlaylistImportError('NO_KEY')
+  const out: ImportedSong[] = []
+  let pageToken = ''
+  for (let page = 0; page < 20; page++) {
+    const u = new URL('https://www.googleapis.com/youtube/v3/playlistItems')
+    u.searchParams.set('part', 'snippet')
+    u.searchParams.set('maxResults', '50')
+    u.searchParams.set('playlistId', playlistId)
+    u.searchParams.set('key', YT_API_KEY)
+    if (pageToken) u.searchParams.set('pageToken', pageToken)
+
+    const res = await fetch(u.toString())
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as
+        | { error?: { errors?: { reason?: string }[] } }
+        | null
+      const reason = body?.error?.errors?.[0]?.reason
+      if (res.status === 404 || reason === 'playlistNotFound') throw new PlaylistImportError('NOT_FOUND')
+      if (reason === 'quotaExceeded') throw new PlaylistImportError('QUOTA')
+      if (res.status === 403) throw new PlaylistImportError('FORBIDDEN')
+      throw new PlaylistImportError(reason || `HTTP_${res.status}`)
+    }
+
+    const data = (await res.json()) as {
+      items?: {
+        snippet?: {
+          title?: string
+          videoOwnerChannelTitle?: string
+          resourceId?: { videoId?: string }
+        }
+      }[]
+      nextPageToken?: string
+    }
+    for (const it of data.items ?? []) {
+      const sn = it.snippet
+      const vid = sn?.resourceId?.videoId
+      const rawTitle = sn?.title ?? ''
+      // 비공개·삭제된 항목은 제목이 이렇게 옴 → 건너뜀
+      if (!vid || !rawTitle || rawTitle === 'Private video' || rawTitle === 'Deleted video') continue
+      const { title, artist } = splitTitle(rawTitle, sn?.videoOwnerChannelTitle ?? '')
+      out.push({ videoId: vid, title, artist, thumbnail: thumbnailUrl(vid), url: watchUrl(vid) })
+    }
+    pageToken = data.nextPageToken ?? ''
+    if (!pageToken) break
+  }
+  return out
 }
