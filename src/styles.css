@@ -824,6 +824,22 @@ button { font-family: inherit; }
 .import-box-head svg { flex: none; width: 18px; height: 18px; color: var(--accent); }
 .import-box .hint { margin-top: 8px; }
 
+/* 곡 추가 시트 — 유튜브 검색 */
+.yt-search { display: flex; gap: 7px; }
+.yt-search input { flex: 1; min-width: 0; }
+.yt-search .yt-search-btn { flex: none; padding: 0 16px; height: auto; align-self: stretch; }
+.yt-results {
+  list-style: none; margin: 8px 0 0; padding: 6px; display: flex; flex-direction: column; gap: 4px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-strong); border-radius: 12px;
+  max-height: 300px; overflow-y: auto;
+}
+.yt-results li { margin: 0; }
+.yt-results > li > button {
+  width: 100%; text-align: left; appearance: none; cursor: pointer; background: transparent; border: none;
+  display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 9px; transition: background 0.12s;
+}
+.yt-results > li > button:hover { background: var(--surface-2); }
+
 /* 곡 추가 시트 — 링크 미리보기 썸네일 */
 .track-preview { margin: 0 0 14px; border-radius: 12px; overflow: hidden; background: rgba(255, 255, 255, 0.06);
   aspect-ratio: 16 / 9; }

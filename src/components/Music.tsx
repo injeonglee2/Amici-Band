@@ -16,8 +16,10 @@ import {
   parsePlaylistId,
   parseVideoId,
   PlaylistImportError,
+  searchYouTube,
   thumbnailUrl,
   watchUrl,
+  type YouTubeSearchResult,
 } from '../youtube'
 import SetlistPlayer from './SetlistPlayer'
 import ConfirmDialog from './ConfirmDialog'
@@ -782,6 +784,11 @@ function TrackForm({
   const [importMsg, setImportMsg] = useState('')
   const [err, setErr] = useState('')
   const [hint, setHint] = useState('')
+  // 유튜브 검색
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<YouTubeSearchResult[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [searchErr, setSearchErr] = useState('')
   // 같은 링크로 중복 조회 방지 + 최신 조회만 반영
   const lastFetchedId = useRef<string | null>(null)
   const reqSeq = useRef(0)
@@ -803,6 +810,45 @@ function TrackForm({
     } finally {
       if (seq === reqSeq.current) setFetching(false)
     }
+  }
+
+  // 유튜브 검색 (버튼/엔터로만 — 할당량 절약)
+  async function runSearch() {
+    const q = query.trim()
+    if (!q || searching) return
+    setSearching(true)
+    setSearchErr('')
+    try {
+      const list = await searchYouTube(q)
+      setResults(list)
+    } catch (e) {
+      const code = e instanceof PlaylistImportError ? e.code : ''
+      setResults(null)
+      setSearchErr(
+        code === 'QUOTA'
+          ? '오늘 검색 사용량을 초과했어요. 잠시 후 다시 시도해 주세요.'
+          : code === 'FORBIDDEN' || code === 'NO_KEY'
+            ? '검색을 쓸 수 없어요. YouTube API 키 설정을 확인해 주세요.'
+            : '검색에 실패했어요.',
+      )
+      console.error(e)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  // 검색 결과 선택 → 폼에 채우기 (제목·가수 수정 후 담기 가능)
+  function pickResult(r: YouTubeSearchResult) {
+    lastFetchedId.current = r.videoId // oEmbed 재조회 방지
+    setUrl(watchUrl(r.videoId))
+    setVideoId(r.videoId)
+    setListId(null)
+    setTitle(r.title)
+    setArtist(r.artist)
+    setResults(null)
+    setQuery('')
+    setErr('')
+    setHint('')
   }
 
   // 링크 입력이 바뀌면 영상 ID·재생목록 ID 를 파싱. 영상이면 메타데이터 자동 조회
@@ -912,7 +958,46 @@ function TrackForm({
         <h2>곡 추가</h2>
 
         <div className="field">
-          <label htmlFor="tr-url">유튜브 링크</label>
+          <label htmlFor="tr-search">유튜브에서 검색</label>
+          <div className="yt-search">
+            <input
+              id="tr-search"
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runSearch() } }}
+              placeholder="곡 제목·가수로 검색"
+              maxLength={80}
+            />
+            <button type="button" className="btn primary yt-search-btn" onClick={() => void runSearch()} disabled={!query.trim() || searching}>
+              {searching ? '…' : '검색'}
+            </button>
+          </div>
+          {searchErr && <p className="err small">{searchErr}</p>}
+          {results && results.length > 0 && (
+            <ul className="yt-results">
+              {results.map((r) => (
+                <li key={r.videoId}>
+                  <button type="button" onClick={() => pickResult(r)}>
+                    <div className="track-thumb sm">
+                      <img src={r.thumbnail} alt="" loading="lazy" />
+                    </div>
+                    <div className="track-info">
+                      <h3>{r.title || '(제목 없음)'}</h3>
+                      {r.artist && <p>{r.artist}</p>}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {results && results.length === 0 && !searching && (
+            <p className="hint">검색 결과가 없어요. 다른 검색어로 시도해 보세요.</p>
+          )}
+        </div>
+
+        <div className="field">
+          <label htmlFor="tr-url">또는 유튜브 링크</label>
           <input
             id="tr-url"
             type="url"

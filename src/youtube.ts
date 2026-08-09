@@ -74,6 +74,14 @@ export interface YouTubeMeta {
   thumbnail: string
 }
 
+// YouTube Data API 는 제목을 HTML 엔티티로 인코딩해 줌(&#39; &amp; &quot; 등) → 사람이 읽는 문자로 복원
+function decodeEntities(s: string): string {
+  if (!s || typeof document === 'undefined') return s
+  const el = document.createElement('textarea')
+  el.innerHTML = s
+  return el.value
+}
+
 // 제목 속 흔한 홍보성 꼬리표 제거: (Official Video), [MV], (Lyrics) 등.
 // 위치와 무관하게(끝이 아니어도) 지우되, 키워드가 들어간 괄호만 대상으로 한다.
 const TAG_PATTERN =
@@ -85,10 +93,10 @@ function stripTags(s: string): string {
 
 /** oEmbed 응답의 제목·채널명을 "가수 / 곡 제목" 으로 최대한 분리 */
 function splitTitle(rawTitle: string, author: string): { title: string; artist: string } {
-  const title = rawTitle.trim()
+  const title = decodeEntities(rawTitle).trim()
 
   // 채널명 접미사 " - Topic" 은 유튜브 뮤직 자동 생성 채널 표기 → 가수명으로 사용
-  const artistFromAuthor = author.replace(/\s*-\s*Topic$/i, '').trim()
+  const artistFromAuthor = decodeEntities(author).replace(/\s*-\s*Topic$/i, '').trim()
 
   // "가수 - 곡" 형태면 분리 후 곡 제목의 꼬리표만 정리.
   // 구분자는 앞뒤 공백이 있는 하이픈만 인정 → "a-ha" 처럼 이름 속 하이픈은 쪼개지 않음
@@ -171,6 +179,52 @@ export interface ImportedSong {
   artist: string
   thumbnail: string
   url: string
+}
+
+export interface YouTubeSearchResult {
+  videoId: string
+  title: string
+  artist: string
+  thumbnail: string
+}
+
+/**
+ * 유튜브에서 키워드로 영상 검색. (YouTube Data API search.list — 호출당 할당량 100단위)
+ * 실패 시 PlaylistImportError(code) 를 던진다.
+ */
+export async function searchYouTube(query: string): Promise<YouTubeSearchResult[]> {
+  const q = query.trim()
+  if (!q) return []
+  if (!YT_API_KEY) throw new PlaylistImportError('NO_KEY')
+  const u = new URL('https://www.googleapis.com/youtube/v3/search')
+  u.searchParams.set('part', 'snippet')
+  u.searchParams.set('type', 'video')
+  u.searchParams.set('videoCategoryId', '10') // 음악 카테고리로 한정 (결과를 음악 위주로)
+  u.searchParams.set('maxResults', '12')
+  u.searchParams.set('q', q)
+  u.searchParams.set('key', YT_API_KEY)
+
+  const res = await fetch(u.toString())
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as
+      | { error?: { errors?: { reason?: string }[] } }
+      | null
+    const reason = body?.error?.errors?.[0]?.reason
+    if (reason === 'quotaExceeded') throw new PlaylistImportError('QUOTA')
+    if (res.status === 403) throw new PlaylistImportError('FORBIDDEN')
+    throw new PlaylistImportError(reason || `HTTP_${res.status}`)
+  }
+  const data = (await res.json()) as {
+    items?: { id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string } }[]
+  }
+  const out: YouTubeSearchResult[] = []
+  for (const it of data.items ?? []) {
+    const vid = it.id?.videoId
+    if (!vid) continue
+    const { title, artist } = splitTitle(it.snippet?.title ?? '', it.snippet?.channelTitle ?? '')
+    out.push({ videoId: vid, title, artist, thumbnail: thumbnailUrl(vid) })
+  }
+  return out
 }
 
 export class PlaylistImportError extends Error {
