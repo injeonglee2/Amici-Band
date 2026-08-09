@@ -12,6 +12,7 @@ import Settings from './Settings'
 import PlacesView from './Places'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
+import { versionLabel } from '../version'
 
 type Filter = 'all' | EventType
 
@@ -59,6 +60,11 @@ export default function Main() {
   useEffect(() => watchMembers(setMembers), [])
   useEffect(() => {
     startForegroundNotifications()
+  }, [])
+  // 앱 시작 시 현재 배포된 버전·빌드 시각을 안내 (배포 확인용)
+  useEffect(() => {
+    toast.show(versionLabel())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   // 기본 켜기: 로그인하면 자동으로 알림 권한 요청 + 토큰 등록 (허용된 기기는 조용히 갱신)
   useEffect(() => {

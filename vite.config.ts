@@ -1,9 +1,17 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
+
 // https://vite.dev/config/
 export default defineConfig({
+  // 앱 버전·빌드 시각을 코드에 주입 (배포 최신 여부 확인용)
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   // preview_start(autoPort) 가 할당한 포트를 사용. 없으면 기본 5173.
   server: { port: process.env.PORT ? Number(process.env.PORT) : 5173 },
   plugins: [
@@ -24,6 +32,14 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         scope: '/',
+        related_applications: [
+          {
+            platform: 'play',
+            id: 'app.web.amicicalender.twa',
+            url: 'https://play.google.com/store/apps/details?id=app.web.amicicalender.twa',
+          },
+        ],
+        prefer_related_applications: false,
         icons: [
           { src: 'logo.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: 'logo.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

@@ -2,10 +2,13 @@
   "name": "functions",
   "description": "Amici Band Cloud Functions (FCM 푸시 알림)",
   "main": "index.js",
-  "engines": { "node": "20" },
+  "engines": {
+    "node": "20"
+  },
   "private": true,
   "dependencies": {
     "firebase-admin": "^12.6.0",
-    "firebase-functions": "^6.1.0"
+    "firebase-functions": "^6.1.0",
+    "web-push": "^3.6.7"
   }
 }

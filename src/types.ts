@@ -70,8 +70,18 @@ export interface Member {
   part?: Part // 담당 파트
   photoURL?: string
   fcmTokens?: string[] // 푸시 알림용 기기 토큰들 (기기별로 누적)
+  webPushSubscriptions?: WebPushSubscription[] // iPhone PWA 등 표준 Web Push 구독
   admin?: boolean // 관리자 권한 (투표 요청 등). 콘솔에서만 부여 — 스스로 설정 불가
   createdAt: number
+}
+
+export interface WebPushSubscription {
+  endpoint: string
+  expirationTime?: number | null
+  keys: {
+    auth: string
+    p256dh: string
+  }
 }
 
 export const DEFAULT_REH_START = '18:00'

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../auth'
+import { versionLabel } from '../version'
 
 function messageFor(code: string): string {
   switch (code) {
@@ -60,6 +61,7 @@ export default function Login() {
         </button>
         {err && <p className="err">{err}</p>}
       </div>
+      <p className="app-ver">{versionLabel()}</p>
     </div>
   )
 }

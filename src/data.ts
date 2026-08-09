@@ -10,7 +10,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { db, fbApp } from './firebase'
 import { DEMO, demoDb } from './demo'
-import type { Attendance, BandEvent, Member, Place } from './types'
+import type { Attendance, BandEvent, Member, Place, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -44,6 +44,16 @@ export function watchMembers(
 export async function saveFcmToken(uid: string, token: string): Promise<void> {
   if (DEMO) return
   await setDoc(doc(db, 'members', uid), { fcmTokens: arrayUnion(token) }, { merge: true })
+}
+
+/** iPhone 홈 화면 PWA 등 표준 Web Push 구독을 멤버 문서에 저장 */
+export async function saveWebPushSubscription(uid: string, subscription: WebPushSubscription): Promise<void> {
+  if (DEMO) return
+  await setDoc(
+    doc(db, 'members', uid),
+    { webPushSubscriptions: arrayUnion(subscription) },
+    { merge: true },
+  )
 }
 
 /** 아직 투표 안 한(미정) 멤버에게 투표 요청 푸시 — Cloud Function 호출. 발송 건수 반환 */

@@ -1,65 +1,54 @@
-# 푸시 알림(FCM) 설정 가이드
+# 푸시 알림 설정
 
-일정 생성 시 **전체 알림**, 합주·공연 일정에서 **미정 멤버 리마인더**를 보내는 웹 푸시.
-백엔드(Cloud Functions)가 필요해서 **Blaze 요금제**가 있어야 한다. (이 규모면 사실상 무료 — [README 참고])
+Amici는 기기별로 두 가지 전송 방식을 병행합니다.
 
-코드는 이미 들어가 있고, 아래는 **콘솔 설정 + 배포 + 기기별 켜기** 절차다.
+- Android 및 데스크톱 브라우저: Firebase Cloud Messaging(FCM)
+- iPhone/iPad 홈 화면 PWA: 표준 Web Push
 
----
+## 사용자 설정
 
-## 1. Blaze 업그레이드
-Firebase 콘솔 → 왼쪽 하단 **요금제 업그레이드** → **Blaze(종량제)** → 결제 수단 등록.
-> 안심용: Google Cloud 콘솔 → 결제 → **예산 및 알림**에서 예산 알림(예: ₩1,000) 설정.
+최초 로그인 후 이름과 파트를 입력하는 화면에서 `일정 및 투표 알림 받기`를 선택하고 `시작하기`를 누릅니다. 기존 사용자는 설정 화면의 `알림 켜기`를 사용합니다.
 
-## 2. VAPID 키 생성 (웹 푸시 인증서)
-프로젝트 설정 → **클라우드 메시징** 탭 → **웹 구성** → **웹 푸시 인증서** → **키 쌍 생성** →
-나온 키를 `.env.local` 에 추가:
-```
-VITE_FB_VAPID_KEY=여기에_붙여넣기
-```
-> 이 키가 없으면 앱은 정상 동작하되 알림 기능만 비활성화된다(설정 화면에 "사용 불가"로 표시).
+iPhone/iPad에서는 다음 조건이 모두 필요합니다.
 
-## 3. 함수 의존성 설치
+1. iOS/iPadOS 16.4 이상
+2. Safari 공유 메뉴에서 Amici를 홈 화면에 추가
+3. 홈 화면의 Amici 앱으로 실행
+4. 앱 안에서 알림 권한 허용
+
+일반 Safari 탭에서는 iPhone Web Push를 등록하지 않습니다.
+
+## 서버 설정
+
+FCM 공개 키는 루트 `.env.local`의 `VITE_FB_VAPID_KEY`에 둡니다. 표준 Web Push 키는 다음 Firebase Secret Manager 항목으로 관리합니다.
+
+- `WEB_PUSH_PUBLIC_KEY`
+- `WEB_PUSH_PRIVATE_KEY`
+
+비공개 키는 소스, `.env` 또는 Git에 저장하지 않습니다.
+
+## 발송 동작
+
+- 합주 일정 생성: 전체 멤버에게 참석 투표 요청
+- 합주 일정 변경: 날짜, 시간, 장소, 제목, 메모 또는 타임테이블이 실제 변경된 경우 전체 멤버에게 변경 안내
+- 관리자 투표 독려: 아직 투표하지 않은 멤버에게만 요청
+
+전송에 실패한 만료 FCM 토큰과 Web Push 구독(HTTP 404/410)은 Functions가 사용자 문서에서 자동으로 제거합니다.
+
+## 배포
+
 ```bash
-cd functions
-npm install
-cd ..
+npm run build
+firebase deploy --only functions,hosting --project amicicalender
 ```
 
-## 4. 배포
-```bash
-# 함수 (최초 배포 시 Cloud Build/Artifact Registry API 자동 활성화)
-npx firebase-tools deploy --only functions
+Functions는 `asia-northeast3` 리전을 사용합니다. 푸시 Functions 배포에는 Firebase Blaze 요금제가 필요할 수 있습니다.
 
-# 앱(웹) — 새 VAPID 키 + firebase-messaging-sw.js 반영
-npm run deploy
-```
-> 함수 리전은 `asia-northeast3`(서울)로 고정돼 있고, 클라이언트(`src/data.ts`의 `FUNCTIONS_REGION`)와 일치한다. 바꾸려면 양쪽 다 수정.
+## 관련 파일
 
-## 5. 멤버별 알림 켜기 (기본 자동)
-**로그인하면 앱이 자동으로 알림 권한을 요청**하고 토큰을 등록한다(기본 켜기). 브라우저 권한 팝업에서 **허용**만 누르면 끝. 한 번 허용한 기기는 이후 로그인 때마다 조용히 토큰을 갱신한다.
-- **안드로이드/데스크톱**: 자동 요청됨.
-- **아이폰**: **Safari에서 "홈 화면에 추가"(PWA) 후**, iOS **16.4 이상**에서만 가능. 일반 Safari 탭은 불가. (Safari는 권한 팝업에 사용자 동작이 필요해 자동 요청이 막힐 수 있음 → 이땐 설정에서 수동으로)
-- 실수로 **차단**했거나 자동 요청이 막힌 경우: 헤더의 **⚙(설정) → 알림 → 알림 켜기**로 다시 켤 수 있음.
-
-> 브라우저 정책상 권한을 코드로 강제 ON 할 수는 없다("자동 요청 + 사용자 허용"까지가 최대).
-
-## 6. 관리자(admin) 지정
-"미정 N명에게 투표 요청" 리마인더는 **관리자만** 쓸 수 있다. 관리자는 **Firebase 콘솔에서만** 지정(보안상 앱에서 스스로 못 켬):
-- Firestore Database → `members` → 해당 사용자 문서 → 필드 추가 **`admin`** (boolean) = **`true`**.
-- 해제하려면 `false` 로 바꾸거나 필드 삭제.
-
-## 7. 동작
-- **일정 생성** → 알림 켠 전체 멤버에게 "새 일정 · 투표 요청" 자동 발송. (모든 멤버가 일정 생성 가능)
-- **합주·공연 일정**의 참석 투표 팝업에서 **관리자에게만** **"미정 N명에게 투표 요청"** 버튼 → 아직 투표 안 한(미정) 멤버에게만 발송. (번개·회의는 리마인더 없음, 서버 함수도 관리자·유형을 재검증)
-
----
-
-## 구조 참고
-- `functions/index.js` — `notifyOnEventCreate`(생성 트리거), `remindUndecided`(호출형, 합주·공연 한정)
-- `src/messaging.ts` — 권한 요청·토큰 발급, 포그라운드 수신
-- `public/firebase-messaging-sw.js` — 백그라운드 알림 표시(PWA sw.js와 별도 스코프)
-- 토큰 저장: `members/{uid}.fcmTokens[]` (기기별 누적, 무효 토큰은 함수가 자동 정리)
-
-## 문제 해결
-- 알림이 안 오면: ① 해당 기기에서 설정→알림 켰는지 ② VAPID 키 배포됐는지 ③ (아이폰) 홈 화면 추가+16.4↑인지 ④ 함수 로그 `npx firebase-tools functions:log` 확인.
+- `src/messaging.ts`: 권한 요청, FCM 토큰 및 Web Push 구독 생성
+- `public/firebase-messaging-sw.js`: FCM 백그라운드 알림
+- `public/web-push-sw.js`: iPhone/iPad 표준 Web Push 알림
+- `functions/index.js`: FCM 및 Web Push 병행 발송
+- `members/{uid}.fcmTokens[]`: FCM 토큰
+- `members/{uid}.webPushSubscriptions[]`: 표준 Web Push 구독

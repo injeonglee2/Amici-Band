@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "app.web.amicicalender.twa",
       "sha256_cert_fingerprints": [
-        "38:5D:48:E5:FA:B8:A4:42:C6:FA:57:4B:CD:F7:95:29:53:A6:E2:65:19:BB:B6:89:E6:20:3E:B6:51:87:4A:03"
+        "38:5D:48:E5:FA:B8:A4:42:C6:FA:57:4B:CD:F7:95:29:53:A6:E2:65:19:BB:B6:89:E6:20:3E:B6:51:87:4A:03",
+        "C2:8B:2E:51:5B:D5:24:C5:1E:A2:F2:3F:27:B6:72:5D:67:09:17:CB:C7:C2:D2:FE:19:4E:60:01:A1:C8:43:E7"
       ]
     }
   }

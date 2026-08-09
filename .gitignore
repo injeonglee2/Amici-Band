@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Android (PWABuilder/TWA source is kept under android/)
+android/.gradle/
+android/**/build/
+android/local.properties
+android/keystore.properties
+android/*.keystore
+android/*.jks
+android/*.apk
+android/*.aab
+android/*.idsig

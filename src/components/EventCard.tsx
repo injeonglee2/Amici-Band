@@ -11,7 +11,7 @@ import {
 } from '../types'
 import { dayDiff, weekday, parseDate } from '../time'
 import { copyValue, type ResolvedPlace } from '../place'
-import { downloadIcs, googleCalendarUrl } from '../calendar'
+import { addToDeviceCalendar, calendarExportSupported } from '../calendar'
 import { TypeGlyph } from './TypeGlyph'
 import { CopyButton } from './CopyButton'
 import AttendanceModal from './AttendanceModal'
@@ -39,7 +39,7 @@ export default function EventCard({
   const [att, setAtt] = useState<Attendance[]>([])
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteOverflow, setNoteOverflow] = useState(false)
-  const [calOpen, setCalOpen] = useState(false)
+  const [showCalendarExport, setShowCalendarExport] = useState(false)
   const noteRef = useRef<HTMLParagraphElement>(null)
   const t = TYPE_META[ev.type]
   const d = parseDate(ev.date)
@@ -48,6 +48,15 @@ export default function EventCard({
   const canDelete = !!user && (ev.createdBy === user.uid || isAdmin)
 
   useEffect(() => watchAttendance(ev.id, setAtt), [ev.id])
+  useEffect(() => {
+    let active = true
+    calendarExportSupported().then((supported) => {
+      if (active) setShowCalendarExport(supported)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
   // 메모가 1줄을 넘겨 잘리는지 측정 (접힌 상태에서만 의미 있음) → 넘칠 때만 펼치기 버튼 노출
   useLayoutEffect(() => {
     const el = noteRef.current
@@ -100,24 +109,34 @@ export default function EventCard({
           </div>
           <div className="card-actions" onClick={(e) => e.stopPropagation()}>
             {!past && (
-              <button className="edit-btn" onClick={() => setCalOpen(true)} aria-label="캘린더에 추가" title="캘린더에 추가">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
-              </button>
-            )}
-            {!past && (
-              <button className="card-vote" onClick={() => setModal('vote')} aria-label="참석 투표" title="참석 투표">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 11 3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
-              </button>
-            )}
-            {!past && isAdmin && (
-              <button className="edit-btn" onClick={onEdit} aria-label="수정">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-              </button>
+              <>
+                {/* 윗줄: 수정(관리자만). 일반 계정은 빈 자리로 두어 아랫줄 위치를 동일하게 유지 */}
+                <div className="ca-top">
+                  {isAdmin && (
+                    <button className="edit-btn" onClick={onEdit} aria-label="수정">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                    </button>
+                  )}
+                </div>
+                {/* 아랫줄: 캘린더에 추가 + 참석 투표 (관리자·일반 공통) */}
+                <div className="ca-bottom">
+                  {showCalendarExport && (
+                    <button className="edit-btn" onClick={() => addToDeviceCalendar(ev, place)} aria-label="캘린더에 추가" title="캘린더에 추가">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
+                    </button>
+                  )}
+                  <button className="card-vote" onClick={() => setModal('vote')} aria-label="참석 투표" title="참석 투표">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 11 3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                  </button>
+                </div>
+              </>
             )}
             {past && canDelete && (
-              <button className="edit-btn del" onClick={() => setConfirmDelete(true)} aria-label="삭제">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-              </button>
+              <div className="ca-top">
+                <button className="edit-btn del" onClick={() => setConfirmDelete(true)} aria-label="삭제">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -178,28 +197,6 @@ export default function EventCard({
         <AttendanceModal ev={ev} list={att} members={members} mode={modal} readOnly={past} onClose={() => setModal(null)} />
       )}
 
-      {calOpen && (
-        <div className="scrim confirm open" onClick={(e) => e.target === e.currentTarget && setCalOpen(false)}>
-          <div className="confirm-card">
-            <p>캘린더에 추가</p>
-            <div className="cal-choices">
-              <a
-                className="btn primary block"
-                href={googleCalendarUrl(ev, place)}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setCalOpen(false)}
-              >
-                구글 캘린더
-              </a>
-              <button type="button" className="btn subtle block" onClick={() => { downloadIcs(ev, place); setCalOpen(false) }}>
-                ICS 파일 (애플 캘린더 등)
-              </button>
-              <button type="button" className="btn text small" onClick={() => setCalOpen(false)}>취소</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {confirmDelete && (
         <ConfirmDialog

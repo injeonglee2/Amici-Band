@@ -9,20 +9,88 @@
 import { getMessaging, getToken, isSupported, onMessage, type Messaging } from 'firebase/messaging'
 import { fbApp, firebaseReady } from './firebase'
 import { DEMO } from './demo'
+import type { WebPushSubscription } from './types'
 
 const VAPID_KEY = import.meta.env.VITE_FB_VAPID_KEY as string | undefined
+// VAPID 공개 키는 브라우저에 전달되는 공개 정보이므로 소스에 포함해도 안전하다.
+const WEB_PUSH_PUBLIC_KEY =
+  (import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY as string | undefined) ||
+  'BPImtCxoKTFXDPvK0bckOE-ws4xRklDhb3mvpbz9OMn8f5iWAQoAv2keYw1zOjXBuGmwhGvO_8KJ3tWmX90_v_0'
 
 let _messaging: Messaging | null = null
 
 export function pushConfigured(): boolean {
+  return fcmConfigured() || standardWebPushConfigured()
+}
+
+function fcmConfigured(): boolean {
   return !DEMO && firebaseReady && !!fbApp && !!VAPID_KEY && 'Notification' in window
 }
 
+function standardWebPushConfigured(): boolean {
+  const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean }
+  const isAppleMobile =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isHomeScreenApp =
+    navigatorWithStandalone.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches
+  return (
+    !DEMO &&
+    isAppleMobile &&
+    isHomeScreenApp &&
+    !!WEB_PUSH_PUBLIC_KEY &&
+    'Notification' in window &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window
+  )
+}
+
 async function getMsg(): Promise<Messaging | null> {
-  if (!pushConfigured() || !fbApp) return null
+  if (!fcmConfigured() || !fbApp) return null
   if (!(await isSupported())) return null
   if (!_messaging) _messaging = getMessaging(fbApp)
   return _messaging
+}
+
+function urlBase64ToBytes(value: string): Uint8Array<ArrayBuffer> {
+  const padding = '='.repeat((4 - (value.length % 4)) % 4)
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = window.atob(base64)
+  const bytes = new Uint8Array(new ArrayBuffer(raw.length))
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i)
+  return bytes
+}
+
+/** iPhone 홈 화면 PWA에서 사용할 표준 Push API 구독 */
+export async function requestStandardWebPushSubscription(): Promise<WebPushSubscription | null> {
+  if (!standardWebPushConfigured() || !WEB_PUSH_PUBLIC_KEY) return null
+  const permission = await Notification.requestPermission()
+  if (permission !== 'granted') return null
+
+  const registration = await navigator.serviceWorker.register('/web-push-sw.js', {
+    scope: '/web-push-scope/',
+  })
+  await navigator.serviceWorker.ready
+  const existing = await registration.pushManager.getSubscription()
+  const subscription =
+    existing ??
+    (await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToBytes(WEB_PUSH_PUBLIC_KEY),
+    }))
+  return subscription.toJSON() as WebPushSubscription
+}
+
+export async function requestNotificationRegistrations(): Promise<{
+  fcmToken: string | null
+  webPushSubscription: WebPushSubscription | null
+}> {
+  const [fcmToken, webPushSubscription] = await Promise.all([
+    requestPushToken().catch(() => null),
+    requestStandardWebPushSubscription().catch(() => null),
+  ])
+  return { fcmToken, webPushSubscription }
 }
 
 /** 알림 권한 요청 + 토큰 발급. 성공 시 토큰 문자열, 실패/거부 시 null */

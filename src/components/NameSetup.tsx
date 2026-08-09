@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useAuth } from '../auth'
+import { saveFcmToken, saveWebPushSubscription } from '../data'
+import { pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { PART_META, PART_ORDER, type Part } from '../types'
 
 export default function NameSetup() {
-  const { member, setRealName, signOutUser } = useAuth()
+  const { user, member, setRealName, signOutUser } = useAuth()
   const [name, setName] = useState(member?.name ?? '')
   const [part, setPart] = useState<Part | null>(member?.part ?? null)
   const [busy, setBusy] = useState(false)
+  const [receiveNotifications, setReceiveNotifications] = useState(pushConfigured())
 
   const trimmed = name.trim()
   const valid = trimmed.length >= 2 && trimmed.length <= 4 && !!part
@@ -15,7 +18,20 @@ export default function NameSetup() {
     if (!valid || !part) return
     setBusy(true)
     try {
+      // iPhone Web Push 권한 요청은 사용자의 버튼 탭과 직접 연결되어야 한다.
+      const registrations = receiveNotifications
+        ? requestNotificationRegistrations()
+        : Promise.resolve({ fcmToken: null, webPushSubscription: null })
       await setRealName(trimmed, part)
+      const { fcmToken, webPushSubscription } = await registrations
+      if (user && (fcmToken || webPushSubscription)) {
+        await Promise.all([
+          fcmToken ? saveFcmToken(user.uid, fcmToken) : Promise.resolve(),
+          webPushSubscription
+            ? saveWebPushSubscription(user.uid, webPushSubscription)
+            : Promise.resolve(),
+        ])
+      }
     } finally {
       setBusy(false)
     }
@@ -54,6 +70,20 @@ export default function NameSetup() {
             </button>
           ))}
         </div>
+
+        {pushConfigured() && (
+          <label className="setup-notification">
+            <input
+              type="checkbox"
+              checked={receiveNotifications}
+              onChange={(e) => setReceiveNotifications(e.target.checked)}
+            />
+            <span>
+              <b>일정 및 투표 알림 받기</b>
+              <small>시작하기를 누르면 알림 권한을 함께 요청합니다.</small>
+            </span>
+          </label>
+        )}
 
         <button className="btn primary block" onClick={save} disabled={!valid || busy}>
           {busy ? '저장 중…' : '시작하기'}
