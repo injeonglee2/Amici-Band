@@ -1,11 +1,13 @@
-import { PART_META, PART_ORDER, type Attendance, type Member } from '../types'
+import { PART_META, PART_ORDER, STATUS_META, type Attendance, type Member } from '../types'
 
-/** 늦참·조퇴면 이름 옆에 붙일 시각 (예: '19:30 참', '21:00 퇴'). 그 외에는 빈 문자열 */
-function whenLabel(a: Attendance | undefined): string {
-  if (!a) return ''
-  if (a.status === 'late' && a.arriveTime) return `${a.arriveTime} 참`
-  if (a.status === 'leave' && a.leaveTime) return `${a.leaveTime} 퇴`
-  return ''
+/**
+ * 늦참·조퇴면 이름 옆에 붙일 시각. '참'·'퇴' 글자 없이 시각만 쓰고 상태를 색으로 구분한다
+ * (늦참=노랑, 조퇴=주황 — 위 집계의 상태 색과 같은 값). 글자가 짧아야 이름과 한 줄에 들어간다.
+ */
+function whenTime(a: Attendance | undefined): { text: string; color: string } | null {
+  if (a?.status === 'late' && a.arriveTime) return { text: a.arriveTime, color: STATUS_META.late.color }
+  if (a?.status === 'leave' && a.leaveTime) return { text: a.leaveTime, color: STATUS_META.leave.color }
+  return null
 }
 
 /**
@@ -41,11 +43,13 @@ export default function PartTally({
               <ul>
                 {attendees.length === 0 && <li className="muted">-</li>}
                 {attendees.map((m) => {
-                  const when = whenLabel(attMap.get(m.uid))
+                  const when = whenTime(attMap.get(m.uid))
                   return (
                     <li key={m.uid}>
                       {m.name}
-                      {when && <span className="part-when">{when}</span>}
+                      {when && (
+                        <span className="part-when" style={{ color: when.color }}>{when.text}</span>
+                      )}
                     </li>
                   )
                 })}
