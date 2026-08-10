@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth } from '../auth'
 import { deletePlace, newId, savePlace } from '../data'
 import type { Place } from '../types'
 import { isMockSearch, searchPlaces, type PlaceHit } from '../mapsearch'
@@ -18,6 +19,8 @@ export default function PlacesView({
   loadErr: string
   toast: ToastState
 }) {
+  const { member } = useAuth()
+  const isAdmin = !!member?.admin
   const [editing, setEditing] = useState<Editing>(null)
 
   return (
@@ -28,7 +31,15 @@ export default function PlacesView({
         {places.length === 0 && !loadErr ? (
           <div className="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-            <p>등록된 장소가 없어요.<br />아래 <b>+ 장소 추가</b>로 시작하세요.</p>
+            <p>
+              등록된 장소가 없어요.
+              {isAdmin && (
+                <>
+                  <br />
+                  아래 <b>+ 장소 추가</b>로 시작하세요.
+                </>
+              )}
+            </p>
           </div>
         ) : (
           <div className="list place-list">
@@ -55,10 +66,12 @@ export default function PlacesView({
         )}
       </main>
 
-      <button className="fab" onClick={() => setEditing('new')}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-        장소 추가
-      </button>
+      {isAdmin && (
+        <button className="fab" onClick={() => setEditing('new')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          장소 추가
+        </button>
+      )}
 
       {editing !== null && (
         <PlaceForm editing={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />

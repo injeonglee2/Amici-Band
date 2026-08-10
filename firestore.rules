@@ -19,9 +19,12 @@ service cloud.firestore {
                     && request.resource.data.get('admin', false) == resource.data.get('admin', false);
     }
 
-    // 장소: 로그인한 멤버는 읽기/쓰기 가능 (공동 관리)
+    // 장소: 로그인한 멤버는 읽기 가능, 추가는 관리자만.
+    // 수정·삭제는 멤버 공동 관리 — 주차·현관 비밀번호 등 메모를 다 같이 갱신하기 위함.
     match /places/{placeId} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow create: if isAdmin();
+      allow update, delete: if signedIn();
     }
 
     // 음악 재생목록: 로그인한 멤버는 읽기/쓰기 가능 (공동 관리)
