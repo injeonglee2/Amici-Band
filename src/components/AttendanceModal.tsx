@@ -18,6 +18,9 @@ import { useSheetSwipe } from './useSheetSwipe'
 
 const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
 
+/** 이 길이를 넘는 사유는 좁은 반 칸에 안 들어감 → 그 항목만 한 행 전체를 쓴다 */
+const WIDE_NOTE_LEN = 8
+
 export default function AttendanceModal({
   ev,
   list,
@@ -222,7 +225,7 @@ export default function AttendanceModal({
                       <ul>
                         {people.length === 0 && <li className="muted">-</li>}
                         {people.map((p) => (
-                          <li key={p.uid}>
+                          <li key={p.uid} className={(p.note?.length ?? 0) > WIDE_NOTE_LEN ? 'wide' : undefined}>
                             {p.name}
                             {p.status === 'late' && p.arriveTime && <em> · {p.arriveTime}</em>}
                             {p.status === 'leave' && p.leaveTime && <em> · {p.leaveTime}</em>}
