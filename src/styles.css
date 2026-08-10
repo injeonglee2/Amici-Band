@@ -836,7 +836,9 @@ button { font-family: inherit; }
 .event-row.tappable:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .event-row.tappable:active .einfo h3 { color: var(--accent); }
 
-.setlist-head { margin: 4px 2px 14px; }
+/* 제목 왼쪽 · 수정(연필)/완료(체크) 버튼 오른쪽 */
+.setlist-head { display: flex; align-items: flex-start; gap: 8px; margin: 4px 2px 14px; }
+.setlist-head-main { flex: 1; min-width: 0; }
 .setlist-head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
 .setlist-head p { margin: 5px 0 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
 .setlist-count {
@@ -844,12 +846,27 @@ button { font-family: inherit; }
   padding-bottom: 10px; border-bottom: 1px dashed var(--line);
 }
 .setlist-empty { margin: 18px 2px; font-size: 13px; color: var(--ink-faint); line-height: 1.6; text-align: center; }
+/* 시트 상단 '파트별 참석' — 제목 아래, 합주곡 수 위 */
+.setlist-part-tally { margin-top: 0; margin-bottom: 16px; }
 
 .setlist-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+/* 행 = 곡 한 줄(.setlist-rowhead) + 펼쳤을 때 아래로 붙는 참여자 표 */
 .setlist-row {
-  display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--glass-border);
+  display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm); padding: 8px;
 }
+.setlist-rowhead { display: flex; align-items: center; gap: 10px; }
+/* 참여 인원 + 펼침 화살표 */
+.setlist-toggle {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; align-self: stretch;
+  padding: 0 2px 0 8px; background: none; border: 0; color: var(--ink-soft); cursor: pointer;
+}
+.setlist-joined { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.setlist-toggle .track-open-chev { transition: transform 0.18s ease; }
+.setlist-toggle .track-open-chev.open { transform: rotate(180deg); }
+/* 펼친 참여자 표 — 상단 '파트별 참석'과 같은 칸 구조 */
+.setlist-part-grid { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line); }
+.part-cell li.me { color: var(--accent); font-weight: 700; }
 .setlist-no {
   flex: none; width: 20px; text-align: center; font-size: 12.5px; font-weight: 800;
   color: var(--ink-faint); font-variant-numeric: tabular-nums;

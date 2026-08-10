@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useAuth } from '../auth'
 import {
   addSetlistSong,
   removeSetlistSong,
+  saveSetlistSong,
+  watchAttendance,
   watchPlaylists,
   watchSetlist,
   watchTracks,
@@ -11,6 +13,7 @@ import {
   isFixedPart,
   PART_META,
   PART_ORDER,
+  type Attendance,
   type BandEvent,
   type Member,
   type Playlist,
@@ -53,6 +56,21 @@ export default function SetlistSheet({
   const [loadErr, setLoadErr] = useState('')
   const [picking, setPicking] = useState(false)
   const [removing, setRemoving] = useState<SetlistSong | null>(null)
+  // 편집 모드: 순서 드래그 + 곡 빼기 (재생목록 편집과 같은 개념, 관리자 전용)
+  const [editMode, setEditMode] = useState(false)
+  // 참여자 표를 펼친 곡 id (한 번에 하나만 — 목록이 길어지지 않게)
+  const [openId, setOpenId] = useState<string | null>(null)
+  // 파트별 참석 표시용 — 참석 현황 모달과 같은 집계를 상단에 보여준다
+  const [att, setAtt] = useState<Attendance[]>([])
+
+  // 드래그 정렬용: 화면에 그릴 순서(items). 드래그 중이 아니면 songs 와 동기화
+  const [items, setItems] = useState<SetlistSong[]>([])
+  const draggingRef = useRef(false)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragDy, setDragDy] = useState(0)
+  const dragRef = useRef<{ id: string; fromIndex: number; startY: number; target: number } | null>(null)
+  const baseRef = useRef<SetlistSong[]>([])
+  const rowHRef = useRef(56)
 
   useEffect(
     () =>
@@ -66,6 +84,11 @@ export default function SetlistSheet({
       }),
     [ev.id],
   )
+  // 드래그 중이 아닐 때만 최신 목록 반영 (드래그 중 재정렬이 튕기지 않도록)
+  useEffect(() => {
+    if (!draggingRef.current) setItems(songs)
+  }, [songs])
+  useEffect(() => watchAttendance(ev.id, setAtt, () => {}), [ev.id])
 
   // 담긴 곡들의 원본을 구독해 파트 참여자를 항상 최신으로 표시한다.
   // 재생목록 구성이 바뀔 때만 재구독하도록 id 목록을 문자열로 고정해서 의존성으로 쓴다.
@@ -92,6 +115,97 @@ export default function SetlistSheet({
   }, [playlistIds])
 
   const memberMap = useMemo(() => new Map(members.map((m) => [m.uid, m])), [members])
+
+  // 파트별 참석 — 참석 현황 모달과 같은 기준(참석·늦참·조퇴 = 오는 사람)
+  const attendingUids = useMemo(
+    () =>
+      new Set(
+        att
+          .filter((a) => a.status === 'present' || a.status === 'late' || a.status === 'leave')
+          .map((a) => a.uid),
+      ),
+    [att],
+  )
+  const partStats = useMemo(
+    () =>
+      PART_ORDER.map((p) => {
+        const inPart = members.filter((m) => m.part === p)
+        return { part: p, attendees: inPart.filter((m) => attendingUids.has(m.uid)), total: inPart.length }
+      }),
+    [members, attendingUids],
+  )
+
+  /* ----- 드래그로 합주 순서 바꾸기 (재생목록 곡 정렬과 같은 방식) ----- */
+  function onDragStart(e: ReactPointerEvent, id: string) {
+    const idx = items.findIndex((s) => s.id === id)
+    if (idx < 0) return
+    const rowEl = (e.currentTarget as HTMLElement).closest('.setlist-row') as HTMLElement | null
+    rowHRef.current = (rowEl?.offsetHeight ?? 48) + 8 // setlist-list gap 8px 포함
+    draggingRef.current = true
+    baseRef.current = items
+    dragRef.current = { id, fromIndex: idx, startY: e.clientY, target: idx }
+    setDragId(id)
+    setDragDy(0)
+    try {
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    } catch {
+      /* noop */
+    }
+  }
+  function onDragMove(e: ReactPointerEvent) {
+    const d = dragRef.current
+    if (!d) return
+    const dy = e.clientY - d.startY
+    const shift = Math.round(dy / rowHRef.current)
+    const target = Math.max(0, Math.min(baseRef.current.length - 1, d.fromIndex + shift))
+    if (target !== d.target) {
+      const arr = baseRef.current.slice()
+      const [moved] = arr.splice(d.fromIndex, 1)
+      arr.splice(target, 0, moved)
+      setItems(arr)
+      d.target = target
+    }
+    setDragDy(dy - (d.target - d.fromIndex) * rowHRef.current)
+  }
+  async function onDragEnd(e: ReactPointerEvent) {
+    const d = dragRef.current
+    if (!d) return
+    dragRef.current = null
+    setDragId(null)
+    setDragDy(0)
+    try {
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    } catch {
+      /* noop */
+    }
+    if (d.target === d.fromIndex) {
+      draggingRef.current = false
+      setItems(songs)
+      return
+    }
+    // 옮긴 자리의 앞뒤 곡 사이 값으로 order 를 계산해 옮긴 곡만 저장
+    const arr = baseRef.current.slice()
+    const [moved] = arr.splice(d.fromIndex, 1)
+    arr.splice(d.target, 0, moved)
+    const ord = (s?: SetlistSong) => (s ? (s.order ?? s.addedAt) : undefined)
+    const prev = ord(arr[d.target - 1])
+    const next = ord(arr[d.target + 1])
+    let newOrder: number
+    if (prev === undefined) newOrder = (next ?? Date.now()) - 1000
+    else if (next === undefined) newOrder = prev + 1000
+    else newOrder = (prev + next) / 2
+    setItems(arr) // 저장 반영 전까지 화면 유지
+    try {
+      await saveSetlistSong(ev.id, { ...moved, order: newOrder })
+    } catch (err) {
+      const code = (err as { code?: string })?.code ?? ''
+      toast.show(code === 'permission-denied' ? '순서를 바꿀 권한이 없어요.' : '순서를 저장하지 못했어요.')
+      setItems(songs)
+      console.error(err)
+    } finally {
+      draggingRef.current = false
+    }
+  }
 
   async function doRemove(song: SetlistSong) {
     setRemoving(null)
@@ -128,11 +242,54 @@ export default function SetlistSheet({
           </div>
 
           <div className="setlist-head">
-            <h2>{ev.title}</h2>
-            <p>
-              {d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}
-              {place && <> · {place.name}</>}
-            </p>
+            <div className="setlist-head-main">
+              <h2>{ev.title}</h2>
+              <p>
+                {d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}
+                {place && <> · {place.name}</>}
+              </p>
+            </div>
+            {isAdmin &&
+              (editMode ? (
+                <button
+                  type="button"
+                  className="edit-btn done"
+                  onClick={() => setEditMode(false)}
+                  aria-label="합주곡 편집 완료"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="edit-btn"
+                  onClick={() => {
+                    setOpenId(null) // 펼쳐 둔 참여자 표는 접고 들어간다 (행 높이를 고르게)
+                    setEditMode(true)
+                  }}
+                  aria-label="합주곡 순서·삭제 수정"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                </button>
+              ))}
+          </div>
+
+          {/* 파트별 참석 — 참석 현황 모달과 동일한 표 */}
+          <div className="part-tally setlist-part-tally">
+            <div className="part-tally-title">파트별 참석</div>
+            <div className="part-tally-grid">
+              {partStats.map(({ part, attendees, total }) => (
+                <div key={part} className="part-cell">
+                  <div className="part-head">{PART_META[part].label} <b>{attendees.length}</b><span>/{total}</span></div>
+                  <ul>
+                    {attendees.length === 0 && <li className="muted">-</li>}
+                    {attendees.map((m) => (
+                      <li key={m.uid}>{m.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
 
           {loadErr && <div className="banner-err">{loadErr}</div>}
@@ -151,39 +308,91 @@ export default function SetlistSheet({
                 : '아직 담은 곡이 없어요. 관리자가 곡을 담으면 여기에 표시돼요.'}
             </p>
           ) : (
-            <ol className="setlist-list">
-              {songs.map((s, i) => (
-                <li key={s.id} className="setlist-row">
-                  <span className="setlist-no">{i + 1}</span>
-                  <div className="track-thumb sm">
-                    {s.thumbnail || s.videoId ? (
-                      <img src={s.thumbnail || thumbnailUrl(s.videoId ?? '')} alt="" loading="lazy" />
-                    ) : null}
-                  </div>
-                  <div className="setlist-body">
-                    <div className="track-info">
-                      <h3>{s.title || '(제목 없음)'}</h3>
-                      {s.artist && <p>{s.artist}</p>}
-                    </div>
-                    <PartLine
-                      track={tracks.get(trackKey(s.playlistId, s.id))}
-                      memberMap={memberMap}
-                      myUid={user?.uid}
-                    />
-                  </div>
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      className="edit-btn del setlist-del"
-                      onClick={() => setRemoving(s)}
-                      aria-label={`${s.title} 빼기`}
+            <>
+              {editMode && (
+                <p className="hint reorder-hint">오른쪽 손잡이를 잡고 위아래로 끌면 합주 순서가 바뀝니다. ×를 누르면 곡을 뺍니다.</p>
+              )}
+              <ol className="setlist-list">
+                {items.map((s, i) => {
+                  const track = tracks.get(trackKey(s.playlistId, s.id))
+                  const joined = Object.keys(track?.participants ?? {}).length
+                  const open = openId === s.id
+                  return (
+                    <li
+                      key={s.id}
+                      className={
+                        'setlist-row' + (editMode ? ' editing' : '') + (s.id === dragId ? ' dragging' : '')
+                      }
+                      style={s.id === dragId ? { transform: `translateY(${dragDy}px)` } : undefined}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ol>
+                      <div className="setlist-rowhead">
+                        <span className="setlist-no">{i + 1}</span>
+                        <div className="track-thumb sm">
+                          {s.thumbnail || s.videoId ? (
+                            <img src={s.thumbnail || thumbnailUrl(s.videoId ?? '')} alt="" loading="lazy" />
+                          ) : null}
+                        </div>
+                        <div className="setlist-body">
+                          <div className="track-info">
+                            <h3>{s.title || '(제목 없음)'}</h3>
+                            {s.artist && <p>{s.artist}</p>}
+                          </div>
+                        </div>
+                        {editMode ? (
+                          <>
+                            <button
+                              type="button"
+                              className="edit-btn del setlist-del"
+                              onClick={() => setRemoving(s)}
+                              aria-label={`${s.title} 빼기`}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                            </button>
+                            <div
+                              className="drag-handle"
+                              onPointerDown={(e) => onDragStart(e, s.id)}
+                              onPointerMove={onDragMove}
+                              onPointerUp={onDragEnd}
+                              onPointerCancel={onDragEnd}
+                              aria-label="끌어서 합주 순서 변경"
+                              role="button"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h16M4 16h16" /></svg>
+                            </div>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            className="setlist-toggle"
+                            onClick={() => setOpenId(open ? null : s.id)}
+                            aria-expanded={open}
+                            aria-label={`${s.title} 참여자 ${open ? '접기' : '펼치기'}`}
+                          >
+                            <span className="setlist-joined">{joined}</span>
+                            <svg
+                              className={'track-open-chev' + (open ? ' open' : '')}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      {/* 편집 중에는 접어 둔다 — 드래그 위치 계산이 고른 행 높이에 기댄다 */}
+                      {!editMode && open && (
+                        <PartGrid track={track} memberMap={memberMap} myUid={user?.uid} />
+                      )}
+                    </li>
+                  )
+                })}
+              </ol>
+            </>
           )}
 
           <div className="actions">
@@ -215,8 +424,12 @@ export default function SetlistSheet({
   )
 }
 
-/** 곡 한 줄에 붙는 파트별 참여자 요약 (원본 곡의 participants 기준) */
-function PartLine({
+/**
+ * 곡을 펼쳤을 때 나오는 파트별 참여자 표 (원본 곡의 participants 기준).
+ * 상단 '파트별 참석'과 같은 칸 구조라 곡을 여러 개 펼쳐도 파트 열이 세로로 맞아떨어진다.
+ * 고정 파트 5칸은 인원이 없어도 늘 그리고, 임의 라벨(코러스·MC 등)은 뒤에 덧붙인다.
+ */
+function PartGrid({
   track,
   memberMap,
   myUid,
@@ -229,14 +442,11 @@ function PartLine({
 
   const parts = track.participants ?? {}
   const uids = Object.keys(parts)
-  if (uids.length === 0) return <p className="setlist-parts none">참여자 없음</p>
-
-  // 고정 파트를 정해진 순서로 먼저, 그 뒤에 임의 라벨을 등장 순서대로
   const fixed = PART_ORDER.map((p) => ({
     key: p as string,
     label: PART_META[p].label,
     uids: uids.filter((u) => parts[u] === p),
-  })).filter((g) => g.uids.length > 0)
+  }))
   const labels: string[] = []
   uids.forEach((u) => {
     const v = parts[u]
@@ -249,18 +459,21 @@ function PartLine({
   }))
 
   return (
-    <p className="setlist-parts">
+    <div className="part-tally-grid setlist-part-grid">
       {[...fixed, ...custom].map((g) => (
-        <span key={g.key} className="setlist-part">
-          <b>{g.label}</b>
-          {g.uids.map((u) => (
-            <span key={u} className={'part-name' + (u === myUid ? ' me' : '')}>
-              {memberMap.get(u)?.name ?? '(탈퇴)'}
-            </span>
-          ))}
-        </span>
+        <div key={g.key} className="part-cell">
+          <div className="part-head">{g.label} <b>{g.uids.length}</b></div>
+          <ul>
+            {g.uids.length === 0 && <li className="muted">-</li>}
+            {g.uids.map((u) => (
+              <li key={u} className={u === myUid ? 'me' : undefined}>
+                {memberMap.get(u)?.name ?? '(탈퇴)'}
+              </li>
+            ))}
+          </ul>
+        </div>
       ))}
-    </p>
+    </div>
   )
 }
 

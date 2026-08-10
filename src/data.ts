@@ -296,6 +296,12 @@ export async function addSetlistSong(eventId: string, song: SetlistSong): Promis
   await setDoc(doc(db, 'events', eventId, 'setlist', id), data)
 }
 
+/**
+ * 이미 담긴 곡의 필드를 갱신한다 (합주 순서 변경 등).
+ * 문서 id 가 원본 곡 id 로 고정이라 addSetlistSong 과 같은 덮어쓰기 — 이름만 의도에 맞게 나눠 둔다.
+ */
+export const saveSetlistSong = addSetlistSong
+
 export async function removeSetlistSong(eventId: string, songId: string): Promise<void> {
   if (DEMO) return demoDb.removeSetlistSong(eventId, songId)
   await deleteDoc(doc(db, 'events', eventId, 'setlist', songId))
