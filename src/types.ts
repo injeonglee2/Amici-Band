@@ -61,6 +61,26 @@ export interface Track {
   participants?: Record<string, TrackPart>
 }
 
+/**
+ * 일정에 등록한 합주곡 — events/{eventId}/setlist/{songId}
+ *
+ * 원본 곡(playlists/{playlistId}/tracks/{trackId})을 참조만 하고, 제목·썸네일 등
+ * 표시용 값은 스냅샷으로 복사해 둔다(원본이 지워져도 목록은 남기기 위함).
+ * 반면 파트 참여자는 스냅샷하지 않고 원본 곡에서 최신 값을 읽어 보여준다.
+ */
+export interface SetlistSong {
+  id: string // = 원본 곡 id(trackId). 같은 곡을 두 번 담지 않도록 문서 id로 사용
+  playlistId: string // 원본 재생목록 id
+  playlistName: string // 재생목록 이름 스냅샷 (어느 목록에서 가져온 곡인지 표시)
+  title: string
+  artist: string
+  videoId?: string
+  thumbnail?: string
+  order: number // 합주 순서 (작을수록 위)
+  addedBy: string
+  addedAt: number
+}
+
 export type AttendStatus = 'present' | 'late' | 'leave' | 'absent'
 
 export const STATUS_META: Record<AttendStatus, { label: string; color: string }> = {

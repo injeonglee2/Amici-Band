@@ -48,6 +48,12 @@ service cloud.firestore {
         allow read: if signedIn();
         allow write: if signedIn() && request.auth.uid == uid;
       }
+
+      // 합주곡 셋리스트: 로그인하면 읽기 가능, 추가·삭제는 관리자만
+      match /setlist/{songId} {
+        allow read: if signedIn();
+        allow write: if isAdmin();
+      }
     }
   }
 }

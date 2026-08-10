@@ -827,6 +827,54 @@ button { font-family: inherit; }
 /* 적용 버튼 = 고정 파트 칩과 동일한 크기(패딩·글자·모서리). 높이는 stretch로 정렬 */
 .btn.part-custom-apply { flex: 0 0 auto; width: auto; min-width: 0; padding: 8px 14px; font-size: 13.5px; font-weight: 700; border-radius: 10px; }
 .part-custom-hint { margin: 10px 2px 0; font-size: 11.5px; color: var(--ink-faint); line-height: 1.55; }
+/* 참여 중 액션 3개(참여 취소·수정·닫기)는 폭을 균등하게 나눠 좌·중앙·우로 배치 */
+.actions.part-actions-3 .btn { flex: 1 1 0; padding-left: 10px; padding-right: 10px; }
+
+/* ---------- 일정별 합주곡 ---------- */
+/* 합주·공연 카드 본문은 탭하면 합주곡 시트가 열린다 */
+.event-row.tappable { cursor: pointer; border-radius: var(--radius-sm); }
+.event-row.tappable:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.event-row.tappable:active .einfo h3 { color: var(--accent); }
+
+.setlist-head { margin: 4px 2px 14px; }
+.setlist-head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+.setlist-head p { margin: 5px 0 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+.setlist-count {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--ink-soft);
+  padding-bottom: 10px; border-bottom: 1px dashed var(--line);
+}
+.setlist-empty { margin: 18px 2px; font-size: 13px; color: var(--ink-faint); line-height: 1.6; text-align: center; }
+
+.setlist-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.setlist-row {
+  display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); padding: 8px;
+}
+.setlist-no {
+  flex: none; width: 20px; text-align: center; font-size: 12.5px; font-weight: 800;
+  color: var(--ink-faint); font-variant-numeric: tabular-nums;
+}
+.setlist-body { flex: 1; min-width: 0; }
+.setlist-del { flex: none; align-self: center; }
+/* 곡별 파트 참여자 — 파트 라벨 + 이름들을 한 줄에 흘려 쓴다 */
+.setlist-parts { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 5px 0 0; font-size: 11.5px; line-height: 1.5; }
+.setlist-parts.none { color: var(--ink-faint); }
+.setlist-part { display: inline-flex; align-items: center; gap: 4px; }
+.setlist-part > b { color: var(--ink-faint); font-weight: 700; }
+
+/* 곡 고르기 (재생목록 → 곡) */
+.picker-bar { display: flex; align-items: center; gap: 6px; margin: 2px 0 14px; }
+.picker-list { display: flex; flex-direction: column; gap: 8px; }
+.picker-row {
+  appearance: none; cursor: pointer; display: flex; align-items: center; gap: 10px; text-align: left;
+  background: var(--surface); border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+  padding: 14px 14px; color: inherit; font: inherit;
+}
+.picker-row:hover { border-color: var(--line-strong); }
+.picker-name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 700; letter-spacing: -0.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.picker-add { flex: 0 0 auto; width: auto; padding: 8px 14px; font-size: 13px; border-radius: 10px; }
+.track-row.added { opacity: 0.55; }
 
 /* 순서 편집: 드래그 손잡이 + 끌리는 행 */
 .drag-handle {

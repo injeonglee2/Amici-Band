@@ -721,6 +721,9 @@ function ParticipationSheet({
   const myPart: TrackPart | undefined = me ? parts[me.uid] : undefined
   const joined = myPart !== undefined
 
+  // 파트 편집 영역 — 참여 중이어도 기본은 숨김. 아래 '수정' 버튼으로만 연다.
+  const [editing, setEditing] = useState(false)
+
   // 직접 입력(임의 라벨) — '직접 입력' 버튼을 눌렀을 때만 입력창·적용 노출.
   // 내 표시값이 이미 임의 라벨이면 열린 상태 + 그 값으로 프리필.
   const [customOpen, setCustomOpen] = useState(joined && !isFixedPart(myPart))
@@ -755,6 +758,7 @@ function ParticipationSheet({
     try {
       if (joined) {
         await clearTrackParticipation(playlistId, track.id, me.uid)
+        setEditing(false)
       } else {
         // 기본 파트 = 내 프로필 파트 (없으면 첫 파트). 아래 칩으로 곡마다 변경 가능
         await setTrackParticipation(playlistId, track.id, me.uid, me.part ?? PART_ORDER[0])
@@ -777,12 +781,26 @@ function ParticipationSheet({
     setBusy(true)
     try {
       await setTrackParticipation(playlistId, track.id, me.uid, part)
+      // 파트를 등록·변경했으면 편집 영역은 다시 접는다
+      setEditing(false)
     } catch (e) {
       toast.show('파트를 바꾸지 못했어요.')
       console.error(e)
     } finally {
       setBusy(false)
     }
+  }
+
+  // '수정'을 누를 때마다 현재 내 파트 기준으로 직접 입력 상태를 다시 맞춘다
+  function toggleEditing() {
+    if (editing) {
+      setEditing(false)
+      return
+    }
+    const custom = joined && !isFixedPart(myPart)
+    setCustomOpen(custom)
+    setCustomText(custom && myPart ? myPart : '')
+    setEditing(true)
   }
 
   async function applyCustom() {
@@ -843,7 +861,7 @@ function ParticipationSheet({
           </div>
         )}
 
-        {me && joined && (
+        {me && joined && editing && (
           <div className="part-mypart">
             <span className="part-mypart-label">이 곡에서 내 파트</span>
             <div className="part-chips">
@@ -903,16 +921,26 @@ function ParticipationSheet({
           </div>
         )}
 
-        <div className="actions">
-          <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
-          <button
-            type="button"
-            className={'btn ' + (joined ? 'danger' : 'primary')}
-            onClick={toggleJoin}
-            disabled={busy}
-          >
-            {joined ? '참여 취소' : '이 곡에 참여'}
-          </button>
+        {/* 참여 중이면 좌: 참여 취소 · 중앙: 수정 · 우: 닫기 (셋 다 같은 너비) */}
+        <div className={'actions' + (joined ? ' part-actions-3' : '')}>
+          {joined ? (
+            <>
+              <button type="button" className="btn danger" onClick={toggleJoin} disabled={busy}>
+                참여 취소
+              </button>
+              <button type="button" className="btn primary" onClick={toggleEditing} disabled={busy}>
+                {editing ? '완료' : '수정'}
+              </button>
+              <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
+              <button type="button" className="btn primary" onClick={toggleJoin} disabled={busy}>
+                이 곡에 참여
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -7,7 +7,7 @@
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, BandEvent, Member, Place, Playlist, Track, TrackPart } from './types'
+import type { Attendance, BandEvent, Member, Place, Playlist, SetlistSong, Track, TrackPart } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
@@ -133,6 +133,17 @@ function trackCol(playlistId: string): Collection<Track> {
   return col
 }
 
+// 일정별 합주곡 컬렉션
+const setlistCols = new Map<string, Collection<SetlistSong>>()
+function setlistCol(eventId: string): Collection<SetlistSong> {
+  let col = setlistCols.get(eventId)
+  if (!col) {
+    col = makeCollection<SetlistSong>([])
+    setlistCols.set(eventId, col)
+  }
+  return col
+}
+
 export const demoDb = {
   watchMembers: (cb: Sub<Member[]>) => membersCol.watch(cb),
   watchEvents: (cb: Sub<BandEvent[]>) => eventsCol.watch(cb),
@@ -155,6 +166,15 @@ export const demoDb = {
   },
   savePlaylist: (p: Playlist) => playlistsCol.upsert(p, (x) => x.id),
   deletePlaylist: (id: string) => playlistsCol.remove(id, (x) => x.id),
+
+  watchSetlist: (eventId: string, cb: Sub<SetlistSong[]>) =>
+    setlistCol(eventId).watch((list) =>
+      cb([...list].sort((a, b) => (a.order ?? a.addedAt) - (b.order ?? b.addedAt))),
+    ),
+  addSetlistSong: (eventId: string, song: SetlistSong) =>
+    setlistCol(eventId).upsert(song, (x) => x.id),
+  removeSetlistSong: (eventId: string, songId: string) =>
+    setlistCol(eventId).remove(songId, (x) => x.id),
 
   watchTracks: (playlistId: string, cb: Sub<Track[]>) =>
     trackCol(playlistId).watch((list) =>

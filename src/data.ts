@@ -12,7 +12,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { db, fbApp } from './firebase'
 import { DEMO, demoDb } from './demo'
-import type { Attendance, BandEvent, Member, Place, Playlist, Track, TrackPart, WebPushSubscription } from './types'
+import type { Attendance, BandEvent, Member, Place, Playlist, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -264,6 +264,41 @@ export async function clearTrackParticipation(
   await updateDoc(doc(db, 'playlists', playlistId, 'tracks', trackId), {
     [`participants.${uid}`]: deleteField(),
   })
+}
+
+/* ---------------- 합주곡 셋리스트 (events/{eventId}/setlist/{songId}) ---------------- */
+/** 일정에 등록된 합주곡 구독 (합주 순서대로) */
+export function watchSetlist(
+  eventId: string,
+  cb: (songs: SetlistSong[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) return demoDb.watchSetlist(eventId, cb)
+  return onSnapshot(
+    collection(db, 'events', eventId, 'setlist'),
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SetlistSong, 'id'>) }))
+      list.sort((a, b) => (a.order ?? a.addedAt) - (b.order ?? b.addedAt))
+      cb(list)
+    },
+    (err) => {
+      console.error('watchSetlist', err)
+      onError?.(err)
+    },
+  )
+}
+
+/** 재생목록의 곡을 이 일정의 합주곡으로 담는다 (문서 id = 원본 곡 id 이므로 중복 추가는 덮어쓰기) */
+export async function addSetlistSong(eventId: string, song: SetlistSong): Promise<void> {
+  if (DEMO) return demoDb.addSetlistSong(eventId, song)
+  const { id, ...rest } = song
+  const data = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+  await setDoc(doc(db, 'events', eventId, 'setlist', id), data)
+}
+
+export async function removeSetlistSong(eventId: string, songId: string): Promise<void> {
+  if (DEMO) return demoDb.removeSetlistSong(eventId, songId)
+  await deleteDoc(doc(db, 'events', eventId, 'setlist', songId))
 }
 
 export function newId(): string {

@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
 import { useAuth } from '../auth'
 import { deleteEvent, watchAttendance } from '../data'
 import {
@@ -15,6 +22,7 @@ import { addToDeviceCalendar, calendarExportSupported } from '../calendar'
 import { TypeGlyph } from './TypeGlyph'
 import { CopyButton } from './CopyButton'
 import AttendanceModal from './AttendanceModal'
+import SetlistSheet from './SetlistSheet'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
 
@@ -40,12 +48,25 @@ export default function EventCard({
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteOverflow, setNoteOverflow] = useState(false)
   const [showCalendarExport, setShowCalendarExport] = useState(false)
+  const [setlistOpen, setSetlistOpen] = useState(false)
   const noteRef = useRef<HTMLParagraphElement>(null)
   const t = TYPE_META[ev.type]
   const d = parseDate(ev.date)
   const past = dayDiff(ev.date) < 0
   const isAdmin = !!member?.admin
   const canDelete = !!user && (ev.createdBy === user.uid || isAdmin)
+  // 합주곡은 곡이 필요한 유형(합주·공연)에서만 다룬다
+  const hasSetlist = ev.type === 'practice' || ev.type === 'show'
+
+  function openSetlist() {
+    if (hasSetlist) setSetlistOpen(true)
+  }
+  function onRowKeyDown(e: ReactKeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      openSetlist()
+    }
+  }
 
   useEffect(() => watchAttendance(ev.id, setAtt), [ev.id])
   useEffect(() => {
@@ -84,7 +105,15 @@ export default function EventCard({
     <>
       <div className="event" style={{ ['--k' as string]: t.color }}>
         <TypeGlyph type={ev.type} className={'wm wm-' + ev.type} />
-        <div className="event-row">
+        {/* 합주·공연이면 본문(날짜·제목·시간) 탭 → 합주곡 시트. 우측 버튼·장소 복사는 전파를 막아 기존 동작 유지 */}
+        <div
+          className={'event-row' + (hasSetlist ? ' tappable' : '')}
+          role={hasSetlist ? 'button' : undefined}
+          tabIndex={hasSetlist ? 0 : undefined}
+          aria-label={hasSetlist ? `${ev.title} 합주곡` : undefined}
+          onClick={hasSetlist ? openSetlist : undefined}
+          onKeyDown={hasSetlist ? onRowKeyDown : undefined}
+        >
           <div className="datebox">
             <div className="m">{d.getMonth() + 1}월</div>
             <div className="d">{d.getDate()}</div>
@@ -195,6 +224,16 @@ export default function EventCard({
 
       {modal && (
         <AttendanceModal ev={ev} list={att} members={members} mode={modal} readOnly={past} onClose={() => setModal(null)} />
+      )}
+
+      {setlistOpen && (
+        <SetlistSheet
+          ev={ev}
+          place={place}
+          members={members}
+          toast={toast}
+          onClose={() => setSetlistOpen(false)}
+        />
       )}
 
 
