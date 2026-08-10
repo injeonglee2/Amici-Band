@@ -24,6 +24,7 @@ import { parseDate, weekday } from '../time'
 import { thumbnailUrl } from '../youtube'
 import type { ResolvedPlace } from '../place'
 import ConfirmDialog from './ConfirmDialog'
+import PartTally from './PartTally'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 
@@ -115,25 +116,6 @@ export default function SetlistSheet({
   }, [playlistIds])
 
   const memberMap = useMemo(() => new Map(members.map((m) => [m.uid, m])), [members])
-
-  // 파트별 참석 — 참석 현황 모달과 같은 기준(참석·늦참·조퇴 = 오는 사람)
-  const attendingUids = useMemo(
-    () =>
-      new Set(
-        att
-          .filter((a) => a.status === 'present' || a.status === 'late' || a.status === 'leave')
-          .map((a) => a.uid),
-      ),
-    [att],
-  )
-  const partStats = useMemo(
-    () =>
-      PART_ORDER.map((p) => {
-        const inPart = members.filter((m) => m.part === p)
-        return { part: p, attendees: inPart.filter((m) => attendingUids.has(m.uid)), total: inPart.length }
-      }),
-    [members, attendingUids],
-  )
 
   /* ----- 드래그로 합주 순서 바꾸기 (재생목록 곡 정렬과 같은 방식) ----- */
   function onDragStart(e: ReactPointerEvent, id: string) {
@@ -242,18 +224,29 @@ export default function SetlistSheet({
           </div>
 
           <div className="setlist-head">
-            <div className="setlist-head-main">
-              <h2>{ev.title}</h2>
-              <p>
-                {d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}
-                {place && <> · {place.name}</>}
-              </p>
-            </div>
+            <h2>{ev.title}</h2>
+            <p>
+              {d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}
+              {place && <> · {place.name}</>}
+            </p>
+          </div>
+
+          {/* 파트별 참석 — 참석 현황 모달과 같은 컴포넌트 */}
+          <PartTally members={members} att={att} className="setlist-part-tally" />
+
+          {loadErr && <div className="banner-err">{loadErr}</div>}
+
+          <div className="setlist-count">
+            <span className="part-bar-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+            </span>
+            {songs.length === 0 ? '합주곡 없음' : `합주곡 ${songs.length}곡`}
+            {/* 수정(연필)/완료(체크) — 편집 대상인 곡 목록 바로 위에 둔다 */}
             {isAdmin &&
               (editMode ? (
                 <button
                   type="button"
-                  className="edit-btn done"
+                  className="edit-btn done setlist-edit"
                   onClick={() => setEditMode(false)}
                   aria-label="합주곡 편집 완료"
                 >
@@ -262,7 +255,7 @@ export default function SetlistSheet({
               ) : (
                 <button
                   type="button"
-                  className="edit-btn"
+                  className="edit-btn setlist-edit"
                   onClick={() => {
                     setOpenId(null) // 펼쳐 둔 참여자 표는 접고 들어간다 (행 높이를 고르게)
                     setEditMode(true)
@@ -272,33 +265,6 @@ export default function SetlistSheet({
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
               ))}
-          </div>
-
-          {/* 파트별 참석 — 참석 현황 모달과 동일한 표 */}
-          <div className="part-tally setlist-part-tally">
-            <div className="part-tally-title">파트별 참석</div>
-            <div className="part-tally-grid">
-              {partStats.map(({ part, attendees, total }) => (
-                <div key={part} className="part-cell">
-                  <div className="part-head">{PART_META[part].label} <b>{attendees.length}</b><span>/{total}</span></div>
-                  <ul>
-                    {attendees.length === 0 && <li className="muted">-</li>}
-                    {attendees.map((m) => (
-                      <li key={m.uid}>{m.name}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {loadErr && <div className="banner-err">{loadErr}</div>}
-
-          <div className="setlist-count">
-            <span className="part-bar-ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
-            </span>
-            {songs.length === 0 ? '합주곡 없음' : `합주곡 ${songs.length}곡`}
           </div>
 
           {songs.length === 0 ? (
@@ -398,10 +364,10 @@ export default function SetlistSheet({
           <div className="actions">
             {isAdmin ? (
               <>
-                <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
                 <button type="button" className="btn primary" onClick={() => setPicking(true)}>
                   곡 추가
                 </button>
+                <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
               </>
             ) : (
               <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>

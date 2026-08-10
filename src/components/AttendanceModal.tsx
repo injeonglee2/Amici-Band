@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth'
 import { clearAttendance, remindUndecided, setAttendance } from '../data'
 import {
-  PART_META,
-  PART_ORDER,
   STATUS_META,
   TYPE_META,
   type Attendance,
@@ -14,6 +12,7 @@ import {
 import { lateOptions, leaveOptions, parseDate, weekday } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import ConfirmDialog from './ConfirmDialog'
+import PartTally from './PartTally'
 import { useSheetSwipe } from './useSheetSwipe'
 
 const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
@@ -103,15 +102,6 @@ export default function AttendanceModal({
   const votedUids = new Set(list.map((a) => a.uid))
   const undecided = members.filter((m) => !votedUids.has(m.uid))
   const d = parseDate(ev.date)
-
-  // 파트별 참석 인원 (참석·늦참·조퇴 = 오는 사람)
-  const attendingUids = new Set(
-    list.filter((a) => a.status === 'present' || a.status === 'late' || a.status === 'leave').map((a) => a.uid),
-  )
-  const partStats = PART_ORDER.map((p) => {
-    const inPart = members.filter((m) => m.part === p)
-    return { part: p, attendees: inPart.filter((m) => attendingUids.has(m.uid)), total: inPart.length }
-  })
 
   // 리마인더: 합주·공연 일정에서, 관리자에게만, 미정이 있을 때만
   const canRemind =
@@ -252,23 +242,8 @@ export default function AttendanceModal({
                 )}
               </div>
 
-              {/* 파트별 참석 (참석·늦참·조퇴 기준) */}
-              <div className="part-tally">
-                <div className="part-tally-title">파트별 참석</div>
-                <div className="part-tally-grid">
-                  {partStats.map(({ part, attendees, total }) => (
-                    <div key={part} className="part-cell">
-                      <div className="part-head">{PART_META[part].label} <b>{attendees.length}</b><span>/{total}</span></div>
-                      <ul>
-                        {attendees.length === 0 && <li className="muted">-</li>}
-                        {attendees.map((m) => (
-                          <li key={m.uid}>{m.name}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* 파트별 참석 (참석·늦참·조퇴 기준) — 합주곡 시트와 같은 컴포넌트 */}
+              <PartTally members={members} att={list} />
 
               {canRemind && (
                 <button type="button" className="btn primary block remind-btn" onClick={sendReminder} disabled={reminding}>
