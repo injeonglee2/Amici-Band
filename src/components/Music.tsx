@@ -935,10 +935,10 @@ function ParticipationSheet({
             </>
           ) : (
             <>
-              <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
               <button type="button" className="btn primary" onClick={toggleJoin} disabled={busy}>
                 이 곡에 참여
               </button>
+              <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
             </>
           )}
         </div>
