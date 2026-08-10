@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useAuth } from '../auth'
 import {
+  clearTrackParticipation,
   deletePlaylist,
   deleteTrack,
   newId,
   savePlaylist,
   saveTrack,
+  setTrackParticipation,
+  watchMembers,
   watchPlaylists,
   watchTracks,
 } from '../data'
-import type { Playlist, Track } from '../types'
+import type { Member, Playlist, Track, TrackPart } from '../types'
+import { isFixedPart, PART_META, PART_ORDER } from '../types'
 import {
   fetchPlaylistItems,
   fetchYouTubeMeta,
@@ -201,9 +205,12 @@ function PlaylistDetail({
   toast: ToastState
   onBack: () => void
 }) {
+  const { member } = useAuth()
   // 재생목록별 옵션: 곡 추가한 사람 표시 (기본 표시)
   const showAdder = playlist.showAdder !== false
   const [tracks, setTracks] = useState<Track[]>([])
+  // 파트별 참여 집계용: 전체 멤버 명단(uid→이름/파트) 구독
+  const [members, setMembers] = useState<Member[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [adding, setAdding] = useState(false)
   const [playingId, setPlayingId] = useState<string | null>(null)
@@ -211,6 +218,8 @@ function PlaylistDetail({
   const [editMode, setEditMode] = useState(false)
   const [titleDraft, setTitleDraft] = useState(playlist.name)
   const [editingTrack, setEditingTrack] = useState<Track | null>(null)
+  // 파트 참여 팝업(시트)을 띄운 곡 id. 곡 데이터는 tracks 에서 최신값을 다시 찾아 전달
+  const [participatingId, setParticipatingId] = useState<string | null>(null)
   // 삭제 확인 다이얼로그 (재생목록/곡 공용)
   const [confirm, setConfirm] = useState<{ message: string; label: string; run: () => Promise<void> } | null>(null)
   // 유튜브 내보내기
@@ -243,6 +252,9 @@ function PlaylistDetail({
   useEffect(() => {
     if (!draggingRef.current) setItems(tracks)
   }, [tracks])
+  // 멤버 명단 구독 (참여자 uid → 이름/파트 매핑용)
+  useEffect(() => watchMembers(setMembers, () => {}), [])
+  const memberMap = new Map(members.map((m) => [m.uid, m]))
 
   const playingIndex = items.findIndex((t) => t.id === playingId)
   const playing = playingIndex >= 0 ? items[playingIndex] : null
@@ -518,74 +530,84 @@ function PlaylistDetail({
               </div>
             )}
             <div className="list track-list">
-              {items.map((t) => (
-                <div
-                  key={t.id}
-                  className={
-                    'track-row' +
-                    (t.id === playingId ? ' playing' : '') +
-                    (t.id === dragId ? ' dragging' : '')
-                  }
-                  style={t.id === dragId ? { transform: `translateY(${dragDy}px)` } : undefined}
-                >
-                  {editMode ? (
-                    <>
-                      <button className="track-link" onClick={() => setEditingTrack(t)} aria-label="곡 정보 수정">
-                        <div className="track-thumb sm">
-                          {t.thumbnail || t.videoId ? (
-                            <img src={t.thumbnail || thumbnailUrl(t.videoId)} alt="" loading="lazy" />
-                          ) : null}
-                        </div>
-                        <div className="track-info">
-                          <h3>{t.title || '(제목 없음)'}</h3>
-                          {t.artist && <p>{t.artist}</p>}
-                        </div>
-                        <span className="track-edit-ico" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                        </span>
-                      </button>
-                      <button className="edit-btn track-del" onClick={() => removeTrack(t)} aria-label="곡 빼기">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-                      </button>
-                      <div
-                        className="drag-handle"
-                        onPointerDown={(e) => onDragStart(e, t.id)}
-                        onPointerMove={onDragMove}
-                        onPointerUp={onDragEnd}
-                        onPointerCancel={onDragEnd}
-                        aria-label="끌어서 순서 변경"
-                        role="button"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h16M4 16h16" /></svg>
+              {items.map((t) =>
+                editMode ? (
+                  <div
+                    key={t.id}
+                    className={
+                      'track-row' +
+                      (t.id === playingId ? ' playing' : '') +
+                      (t.id === dragId ? ' dragging' : '')
+                    }
+                    style={t.id === dragId ? { transform: `translateY(${dragDy}px)` } : undefined}
+                  >
+                    <button className="track-link" onClick={() => setEditingTrack(t)} aria-label="곡 정보 수정">
+                      <div className="track-thumb sm">
+                        {t.thumbnail || t.videoId ? (
+                          <img src={t.thumbnail || thumbnailUrl(t.videoId)} alt="" loading="lazy" />
+                        ) : null}
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <button className="track-link" onClick={() => playTrack(t.id)}>
-                        <div className="track-thumb">
-                          {t.thumbnail || t.videoId ? (
-                            <img src={t.thumbnail || thumbnailUrl(t.videoId)} alt="" loading="lazy" />
-                          ) : null}
-                          <span className="track-play" aria-hidden="true">
-                            {t.id === playingId ? (
-                              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>
-                            ) : (
-                              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                            )}
+                      <div className="track-info">
+                        <h3>{t.title || '(제목 없음)'}</h3>
+                        {t.artist && <p>{t.artist}</p>}
+                      </div>
+                      <span className="track-edit-ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                      </span>
+                    </button>
+                    <button className="edit-btn track-del" onClick={() => removeTrack(t)} aria-label="곡 빼기">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                    </button>
+                    <div
+                      className="drag-handle"
+                      onPointerDown={(e) => onDragStart(e, t.id)}
+                      onPointerMove={onDragMove}
+                      onPointerUp={onDragEnd}
+                      onPointerCancel={onDragEnd}
+                      aria-label="끌어서 순서 변경"
+                      role="button"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h16M4 16h16" /></svg>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={t.id} className={'track-row' + (t.id === playingId ? ' playing' : '')}>
+                    <button className="track-thumb-btn" onClick={() => playTrack(t.id)} aria-label="재생">
+                      <div className="track-thumb">
+                        {t.thumbnail || t.videoId ? (
+                          <img src={t.thumbnail || thumbnailUrl(t.videoId)} alt="" loading="lazy" />
+                        ) : null}
+                        <span className="track-play" aria-hidden="true">
+                          {t.id === playingId ? (
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                          )}
+                        </span>
+                      </div>
+                    </button>
+                    <button className="track-open" onClick={() => setParticipatingId(t.id)} aria-label="파트 참여 보기">
+                      <div className="track-info">
+                        <h3>{t.title || '(제목 없음)'}</h3>
+                        {t.artist && <p>{t.artist}</p>}
+                      </div>
+                      {(() => {
+                        const c = Object.keys(t.participants ?? {}).length
+                        return c > 0 ? (
+                          <span className="track-partcount" title={`참여 ${c}명`}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                            {c}
                           </span>
-                        </div>
-                        <div className="track-info">
-                          <h3>{t.title || '(제목 없음)'}</h3>
-                          {t.artist && <p>{t.artist}</p>}
-                        </div>
-                      </button>
+                        ) : null
+                      })()}
                       {showAdder && t.addedByName && (
                         <span className="track-adder" title={`${t.addedByName}님이 추가`}>{t.addedByName}</span>
                       )}
-                    </>
-                  )}
-                </div>
-              ))}
+                      <svg className="track-open-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                    </button>
+                  </div>
+                ),
+              )}
             </div>
           </>
         )}
@@ -608,6 +630,26 @@ function PlaylistDetail({
           onClose={() => setEditingTrack(null)}
         />
       )}
+
+      {(() => {
+        // 팝업은 tracks 의 최신 곡 데이터를 사용 (참여 후 인원이 즉시 반영되도록)
+        const active = participatingId ? tracks.find((t) => t.id === participatingId) : undefined
+        if (!participatingId) return null
+        if (!active) {
+          // 곡이 사라졌으면 팝업 닫기
+          return null
+        }
+        return (
+          <ParticipationSheet
+            playlistId={playlist.id}
+            track={active}
+            memberMap={memberMap}
+            me={member}
+            toast={toast}
+            onClose={() => setParticipatingId(null)}
+          />
+        )
+      })()}
 
       {confirm && (
         <ConfirmDialog
@@ -651,6 +693,229 @@ function PlaylistDetail({
         />
       )}
     </>
+  )
+}
+
+/* ---------------- 곡별 파트 참여 팝업(시트) ---------------- */
+function ParticipationSheet({
+  playlistId,
+  track,
+  memberMap,
+  me,
+  toast,
+  onClose,
+}: {
+  playlistId: string
+  track: Track
+  memberMap: Map<string, Member>
+  me: Member | null
+  toast: ToastState
+  onClose: () => void
+}) {
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  const [busy, setBusy] = useState(false)
+
+  const parts = track.participants ?? {}
+  const uids = Object.keys(parts)
+  const count = uids.length
+  const myPart: TrackPart | undefined = me ? parts[me.uid] : undefined
+  const joined = myPart !== undefined
+
+  // 직접 입력(임의 라벨) — '직접 입력' 버튼을 눌렀을 때만 입력창·적용 노출.
+  // 내 표시값이 이미 임의 라벨이면 열린 상태 + 그 값으로 프리필.
+  const [customOpen, setCustomOpen] = useState(joined && !isFixedPart(myPart))
+  const [customText, setCustomText] = useState(!isFixedPart(myPart) && myPart ? myPart : '')
+
+  // 고정 파트 그룹 (순서대로, 인원 있는 것만)
+  const fixedGroups = PART_ORDER.map((part) => ({
+    key: part as string,
+    label: PART_META[part].label,
+    uids: uids.filter((u) => parts[u] === part),
+  })).filter((g) => g.uids.length > 0)
+  // 임의 라벨 그룹 (고정 파트가 아닌 값들을 라벨별로 묶음, 등장 순서 유지)
+  const customLabels: string[] = []
+  uids.forEach((u) => {
+    const v = parts[u]
+    if (!isFixedPart(v) && !customLabels.includes(v)) customLabels.push(v)
+  })
+  const customGroups = customLabels.map((label) => ({
+    key: 'custom:' + label,
+    label,
+    uids: uids.filter((u) => parts[u] === label),
+  }))
+  const groups = [...fixedGroups, ...customGroups]
+
+  async function toggleJoin() {
+    if (busy) return
+    if (!me) {
+      toast.show('로그인 후 참여할 수 있어요')
+      return
+    }
+    setBusy(true)
+    try {
+      if (joined) {
+        await clearTrackParticipation(playlistId, track.id, me.uid)
+      } else {
+        // 기본 파트 = 내 프로필 파트 (없으면 첫 파트). 아래 칩으로 곡마다 변경 가능
+        await setTrackParticipation(playlistId, track.id, me.uid, me.part ?? PART_ORDER[0])
+      }
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? ''
+      toast.show(
+        code === 'permission-denied'
+          ? '참여 저장 권한이 없어요. 보안 규칙을 확인해 주세요.'
+          : '참여를 저장하지 못했어요.',
+      )
+      console.error(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function changeMyPart(part: TrackPart) {
+    if (busy || !me || part === myPart) return
+    setBusy(true)
+    try {
+      await setTrackParticipation(playlistId, track.id, me.uid, part)
+    } catch (e) {
+      toast.show('파트를 바꾸지 못했어요.')
+      console.error(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function applyCustom() {
+    const v = customText.trim()
+    if (!v) {
+      toast.show('표시할 파트를 입력해 주세요')
+      return
+    }
+    await changeMyPart(v)
+  }
+
+  const name = (uid: string) => memberMap.get(uid)?.name ?? '(탈퇴)'
+
+  return (
+    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" ref={sheetRef}>
+        <div className="grab-zone" {...grabHandlers}>
+          <div className="grab" />
+        </div>
+
+        <div className="part-sheet-song">
+          <div className="track-thumb sm">
+            {track.thumbnail || track.videoId ? (
+              <img src={track.thumbnail || thumbnailUrl(track.videoId)} alt="" />
+            ) : null}
+          </div>
+          <div className="part-sheet-songinfo">
+            <h2>{track.title || '(제목 없음)'}</h2>
+            {track.artist && <p>{track.artist}</p>}
+          </div>
+        </div>
+
+        <div className="part-sheet-summary">
+          <span className="part-bar-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+          </span>
+          {count === 0 ? '참여 인원 없음' : `참여 ${count}명`}
+        </div>
+
+        {groups.length === 0 ? (
+          <p className="part-none">아직 참여자가 없어요. 아래 ‘참여’를 눌러 첫 참여자가 되어보세요.</p>
+        ) : (
+          <div className="part-groups">
+            {groups.map((g) => (
+              <div key={g.key} className="part-group">
+                <span className="part-group-label">
+                  {g.label} <b>{g.uids.length}</b>
+                </span>
+                <span className="part-group-names">
+                  {g.uids.map((u) => (
+                    <span key={u} className={'part-name' + (me && u === me.uid ? ' me' : '')}>
+                      {name(u)}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {me && joined && (
+          <div className="part-mypart">
+            <span className="part-mypart-label">이 곡에서 내 파트</span>
+            <div className="part-chips">
+              {PART_ORDER.map((p) => (
+                <button
+                  key={p}
+                  className={'part-chip' + (myPart === p ? ' on' : '')}
+                  onClick={() => {
+                    setCustomOpen(false)
+                    void changeMyPart(p)
+                  }}
+                  disabled={busy}
+                >
+                  {PART_META[p].label}
+                </button>
+              ))}
+            </div>
+            {/* '직접 입력' 클릭 시에만 입력창·적용 노출. 세 요소는 한 줄에 정렬 */}
+            <div className="part-custom">
+              <button
+                type="button"
+                className={'part-chip part-custom-chip' + (customOpen || !isFixedPart(myPart) ? ' on' : '')}
+                onClick={() => setCustomOpen((o) => !o)}
+                disabled={busy}
+              >
+                직접 입력
+              </button>
+              {customOpen && (
+                <>
+                  <input
+                    className="part-custom-input"
+                    type="text"
+                    value={customText}
+                    onChange={(e) => setCustomText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        void applyCustom()
+                      }
+                    }}
+                    placeholder="예) 코러스, 퍼커션, MC"
+                    maxLength={20}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="btn primary part-custom-apply"
+                    onClick={() => void applyCustom()}
+                    disabled={busy || !customText.trim()}
+                  >
+                    적용
+                  </button>
+                </>
+              )}
+            </div>
+            <p className="part-custom-hint">고정 파트에 없는 역할(코러스·퍼커션·MC 등)은 ‘직접 입력’으로 이 곡에만 표시할 수 있어요. 프로필 파트는 바뀌지 않습니다.</p>
+          </div>
+        )}
+
+        <div className="actions">
+          <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
+          <button
+            type="button"
+            className={'btn ' + (joined ? 'danger' : 'primary')}
+            onClick={toggleJoin}
+            disabled={busy}
+          >
+            {joined ? '참여 취소' : '이 곡에 참여'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

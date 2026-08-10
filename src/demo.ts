@@ -7,7 +7,7 @@
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, BandEvent, Member, Place, Playlist, Track } from './types'
+import type { Attendance, BandEvent, Member, Place, Playlist, Track, TrackPart } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
@@ -65,6 +65,7 @@ interface Collection<T> {
   watch(cb: Sub<T[]>): () => void
   upsert(item: T, idOf: (x: T) => string): void
   remove(id: string, idOf: (x: T) => string): void
+  get(): T[]
 }
 
 function makeCollection<T>(initial: T[]): Collection<T> {
@@ -72,6 +73,9 @@ function makeCollection<T>(initial: T[]): Collection<T> {
   const subs = new Set<Sub<T[]>>()
   const emit = () => subs.forEach((f) => f(items.map((x) => ({ ...x }))))
   return {
+    get() {
+      return items.map((x) => ({ ...x }))
+    },
     watch(cb) {
       subs.add(cb)
       cb(items.map((x) => ({ ...x })))
@@ -97,8 +101,8 @@ const initialPlaylists: Playlist[] = [
 
 const initialTracks: Record<string, Track[]> = {
   pl1: [
-    { id: 't1', url: 'https://www.youtube.com/watch?v=fJ9rUzIMcZQ', videoId: 'fJ9rUzIMcZQ', title: 'Bohemian Rhapsody', artist: 'Queen', thumbnail: 'https://img.youtube.com/vi/fJ9rUzIMcZQ/mqdefault.jpg', order: now, addedBy: 'demo-user', addedByName: '김데모', addedAt: now },
-    { id: 't2', url: 'https://www.youtube.com/watch?v=1w7OgIMMRc4', videoId: '1w7OgIMMRc4', title: 'Sweet Child O\' Mine', artist: "Guns N' Roses", thumbnail: 'https://img.youtube.com/vi/1w7OgIMMRc4/mqdefault.jpg', order: now + 1000, addedBy: 'demo-user', addedByName: '이기타', addedAt: now + 1000 },
+    { id: 't1', url: 'https://www.youtube.com/watch?v=fJ9rUzIMcZQ', videoId: 'fJ9rUzIMcZQ', title: 'Bohemian Rhapsody', artist: 'Queen', thumbnail: 'https://img.youtube.com/vi/fJ9rUzIMcZQ/mqdefault.jpg', order: now, addedBy: 'demo-user', addedByName: '김데모', addedAt: now, participants: { 'demo-user': 'guitar', u2: 'guitar', u3: 'bass', u4: 'drum', u5: 'vocal', u6: 'keyboard' } },
+    { id: 't2', url: 'https://www.youtube.com/watch?v=1w7OgIMMRc4', videoId: '1w7OgIMMRc4', title: 'Sweet Child O\' Mine', artist: "Guns N' Roses", thumbnail: 'https://img.youtube.com/vi/1w7OgIMMRc4/mqdefault.jpg', order: now + 1000, addedBy: 'demo-user', addedByName: '이기타', addedAt: now + 1000, participants: { u2: 'guitar', u4: 'drum', u5: 'vocal', u7: '코러스' } },
   ],
 }
 
@@ -159,4 +163,19 @@ export const demoDb = {
   saveTrack: (playlistId: string, t: Track) => trackCol(playlistId).upsert(t, (x) => x.id),
   deleteTrack: (playlistId: string, trackId: string) =>
     trackCol(playlistId).remove(trackId, (x) => x.id),
+
+  setTrackParticipation: (playlistId: string, trackId: string, uid: string, part: TrackPart) => {
+    const col = trackCol(playlistId)
+    const t = col.get().find((x) => x.id === trackId)
+    if (!t) return
+    col.upsert({ ...t, participants: { ...(t.participants ?? {}), [uid]: part } }, (x) => x.id)
+  },
+  clearTrackParticipation: (playlistId: string, trackId: string, uid: string) => {
+    const col = trackCol(playlistId)
+    const t = col.get().find((x) => x.id === trackId)
+    if (!t) return
+    const rest = { ...(t.participants ?? {}) }
+    delete rest[uid]
+    col.upsert({ ...t, participants: rest }, (x) => x.id)
+  },
 }

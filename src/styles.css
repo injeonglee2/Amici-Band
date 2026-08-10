@@ -566,8 +566,10 @@ button { font-family: inherit; }
 .btn:disabled { opacity: 0.45; cursor: default; }
 .btn.primary {
   color: #fff; background: linear-gradient(95deg, var(--accent-2), var(--accent));
-  /* background 단축 뒤에 둬야 적용 — 투명 테두리에서 그라데이션이 반대편 색으로 감싸지는 것 방지 */
-  background-origin: border-box;
+  /* 투명 1px 테두리 영역에 배경이 비쳐 좌우 끝에 반대편 그라데이션 색이 배어나오는 현상 제거.
+     테두리를 없애도 .actions 가 flex(align-items:stretch)라 다른 버튼과 높이는 자동으로 맞음 */
+  border: 0;
+  background-clip: padding-box;
   box-shadow: 0 8px 24px -8px rgba(255, 93, 162, 0.55);
 }
 .btn.primary:hover { filter: brightness(1.08); }
@@ -743,6 +745,85 @@ button { font-family: inherit; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .track-del { flex: none; align-self: center; }
+
+/* ---------- 곡별 파트 참여 ---------- */
+/* 재생목록 행: 썸네일=재생 / 나머지=참여 팝업 */
+.track-thumb-btn {
+  flex: none; appearance: none; border: none; background: transparent; padding: 0; cursor: pointer; border-radius: 9px;
+}
+.track-thumb-btn:hover .track-play { opacity: 1; }
+.track-open {
+  flex: 1; min-width: 0; appearance: none; border: none; background: transparent; cursor: pointer;
+  display: flex; align-items: center; gap: 10px; text-align: left; color: inherit; padding: 2px;
+}
+.track-open .track-info { flex: 1; }
+.track-partcount {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700;
+  color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 9px; font-variant-numeric: tabular-nums;
+}
+.track-partcount svg { width: 13px; height: 13px; color: var(--ink-faint); }
+.track-open-chev { flex: none; width: 17px; height: 17px; color: var(--ink-faint); }
+
+/* 파트 참여 팝업(시트) */
+.part-sheet-song { display: flex; align-items: center; gap: 12px; margin: 4px 2px 14px; }
+.part-sheet-song .track-thumb { width: 64px; height: 42px; }
+.part-sheet-songinfo { flex: 1; min-width: 0; }
+.part-sheet-songinfo h2 {
+  margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.part-sheet-songinfo p {
+  margin: 3px 0 0; font-size: 12.5px; color: var(--ink-soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.part-sheet-summary {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;
+  color: var(--ink-soft); margin: 0 2px 2px;
+}
+.part-bar-ico { display: inline-flex; }
+.part-bar-ico svg { width: 15px; height: 15px; color: var(--ink-faint); }
+
+/* 파트별 명단 (팝업 내부) */
+.part-none { margin: 12px 2px 2px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
+.part-groups { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.part-group { display: flex; align-items: baseline; gap: 10px; }
+.part-group-label { flex: none; width: 56px; font-size: 12.5px; font-weight: 800; color: var(--ink); }
+.part-group-label b { color: var(--accent); margin-left: 2px; font-variant-numeric: tabular-nums; }
+.part-group-names { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 5px; }
+.part-name {
+  font-size: 12.5px; color: var(--ink-soft); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px; padding: 3px 9px;
+}
+.part-name.me {
+  color: var(--accent); font-weight: 700;
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.part-mypart { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.part-mypart-label { display: block; font-size: 12px; font-weight: 700; color: var(--ink-soft); margin-bottom: 9px; }
+.part-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.part-chip {
+  appearance: none; cursor: pointer; border: 1.5px solid var(--line-strong); background: rgba(255, 255, 255, 0.04);
+  color: var(--ink-soft); border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 13.5px; font-weight: 700;
+  transition: color 0.14s, background 0.14s, border-color 0.14s;
+}
+.part-chip:hover { color: var(--ink); }
+.part-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 0 14px -4px var(--accent); }
+.part-chip:disabled { opacity: 0.55; cursor: default; }
+.part-custom { display: flex; gap: 7px; margin-top: 8px; align-items: stretch; }
+/* '직접 입력' 칩은 고정 파트 칩(.part-chip)과 완전히 동일한 크기 (상속). 입력창·적용은 stretch로 같은 높이 정렬 */
+.part-chip.part-custom-chip { flex: 0 0 auto; white-space: nowrap; }
+.part-custom-input {
+  flex: 1; min-width: 0; font: inherit; font-size: 13.5px; font-weight: 500; color: var(--ink);
+  background: rgba(255, 255, 255, 0.05); border: 1.5px solid var(--line-strong);
+  border-radius: 10px; padding: 0 12px;
+}
+.part-custom-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.part-custom-input::placeholder { color: var(--ink-faint); font-weight: 400; }
+/* 적용 버튼 = 고정 파트 칩과 동일한 크기(패딩·글자·모서리). 높이는 stretch로 정렬 */
+.btn.part-custom-apply { flex: 0 0 auto; width: auto; min-width: 0; padding: 8px 14px; font-size: 13.5px; font-weight: 700; border-radius: 10px; }
+.part-custom-hint { margin: 10px 2px 0; font-size: 11.5px; color: var(--ink-faint); line-height: 1.55; }
 
 /* 순서 편집: 드래그 손잡이 + 끌리는 행 */
 .drag-handle {

@@ -53,6 +53,12 @@ export interface Track {
   addedBy: string // 추가한 사람 uid
   addedByName?: string // 추가한 사람 이름 스냅샷 (표시용)
   addedAt: number
+  /**
+   * 이 곡의 파트별 참여자.  uid → 그 곡에서 맡은 파트.
+   * 기본값은 참여자 프로필(members/{uid}.part)의 파트지만, 곡마다 다른 파트로 바꿀 수 있다.
+   * 이름은 저장하지 않고 멤버 명단과 이어붙여(표시 시점에) 항상 최신으로 보여준다.
+   */
+  participants?: Record<string, TrackPart>
 }
 
 export type AttendStatus = 'present' | 'late' | 'leave' | 'absent'
@@ -75,6 +81,18 @@ export interface Attendance {
 }
 
 export type Part = 'drum' | 'bass' | 'guitar' | 'keyboard' | 'vocal'
+
+/**
+ * 곡별 참여자가 그 곡에서 "표시"할 파트 값.
+ * 고정 파트(Part) 중 하나이거나, 사용자가 직접 입력한 임의 라벨(예: '코러스', '퍼커션', 'MC').
+ * 어디까지나 곡별 표시용이며, 사용자 프로필의 part 는 바뀌지 않는다.
+ */
+export type TrackPart = Part | (string & {})
+
+/** 값이 고정 파트인지 여부 (아니면 임의 라벨) */
+export function isFixedPart(v: string | undefined): v is Part {
+  return v === 'drum' || v === 'bass' || v === 'guitar' || v === 'keyboard' || v === 'vocal'
+}
 
 export const PART_ORDER: Part[] = ['drum', 'bass', 'guitar', 'keyboard', 'vocal']
 

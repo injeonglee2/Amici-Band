@@ -2,15 +2,17 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   onSnapshot,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { db, fbApp } from './firebase'
 import { DEMO, demoDb } from './demo'
-import type { Attendance, BandEvent, Member, Place, Playlist, Track, WebPushSubscription } from './types'
+import type { Attendance, BandEvent, Member, Place, Playlist, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -233,6 +235,35 @@ export async function saveTrack(playlistId: string, t: Track): Promise<void> {
 export async function deleteTrack(playlistId: string, trackId: string): Promise<void> {
   if (DEMO) return demoDb.deleteTrack(playlistId, trackId)
   await deleteDoc(doc(db, 'playlists', playlistId, 'tracks', trackId))
+}
+
+/**
+ * 이 곡에 본인(uid)을 지정 파트로 참여시킨다.
+ * participants.{uid} 단일 필드만 원자적으로 갱신하므로, 여러 명이 동시에 눌러도 서로 덮어쓰지 않는다.
+ * (곡 문서는 이미 존재하므로 updateDoc 사용 — 없는 participants 맵도 자동 생성됨)
+ */
+export async function setTrackParticipation(
+  playlistId: string,
+  trackId: string,
+  uid: string,
+  part: TrackPart,
+): Promise<void> {
+  if (DEMO) return demoDb.setTrackParticipation(playlistId, trackId, uid, part)
+  await updateDoc(doc(db, 'playlists', playlistId, 'tracks', trackId), {
+    [`participants.${uid}`]: part,
+  })
+}
+
+/** 이 곡에서 본인(uid) 참여를 취소한다 (participants.{uid} 필드만 삭제). */
+export async function clearTrackParticipation(
+  playlistId: string,
+  trackId: string,
+  uid: string,
+): Promise<void> {
+  if (DEMO) return demoDb.clearTrackParticipation(playlistId, trackId, uid)
+  await updateDoc(doc(db, 'playlists', playlistId, 'tracks', trackId), {
+    [`participants.${uid}`]: deleteField(),
+  })
 }
 
 export function newId(): string {
