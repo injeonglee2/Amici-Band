@@ -29,6 +29,7 @@ import SetlistPlayer from './SetlistPlayer'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
+import { useBackHandler } from '../backnav'
 import { DEMO } from '../demo'
 import { exportErrorMessage, exportPlaylistToYouTube, YouTubeExportError, type ExportResult } from '../ytexport'
 
@@ -117,6 +118,7 @@ function PlaylistForm({
 }) {
   const { member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose) // 뒤로가기로 재생목록 폼 닫기
   const [name, setName] = useState(editing?.name ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -235,6 +237,10 @@ function PlaylistDetail({
   const dragRef = useRef<{ id: string; fromIndex: number; startY: number; target: number } | null>(null)
   const baseRef = useRef<Track[]>([])
   const rowHRef = useRef(56)
+
+  // 뒤로가기: 편집 중이면 편집 종료(제목 저장), 아니면 재생목록 목록으로.
+  // 위에 열린 곡추가·곡수정·참여·재생기·확인창은 각 컴포넌트가 먼저 받는다.
+  useBackHandler(() => (editMode ? void exitEdit() : back()))
 
   useEffect(
     () =>
@@ -716,6 +722,7 @@ function ParticipationSheet({
   const [busy, setBusy] = useState(false)
 
   const parts = track.participants ?? {}
+  // (뒤로가기 핸들러는 editing 상태 선언 뒤에 등록한다)
   const uids = Object.keys(parts)
   const count = uids.length
   const myPart: TrackPart | undefined = me ? parts[me.uid] : undefined
@@ -723,6 +730,8 @@ function ParticipationSheet({
 
   // 파트 편집 영역 — 참여 중이어도 기본은 숨김. 아래 '수정' 버튼으로만 연다.
   const [editing, setEditing] = useState(false)
+  // 뒤로가기: 파트 편집 중이면 편집만 접고, 아니면 시트 닫기
+  useBackHandler(() => (editing ? setEditing(false) : onClose()))
 
   // 직접 입력(임의 라벨) — '직접 입력' 버튼을 눌렀을 때만 입력창·적용 노출.
   // 내 표시값이 이미 임의 라벨이면 열린 상태 + 그 값으로 프리필.
@@ -960,6 +969,7 @@ function TrackEditForm({
   onClose: () => void
 }) {
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose) // 뒤로가기로 곡 정보 수정 시트 닫기
   const [title, setTitle] = useState(track.title)
   const [artist, setArtist] = useState(track.artist)
   const [busy, setBusy] = useState(false)
@@ -1066,6 +1076,7 @@ function TrackForm({
 }) {
   const { member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose) // 뒤로가기로 곡 추가 시트 닫기
   const [url, setUrl] = useState('')
   const [videoId, setVideoId] = useState<string | null>(null)
   const [listId, setListId] = useState<string | null>(null)

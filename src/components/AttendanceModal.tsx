@@ -14,6 +14,7 @@ import { TypeGlyph } from './TypeGlyph'
 import ConfirmDialog from './ConfirmDialog'
 import PartTally from './PartTally'
 import { useSheetSwipe } from './useSheetSwipe'
+import { useBackHandler } from '../backnav'
 
 const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
 
@@ -38,6 +39,7 @@ export default function AttendanceModal({
 }) {
   const { user, member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose) // 뒤로가기로 참석 모달 닫기 (내부 취소 확인창은 ConfirmDialog 가 먼저 받는다)
   const [saving, setSaving] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [noteText, setNoteText] = useState('')

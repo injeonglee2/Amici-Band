@@ -3,10 +3,12 @@ import { saveFcmToken, saveWebPushSubscription } from '../data'
 import { useAuth } from '../auth'
 import { notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { versionLabel } from '../version'
+import { useBackHandler } from '../backnav'
 
 export default function Settings({ onClose }: { onClose: () => void }) {
   const { member } = useAuth()
   const isAdmin = !!member?.admin
+  useBackHandler(onClose) // 뒤로가기로 설정 화면 닫기
   return (
     <div className="app">
       <header className="top">

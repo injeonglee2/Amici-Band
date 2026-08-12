@@ -27,6 +27,7 @@ import ConfirmDialog from './ConfirmDialog'
 import PartTally from './PartTally'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
+import { useBackHandler } from '../backnav'
 
 /** 원본 곡을 찾기 위한 키 (재생목록이 달라도 곡 id 가 겹칠 수 있으므로 둘을 합쳐 쓴다) */
 const trackKey = (playlistId: string, trackId: string) => playlistId + '/' + trackId
@@ -59,6 +60,9 @@ export default function SetlistSheet({
   const [removing, setRemoving] = useState<SetlistSong | null>(null)
   // 편집 모드: 순서 드래그 + 곡 빼기 (재생목록 편집과 같은 개념, 관리자 전용)
   const [editMode, setEditMode] = useState(false)
+  // 뒤로가기: 곡 고르기(SongPicker)가 열려 있으면 목록으로, 아니면 시트 닫기.
+  // 곡 빼기 확인창은 ConfirmDialog 가 더 위에서 먼저 받는다.
+  useBackHandler(() => (picking ? setPicking(false) : onClose()))
   // 참여자 표를 펼친 곡 id (한 번에 하나만 — 목록이 길어지지 않게)
   const [openId, setOpenId] = useState<string | null>(null)
   // 파트별 참석 표시용 — 참석 현황 모달과 같은 집계를 상단에 보여준다

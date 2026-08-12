@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { Track } from '../types'
 import { loadYouTubeIframeApi, watchUrl } from '../youtube'
+import { useBackHandler } from '../backnav'
 
 /**
  * 앱 내 유튜브 재생기 — 재생목록 상세에서 현재 곡을 임베드로 재생한다.
@@ -31,6 +32,10 @@ export default function SetlistPlayer({
   const playerRef = useRef<YTPlayer | null>(null)
   const readyRef = useRef(false)
   const videoRef = useRef(track.videoId)
+
+  useBackHandler(onClose) // 뒤로가기로 재생기 닫기
+
+
 
   // 최신 콜백을 ref 로 유지 (플레이어는 한 번만 생성하므로 클로저 고정 방지)
   const onEndedRef = useRef(onEnded)

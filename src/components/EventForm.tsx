@@ -12,6 +12,7 @@ import {
 import { todayStr, toMin } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import { useSheetSwipe } from './useSheetSwipe'
+import { useBackHandler } from '../backnav'
 
 export default function EventForm({
   editing,
@@ -24,6 +25,7 @@ export default function EventForm({
 }) {
   const { user } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose) // 뒤로가기로 일정 폼 닫기
   const [type, setType] = useState<EventType>(editing?.type ?? 'practice')
   const [title, setTitle] = useState(editing?.title ?? '')
   const [date, setDate] = useState(editing?.date ?? todayStr())

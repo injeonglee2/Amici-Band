@@ -14,6 +14,7 @@ import MusicView from './Music'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
+import { useAndroidBack, useBackHandler } from '../backnav'
 
 type Filter = 'all' | EventType
 
@@ -75,6 +76,13 @@ export default function Main() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [member?.uid])
+
+  // ── 안드로이드 물리 뒤로가기 ──
+  // 열린 다이얼로그·시트·상세는 각 컴포넌트가 직접 뒤로가기 핸들러를 등록한다.
+  // 여기서는 사용자 메뉴 닫기 → 탭(음악/장소) 홈으로 → 홈 기본 상태 종료 안내 순서를 맡는다.
+  useBackHandler(() => setMenuOpen(false), menuOpen)
+  useBackHandler(() => setNav('home'), nav !== 'home')
+  useAndroidBack(() => toast.show('한 번 더 누르면 종료됩니다'))
 
   const placesMap = useMemo(() => new Map(places.map((p) => [p.id, p])), [places])
 
