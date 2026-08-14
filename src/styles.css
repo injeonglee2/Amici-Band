@@ -898,8 +898,10 @@ button { font-family: inherit; }
 .song-part-cell .sp-lbl { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
 .song-part-cell .sp-lbl b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .song-part-cell ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-.song-part-cell li { font-size: 11.5px; color: var(--ink); word-break: break-all; }
+.song-part-cell li { font-size: 11.5px; color: var(--ink-soft); word-break: break-all; }
 .song-part-cell li.muted { color: var(--ink-faint); }
+/* 파트별 참석(오는 사람)에 포함된 참여자 → 볼드로 강조 */
+.song-part-cell li.attending { color: var(--ink); font-weight: 700; }
 .song-part-cell li.me { color: var(--accent); font-weight: 700; }
 .setlist-no {
   flex: none; width: 20px; text-align: center; font-size: 12.5px; font-weight: 800;

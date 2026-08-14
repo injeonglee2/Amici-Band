@@ -120,6 +120,16 @@ export default function SetlistSheet({
   }, [playlistIds])
 
   const memberMap = useMemo(() => new Map(members.map((m) => [m.uid, m])), [members])
+  // 오는 사람(참석·늦참·조퇴) uid 집합 — 곡 참여자 중 실제 참석자를 볼드로 강조하는 데 쓴다
+  const attendingUids = useMemo(
+    () =>
+      new Set(
+        att
+          .filter((a) => a.status === 'present' || a.status === 'late' || a.status === 'leave')
+          .map((a) => a.uid),
+      ),
+    [att],
+  )
 
   /* ----- 드래그로 합주 순서 바꾸기 (재생목록 곡 정렬과 같은 방식) ----- */
   function onDragStart(e: ReactPointerEvent, id: string) {
@@ -356,7 +366,7 @@ export default function SetlistSheet({
                       </div>
                       {/* 편집 중에는 접어 둔다 — 드래그 위치 계산이 고른 행 높이에 기댄다 */}
                       {!editMode && open && (
-                        <PartGrid track={track} memberMap={memberMap} myUid={user?.uid} />
+                        <PartGrid track={track} memberMap={memberMap} attendingUids={attendingUids} myUid={user?.uid} />
                       )}
                     </li>
                   )
@@ -398,14 +408,17 @@ export default function SetlistSheet({
  * 곡을 펼쳤을 때 나오는 파트별 참여자 (원본 곡의 participants 기준).
  * 상단 '파트별 참석'과 같은 5칸 구조지만 박스 대신 세로 구분선으로만 나눈다.
  * 고정 파트 5칸은 인원이 없어도 늘 그리고, 임의 라벨(코러스·MC 등)은 뒤에 덧붙인다.
+ * 곡 참여자 중 실제 오는 사람(파트별 참석에 포함)은 이름을 볼드로 강조한다.
  */
 function PartGrid({
   track,
   memberMap,
+  attendingUids,
   myUid,
 }: {
   track: Track | undefined
   memberMap: Map<string, Member>
+  attendingUids: Set<string>
   myUid: string | undefined
 }) {
   if (!track) return <p className="song-empty">원본 곡을 찾을 수 없어요</p>
@@ -435,11 +448,15 @@ function PartGrid({
           <div className="sp-lbl">{g.label} <b>{g.uids.length}</b></div>
           <ul>
             {g.uids.length === 0 && <li className="muted">-</li>}
-            {g.uids.map((u) => (
-              <li key={u} className={u === myUid ? 'me' : undefined}>
-                {memberMap.get(u)?.name ?? '(탈퇴)'}
-              </li>
-            ))}
+            {g.uids.map((u) => {
+              const cls =
+                (attendingUids.has(u) ? 'attending' : '') + (u === myUid ? ' me' : '')
+              return (
+                <li key={u} className={cls.trim() || undefined}>
+                  {memberMap.get(u)?.name ?? '(탈퇴)'}
+                </li>
+              )
+            })}
           </ul>
         </div>
       ))}
