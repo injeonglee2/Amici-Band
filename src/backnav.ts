@@ -62,12 +62,18 @@ const EXIT_WINDOW_MS = 2000
 
 /**
  * 앱 최상위(로그인 후 Main)에서 한 번만 호출.
- * 물리 뒤로가기 라우팅 + '한 번 더 눌러 종료'를 설치한다.
- * @param onExitPrompt 홈에서 첫 뒤로가기 때 부를 콜백(종료 안내 토스트 노출용)
+ * 물리 뒤로가기 우선순위를 한곳에서 처리한다: 오버레이 닫기 → 탭(음악·장소) 홈으로 → 종료 안내.
+ *
+ * 탭→홈을 별도 useBackHandler 로 등록하지 않고 컨트롤러가 직접 부르는 이유:
+ * 토글식(active) 등록은 환경에 따라 타이밍 이슈가 있을 수 있어, 루트 네비게이션은
+ * 항상 존재하는 이 컨트롤러가 확정적으로 처리하는 편이 안전하다.
+ *
+ * @param opts.navigateHome 오버레이가 없을 때 호출. 홈이 아니면 홈으로 옮기고 true, 이미 홈이면 false.
+ * @param opts.showExitToast 홈에서 첫 뒤로가기 때 종료 안내 토스트를 띄운다.
  */
-export function useAndroidBack(onExitPrompt: () => void) {
-  const promptRef = useRef(onExitPrompt)
-  promptRef.current = onExitPrompt
+export function useAndroidBack(opts: { navigateHome: () => boolean; showExitToast: () => void }) {
+  const optsRef = useRef(opts)
+  optsRef.current = opts
   useEffect(() => {
     let armed = false
     let armTimer: number | undefined
@@ -101,7 +107,13 @@ export function useAndroidBack(onExitPrompt: () => void) {
         trap()
         return
       }
-      // 2) 홈 기본 상태.
+      // 2) 오버레이가 없으면 탭(음악·장소) → 홈. 홈으로 옮겼으면 머무른다.
+      if (optsRef.current.navigateHome()) {
+        disarm()
+        trap()
+        return
+      }
+      // 3) 홈 기본 상태.
       if (armed) {
         // 안내가 떠 있는 동안의 두 번째 뒤로가기 → 여기서는 덫을 다시 쌓지 않는다.
         //    (TWA 는 popstate 에서 push 가 없으면 이 뒤로가기로 액티비티를 종료한다.)
@@ -109,7 +121,7 @@ export function useAndroidBack(onExitPrompt: () => void) {
         return
       }
       // 첫 뒤로가기 → 종료 안내 + trap() 으로 이 뒤로가기 종료를 취소하고 머무른다.
-      promptRef.current()
+      optsRef.current.showExitToast()
       armed = true
       trap()
       armTimer = window.setTimeout(() => {

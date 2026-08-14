@@ -79,10 +79,18 @@ export default function Main() {
 
   // ── 안드로이드 물리 뒤로가기 ──
   // 열린 다이얼로그·시트·상세는 각 컴포넌트가 직접 뒤로가기 핸들러를 등록한다.
-  // 여기서는 사용자 메뉴 닫기 → 탭(음악/장소) 홈으로 → 홈 기본 상태 종료 안내 순서를 맡는다.
+  // 사용자 메뉴는 오버레이처럼 등록하고, 탭(음악/장소)→홈과 종료 안내는 컨트롤러가 확정 처리한다.
   useBackHandler(() => setMenuOpen(false), menuOpen)
-  useBackHandler(() => setNav('home'), nav !== 'home')
-  useAndroidBack(() => toast.show('한 번 더 누르면 종료됩니다'))
+  useAndroidBack({
+    navigateHome: () => {
+      if (nav !== 'home') {
+        setNav('home')
+        return true
+      }
+      return false
+    },
+    showExitToast: () => toast.show('한 번 더 누르면 종료됩니다'),
+  })
 
   const placesMap = useMemo(() => new Map(places.map((p) => [p.id, p])), [places])
 
