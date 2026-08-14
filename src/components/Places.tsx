@@ -6,6 +6,7 @@ import { isMockSearch, searchPlaces, type PlaceHit } from '../mapsearch'
 import { CopyButton } from './CopyButton'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
+import { useBackHandler } from '../backnav'
 
 type Editing = Place | 'new' | null
 
@@ -82,6 +83,7 @@ export default function PlacesView({
 
 function PlaceForm({ editing, onClose }: { editing: Place | null; onClose: () => void }) {
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose) // 뒤로가기로 장소 폼 닫기 (일정 탭으로 튀지 않고 장소에 머무름)
   const [name, setName] = useState(editing?.name ?? '')
   const [memo, setMemo] = useState(editing?.memo ?? '')
   const [busy, setBusy] = useState(false)
