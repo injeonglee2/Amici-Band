@@ -110,13 +110,15 @@ export function useAndroidBack(opts: { navigateHome: () => boolean; showExitToas
     let armTimer: number | undefined
     const isTrapped = () =>
       !!(window.history.state as { amiciTrap?: boolean } | null)?.amiciTrap
-    // 무조건 덫 쌓기. popstate 처리 중 '머무름'을 위해선 반드시 pushState 가 있어야 하므로
-    // (TWA 는 push 없으면 그 뒤로가기로 종료), 이 경우엔 가드 없이 항상 쌓는다.
     const pushTrap = () => window.history.pushState({ amiciTrap: true }, '')
     // 팝 없이(마운트 등) 부를 때만 중복 방지 가드. StrictMode 이중 마운트·SW 리로드 대비.
     const ensureTrap = () => {
       if (!isTrapped()) pushTrap()
     }
+    // '머무름' 재-덫은 반드시 popstate 밖(다음 태스크)에서 쌓아야 다음 뒤로가기가
+    // 실제로 traversable 하다. (이 TWA 는 popstate 안에서 부른 pushState 를 뒤로갈 수
+    // 있는 히스토리 항목으로 만들지 않아, 바로 다음 뒤로가기가 앱을 종료시킨다.)
+    const deferTrap = () => window.setTimeout(ensureTrap, 0)
     const disarm = () => {
       armed = false
       if (armTimer !== undefined) {
@@ -137,29 +139,29 @@ export function useAndroidBack(opts: { navigateHome: () => boolean; showExitToas
 
     const onPop = () => {
       dlog('POP')
-      // 1) 닫을 오버레이/단계가 있으면 하나 닫고, 덫을 다시 쌓아 이 뒤로가기로는 종료되지 않게 한다.
+      // 1) 닫을 오버레이/단계가 있으면 하나 닫고, 다음 뒤로가기를 위해 traversable 한 덫을 새로 쌓는다.
       if (runTopBackHandler()) {
         disarm()
-        pushTrap()
+        deferTrap()
         dlog('=overlay')
         return
       }
-      // 2) 오버레이가 없으면 탭(음악·장소) → 홈. 홈으로 옮겼으면 머무른다.
+      // 2) 오버레이가 없으면 탭(음악·장소) → 홈. 홈으로 옮겼으면 머무르고, 다음 뒤로가기용 덫을 쌓는다.
       if (optsRef.current.navigateHome()) {
         disarm()
-        pushTrap()
+        deferTrap()
         dlog('=home')
         return
       }
       // 3) 홈 기본 상태.
       if (armed) {
-        // 안내가 떠 있는 동안의 두 번째 뒤로가기 → 여기서는 덫을 다시 쌓지 않는다.
-        //    (TWA 는 popstate 에서 push 가 없으면 이 뒤로가기로 액티비티를 종료한다.)
+        // 안내가 떠 있는 동안의 두 번째 뒤로가기 → 덫을 쌓지 않아 이 뒤로가기로 종료.
         disarm()
         dlog('=EXIT')
         return
       }
-      // 첫 뒤로가기 → 종료 안내 + pushTrap() 으로 이 뒤로가기 종료를 취소하고 머무른다.
+      // 첫 뒤로가기 → 종료 안내. 여기서 쌓는 덫은 popstate 안이라 non-traversable →
+      // 다음(두 번째) 뒤로가기가 곧장 종료되게 한다(2번 눌러 종료).
       optsRef.current.showExitToast()
       armed = true
       pushTrap()
