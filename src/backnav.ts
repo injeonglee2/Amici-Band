@@ -19,6 +19,37 @@ import { useEffect, useRef } from 'react'
  * standalone PWA 의 가장자리 스와이프-백이 popstate 를 쏘는 경우 오버레이 닫기까지는 함께 동작한다.
  */
 
+// ── 임시 진단 로그 (관리자에게만 표시). 원인 파악 후 제거 예정. ──
+export const BACK_DEBUG = true
+const LOG_KEY = 'amiciBackLog'
+function dlog(tag: string) {
+  if (!BACK_DEBUG) return
+  try {
+    const trap = (window.history.state as { amiciTrap?: boolean } | null)?.amiciTrap ? 1 : 0
+    const line = `${tag} len=${window.history.length} trap=${trap} h=${handlers.length}`
+    const buf: string[] = JSON.parse(localStorage.getItem(LOG_KEY) || '[]')
+    buf.push(line)
+    while (buf.length > 16) buf.shift()
+    localStorage.setItem(LOG_KEY, JSON.stringify(buf))
+  } catch {
+    /* noop */
+  }
+}
+export function readBackLog(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(LOG_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+export function clearBackLog() {
+  try {
+    localStorage.removeItem(LOG_KEY)
+  } catch {
+    /* noop */
+  }
+}
+
 type Handler = { id: number; fn: () => void }
 
 let handlers: Handler[] = []
@@ -79,9 +110,12 @@ export function useAndroidBack(opts: { navigateHome: () => boolean; showExitToas
     let armTimer: number | undefined
     const isTrapped = () =>
       !!(window.history.state as { amiciTrap?: boolean } | null)?.amiciTrap
-    // 덫 쌓기(중복 방지) — 이미 덫 위면 그대로 둔다. StrictMode 이중 마운트에도 안전.
-    const trap = () => {
-      if (!isTrapped()) window.history.pushState({ amiciTrap: true }, '')
+    // 무조건 덫 쌓기. popstate 처리 중 '머무름'을 위해선 반드시 pushState 가 있어야 하므로
+    // (TWA 는 push 없으면 그 뒤로가기로 종료), 이 경우엔 가드 없이 항상 쌓는다.
+    const pushTrap = () => window.history.pushState({ amiciTrap: true }, '')
+    // 팝 없이(마운트 등) 부를 때만 중복 방지 가드. StrictMode 이중 마운트·SW 리로드 대비.
+    const ensureTrap = () => {
+      if (!isTrapped()) pushTrap()
     }
     const disarm = () => {
       armed = false
@@ -91,26 +125,30 @@ export function useAndroidBack(opts: { navigateHome: () => boolean; showExitToas
       }
     }
 
-    trap()
-    // 종료 안내 중 오버레이가 새로 열리면 예약된 종료를 취소(계속 머무름).
+    ensureTrap()
+    dlog('mount')
+    // 종료 안내 중 오버레이가 새로 열리면 예약된 종료만 취소(덫은 이미 있음).
     onRegister = () => {
       if (armed) {
         disarm()
-        trap() // 이미 덫이 있으면 가드가 스킵
+        ensureTrap()
       }
     }
 
     const onPop = () => {
+      dlog('POP')
       // 1) 닫을 오버레이/단계가 있으면 하나 닫고, 덫을 다시 쌓아 이 뒤로가기로는 종료되지 않게 한다.
       if (runTopBackHandler()) {
         disarm()
-        trap()
+        pushTrap()
+        dlog('=overlay')
         return
       }
       // 2) 오버레이가 없으면 탭(음악·장소) → 홈. 홈으로 옮겼으면 머무른다.
       if (optsRef.current.navigateHome()) {
         disarm()
-        trap()
+        pushTrap()
+        dlog('=home')
         return
       }
       // 3) 홈 기본 상태.
@@ -118,12 +156,14 @@ export function useAndroidBack(opts: { navigateHome: () => boolean; showExitToas
         // 안내가 떠 있는 동안의 두 번째 뒤로가기 → 여기서는 덫을 다시 쌓지 않는다.
         //    (TWA 는 popstate 에서 push 가 없으면 이 뒤로가기로 액티비티를 종료한다.)
         disarm()
+        dlog('=EXIT')
         return
       }
-      // 첫 뒤로가기 → 종료 안내 + trap() 으로 이 뒤로가기 종료를 취소하고 머무른다.
+      // 첫 뒤로가기 → 종료 안내 + pushTrap() 으로 이 뒤로가기 종료를 취소하고 머무른다.
       optsRef.current.showExitToast()
       armed = true
-      trap()
+      pushTrap()
+      dlog('=arm')
       armTimer = window.setTimeout(() => {
         armed = false
         armTimer = undefined
