@@ -395,8 +395,8 @@ export default function SetlistSheet({
 }
 
 /**
- * 곡을 펼쳤을 때 나오는 파트별 참여자 표 (원본 곡의 participants 기준).
- * 상단 '파트별 참석'과 같은 칸 구조라 곡을 여러 개 펼쳐도 파트 열이 세로로 맞아떨어진다.
+ * 곡을 펼쳤을 때 나오는 파트별 참여자 (원본 곡의 participants 기준).
+ * 상단 '파트별 참석'과 같은 5칸 구조지만 박스 대신 세로 구분선으로만 나눈다.
  * 고정 파트 5칸은 인원이 없어도 늘 그리고, 임의 라벨(코러스·MC 등)은 뒤에 덧붙인다.
  */
 function PartGrid({
@@ -408,7 +408,7 @@ function PartGrid({
   memberMap: Map<string, Member>
   myUid: string | undefined
 }) {
-  if (!track) return <p className="setlist-parts none">원본 곡을 찾을 수 없어요</p>
+  if (!track) return <p className="song-empty">원본 곡을 찾을 수 없어요</p>
 
   const parts = track.participants ?? {}
   const uids = Object.keys(parts)
@@ -429,10 +429,10 @@ function PartGrid({
   }))
 
   return (
-    <div className="part-tally-grid setlist-part-grid">
+    <div className="song-parts">
       {[...fixed, ...custom].map((g) => (
-        <div key={g.key} className="part-cell">
-          <div className="part-head">{g.label} <b>{g.uids.length}</b></div>
+        <div key={g.key} className="song-part-cell">
+          <div className="sp-lbl">{g.label} <b>{g.uids.length}</b></div>
           <ul>
             {g.uids.length === 0 && <li className="muted">-</li>}
             {g.uids.map((u) => (

@@ -887,9 +887,20 @@ button { font-family: inherit; }
 .setlist-joined { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .setlist-toggle .track-open-chev { transition: transform 0.18s ease; }
 .setlist-toggle .track-open-chev.open { transform: rotate(180deg); }
-/* 펼친 참여자 표 — 상단 '파트별 참석'과 같은 칸 구조 */
-.setlist-part-grid { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line); }
-.part-cell li.me { color: var(--accent); font-weight: 700; }
+/* 펼친 곡 참여자 — 상단 '파트별 참석'과 같은 5칸이되 박스 없이 세로 구분선으로만 나눈다 */
+.song-empty { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line); color: var(--ink-faint); font-size: 12px; }
+.song-parts {
+  margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line);
+  display: grid; grid-template-columns: repeat(5, 1fr); column-gap: 0; row-gap: 12px; align-items: start;
+}
+.song-part-cell { padding: 0 8px; min-width: 0; border-left: 1px solid var(--line); }
+.song-part-cell:nth-child(5n + 1) { border-left: none; padding-left: 0; } /* 각 줄 첫 칸은 구분선 없음 */
+.song-part-cell .sp-lbl { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+.song-part-cell .sp-lbl b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.song-part-cell ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.song-part-cell li { font-size: 11.5px; color: var(--ink); word-break: break-all; }
+.song-part-cell li.muted { color: var(--ink-faint); }
+.song-part-cell li.me { color: var(--accent); font-weight: 700; }
 .setlist-no {
   flex: none; width: 20px; text-align: center; font-size: 12.5px; font-weight: 800;
   color: var(--ink-faint); font-variant-numeric: tabular-nums;
