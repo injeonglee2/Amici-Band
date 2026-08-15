@@ -130,6 +130,14 @@ export default function SetlistSheet({
       ),
     [att],
   )
+  // 펼친 곡의 참여자 uid — 상단 '파트별 참석'에서 이 사람들을 볼드로 강조한다(곡 바꾸면 따라 바뀜)
+  const openPartUids = useMemo(() => {
+    if (!openId) return new Set<string>()
+    const s = songs.find((x) => x.id === openId)
+    if (!s) return new Set<string>()
+    const track = tracks.get(trackKey(s.playlistId, s.id))
+    return new Set(Object.keys(track?.participants ?? {}))
+  }, [openId, songs, tracks])
 
   /* ----- 드래그로 합주 순서 바꾸기 (재생목록 곡 정렬과 같은 방식) ----- */
   function onDragStart(e: ReactPointerEvent, id: string) {
@@ -245,8 +253,8 @@ export default function SetlistSheet({
             </p>
           </div>
 
-          {/* 파트별 참석 — 참석 현황 모달과 같은 컴포넌트 */}
-          <PartTally members={members} att={att} className="setlist-part-tally" />
+          {/* 파트별 참석 — 참석 현황 모달과 같은 컴포넌트. 펼친 곡 참여자는 볼드로 강조 */}
+          <PartTally members={members} att={att} highlightUids={openPartUids} className="setlist-part-tally" />
 
           {loadErr && <div className="banner-err">{loadErr}</div>}
 

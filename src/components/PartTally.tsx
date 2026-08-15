@@ -18,10 +18,13 @@ export default function PartTally({
   members,
   att,
   className,
+  highlightUids,
 }: {
   members: Member[]
   att: Attendance[]
   className?: string
+  /** 볼드로 강조할 uid(예: 펼친 합주곡의 참여자). 없으면 강조 없음 */
+  highlightUids?: Set<string>
 }) {
   const attMap = new Map(att.map((a) => [a.uid, a]))
   const attendingUids = new Set(
@@ -45,7 +48,7 @@ export default function PartTally({
                 {attendees.map((m) => {
                   const when = whenTime(attMap.get(m.uid))
                   return (
-                    <li key={m.uid}>
+                    <li key={m.uid} className={highlightUids?.has(m.uid) ? 'hl' : undefined}>
                       {m.name}
                       {when && (
                         <span className="part-when" style={{ color: when.color }}>{when.text}</span>
