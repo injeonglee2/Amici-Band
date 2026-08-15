@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * 안드로이드(및 Play 스토어 TWA) 물리 뒤로가기 제어.
@@ -105,9 +105,24 @@ const EXIT_WINDOW_MS = 2000
  * 앱 최상위(로그인 후 Main)에서 한 번만 호출.
  * @param showExitToast 홈 기본 상태에서 첫 뒤로가기 때 종료 안내 토스트를 띄운다.
  */
+const isTrapNow = () => !!(window.history.state as { amiciTrap?: boolean } | null)?.amiciTrap
+
 export function useAndroidBack(showExitToast: () => void) {
+  const [rearmGen, setRearmGen] = useState(0)
   const toastRef = useRef(showExitToast)
   toastRef.current = showExitToast
+
+  // 종료 안내 창이 끝나면(rearmGen 증가) effect(=popstate 밖, traversable)에서 홈 sentinel 을
+  // 다시 쌓아 다음 뒤로가기에 안내가 다시 뜨게 한다. 홈 idle(오버레이·탭 없음)이고 아직 덫 위가
+  // 아닐 때만. 최초 sentinel 은 아래 컨트롤러가 마운트 때 쌓는다.
+  useEffect(() => {
+    if (rearmGen === 0) return
+    if (handlers.length === 0 && !isTrapNow()) {
+      window.history.pushState({ amiciTrap: true }, '')
+      dlog('=rearm')
+    }
+  }, [rearmGen])
+
   useEffect(() => {
     let armed = false
     let armTimer: number | undefined
@@ -126,7 +141,7 @@ export function useAndroidBack(showExitToast: () => void) {
     }
     ctl = { pushMarker, cleanupMarker }
 
-    pushMarker() // 홈 종료 안내용 sentinel (앞으로 이동 시점이 아니라 마운트 = popstate 밖이라 traversable)
+    if (!isTrapNow()) pushMarker() // 홈 종료 안내용 최초 sentinel (마운트 = popstate 밖이라 traversable)
     dlog('mount')
 
     const onPop = () => {
@@ -150,13 +165,14 @@ export function useAndroidBack(showExitToast: () => void) {
         dlog('=EXIT')
         return
       }
-      // 첫 뒤로가기 → 종료 안내(sentinel 을 pop 한 상태라 앱은 살아 있음). 다음 뒤로가기가 종료.
+      // 첫 뒤로가기 → 종료 안내(sentinel 을 pop 한 상태라 앱은 살아 있음).
       toastRef.current()
       armed = true
       dlog('=arm')
       armTimer = window.setTimeout(() => {
         armed = false
         armTimer = undefined
+        setRearmGen((g) => g + 1) // 창 종료 → effect 에서 sentinel 재생성(재-안내 가능)
       }, EXIT_WINDOW_MS)
     }
 
