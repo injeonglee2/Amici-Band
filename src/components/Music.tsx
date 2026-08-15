@@ -11,6 +11,7 @@ import {
   watchTracks,
 } from '../data'
 import type { Member, Playlist, Track } from '../types'
+import { isFixedPart, PART_META } from '../types'
 import {
   fetchPlaylistItems,
   fetchYouTubeMeta,
@@ -216,6 +217,8 @@ function PlaylistDetail({
   const [playingId, setPlayingId] = useState<string | null>(null)
   // 편집 모드: 제목 인라인 수정 + 곡 드래그 정렬 + 삭제 + 곡 정보 수정
   const [editMode, setEditMode] = useState(false)
+  // '내 참여곡만' 필터 (내가 참여한 곡만 보기)
+  const [mineOnly, setMineOnly] = useState(false)
   const [titleDraft, setTitleDraft] = useState(playlist.name)
   const [editingTrack, setEditingTrack] = useState<Track | null>(null)
   // 파트 참여 팝업(시트)을 띄운 곡 id. 곡 데이터는 tracks 에서 최신값을 다시 찾아 전달
@@ -262,6 +265,19 @@ function PlaylistDetail({
 
   const playingIndex = items.findIndex((t) => t.id === playingId)
   const playing = playingIndex >= 0 ? items[playingIndex] : null
+
+  // 내 참여곡: 각 곡의 participants 에 내 uid 가 있으면 참여. 파트 라벨은 고정 파트면 한글, 임의 라벨이면 그대로.
+  const myUid = member?.uid
+  const myPartOf = (t: Track): string | undefined => {
+    const v = myUid ? t.participants?.[myUid] : undefined
+    return v === undefined ? undefined : isFixedPart(v) ? PART_META[v].label : v
+  }
+  const myCount = myUid ? items.filter((t) => t.participants?.[myUid] !== undefined).length : 0
+  // 편집 모드에선 항상 전체(순서 변경용). 아니면 '내 참여곡만' 필터 적용(내 곡이 없으면 전체)
+  const rows =
+    editMode || !mineOnly || myCount === 0
+      ? items
+      : items.filter((t) => myUid && t.participants?.[myUid] !== undefined)
 
   function playTrack(id: string) {
     setPlayingId(id)
@@ -533,8 +549,20 @@ function PlaylistDetail({
                 </button>
               </div>
             )}
+            {!editMode && myUid && myCount > 0 && (
+              <div className="track-filter">
+                <button
+                  type="button"
+                  className={'chip mine-filter' + (mineOnly ? ' on' : '')}
+                  aria-pressed={mineOnly}
+                  onClick={() => setMineOnly((v) => !v)}
+                >
+                  내 참여곡만 <b>{myCount}</b>
+                </button>
+              </div>
+            )}
             <div className="list track-list">
-              {items.map((t) =>
+              {rows.map((t) =>
                 editMode ? (
                   <div
                     key={t.id}
@@ -575,7 +603,7 @@ function PlaylistDetail({
                     </div>
                   </div>
                 ) : (
-                  <div key={t.id} className={'track-row' + (t.id === playingId ? ' playing' : '')}>
+                  <div key={t.id} className={'track-row' + (t.id === playingId ? ' playing' : '') + (myPartOf(t) ? ' mine' : '')}>
                     <button className="track-thumb-btn" onClick={() => playTrack(t.id)} aria-label="재생">
                       <div className="track-thumb">
                         {t.thumbnail || t.videoId ? (
@@ -595,6 +623,9 @@ function PlaylistDetail({
                         <h3>{t.title || '(제목 없음)'}</h3>
                         {t.artist && <p>{t.artist}</p>}
                       </div>
+                      {myPartOf(t) && (
+                        <span className="track-mypart" title="내 파트">{myPartOf(t)}</span>
+                      )}
                       {(() => {
                         const c = Object.keys(t.participants ?? {}).length
                         return c > 0 ? (
