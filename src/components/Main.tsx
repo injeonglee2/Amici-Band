@@ -14,7 +14,7 @@ import MusicView from './Music'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
-import { useAndroidBack, useBackHandler, BACK_DEBUG, readBackLog, clearBackLog } from '../backnav'
+import { useAndroidBack, useBackHandler } from '../backnav'
 
 type Filter = 'all' | EventType
 
@@ -305,35 +305,8 @@ export default function Main() {
         <EventForm editing={editing} places={places} onClose={() => setFormOpen(false)} />
       )}
 
-      {isAdmin && BACK_DEBUG && <BackLogView />}
       <Toast state={toast} />
     </div>
   )
 }
 
-/** 임시 진단: 뒤로가기 이벤트 로그(관리자 전용). 탭하면 지움. 원인 파악 후 제거. */
-function BackLogView() {
-  const [lines, setLines] = useState<string[]>(readBackLog())
-  useEffect(() => {
-    const t = window.setInterval(() => setLines(readBackLog()), 500)
-    return () => window.clearInterval(t)
-  }, [])
-  return (
-    <div
-      onClick={() => {
-        clearBackLog()
-        setLines([])
-      }}
-      style={{
-        position: 'fixed', top: 8, left: 8, right: 8, zIndex: 300,
-        maxHeight: '40vh', overflow: 'auto',
-        background: 'rgba(0,0,0,0.82)', color: '#5f5', border: '1px solid #2a2',
-        borderRadius: 8, padding: '6px 8px', fontSize: 10, lineHeight: 1.35,
-        fontFamily: 'monospace', whiteSpace: 'pre-wrap',
-      }}
-    >
-      <b>back-log (탭해서 지움)</b>
-      {'\n' + (lines.length ? lines.join('\n') : '(비어있음)')}
-    </div>
-  )
-}
