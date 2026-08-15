@@ -24,6 +24,7 @@ import { parseDate, weekday } from '../time'
 import { thumbnailUrl } from '../youtube'
 import type { ResolvedPlace } from '../place'
 import ConfirmDialog from './ConfirmDialog'
+import ParticipationSheet from './ParticipationSheet'
 import PartTally from './PartTally'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
@@ -65,6 +66,8 @@ export default function SetlistSheet({
   useBackHandler(() => (picking ? setPicking(false) : onClose()))
   // 참여자 표를 펼친 곡 id (한 번에 하나만 — 목록이 길어지지 않게)
   const [openId, setOpenId] = useState<string | null>(null)
+  // 파트 참여 시트를 띄운 곡 id (원본 곡의 참여자를 직접 수정)
+  const [participatingId, setParticipatingId] = useState<string | null>(null)
   // 파트별 참석 표시용 — 참석 현황 모달과 같은 집계를 상단에 보여준다
   const [att, setAtt] = useState<Attendance[]>([])
 
@@ -374,7 +377,17 @@ export default function SetlistSheet({
                       </div>
                       {/* 편집 중에는 접어 둔다 — 드래그 위치 계산이 고른 행 높이에 기댄다 */}
                       {!editMode && open && (
-                        <PartGrid track={track} memberMap={memberMap} attendingUids={attendingUids} myUid={user?.uid} />
+                        <>
+                          <PartGrid track={track} memberMap={memberMap} attendingUids={attendingUids} myUid={user?.uid} />
+                          <button
+                            type="button"
+                            className="btn subtle block song-join-btn"
+                            onClick={() => setParticipatingId(s.id)}
+                            disabled={!track}
+                          >
+                            {user && track?.participants?.[user.uid] ? '내 참여·파트 수정' : '이 곡에 참여'}
+                          </button>
+                        </>
                       )}
                     </li>
                   )
@@ -408,6 +421,23 @@ export default function SetlistSheet({
           onCancel={() => setRemoving(null)}
         />
       )}
+
+      {participatingId &&
+        (() => {
+          const s = songs.find((x) => x.id === participatingId)
+          const t = s ? tracks.get(trackKey(s.playlistId, s.id)) : undefined
+          if (!s || !t) return null // 원본 곡이 사라졌으면 시트 닫힘
+          return (
+            <ParticipationSheet
+              playlistId={s.playlistId}
+              track={t}
+              memberMap={memberMap}
+              me={member ?? null}
+              toast={toast}
+              onClose={() => setParticipatingId(null)}
+            />
+          )
+        })()}
     </>
   )
 }
