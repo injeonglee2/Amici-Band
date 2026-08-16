@@ -124,20 +124,27 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
   const [err, setErr] = useState('')
   const lastFetchedId = useRef<string | null>(null)
 
-  // 일정 연결(선택) — 최근 일정부터. 고르면 일자를 그 일정에서 자동으로 가져온다.
+  // 일자를 먼저 정하고, 그 날짜에 등록된 일정이 있으면 골라서 연결할 수 있게 한다.
   const [events, setEvents] = useState<BandEvent[]>([])
   useEffect(() => watchEvents(setEvents, () => {}), [])
-  const eventOpts = [...events].sort((a, b) => b.date.localeCompare(a.date))
+  const eventsOnDate = events
+    .filter((e) => e.date === date)
+    .sort((a, b) => (a.rehStart ?? '').localeCompare(b.rehStart ?? ''))
   const linkedEvent = eventId ? events.find((e) => e.id === eventId) ?? null : null
 
-  // 일정을 고르면 일자를 그 일정으로 맞추고, 제목이 비어 있으면 일정 제목을 미리 채운다.
+  // 날짜를 바꿔 연결한 일정이 더 이상 그 날짜와 맞지 않으면 연결을 해제한다.
+  // (일정이 삭제돼 목록에 없을 때는 스냅샷을 지키기 위해 그대로 둔다)
+  useEffect(() => {
+    if (!eventId) return
+    const ev = events.find((e) => e.id === eventId)
+    if (ev && ev.date !== date) setEventId('')
+  }, [date, eventId, events])
+
+  // 일정을 연결하면 제목이 비어 있을 때만 일정 제목을 미리 채운다(일자는 사용자가 정한 값 유지).
   function onPickEvent(id: string) {
     setEventId(id)
     const ev = events.find((e) => e.id === id)
-    if (ev) {
-      setDate(ev.date)
-      setTitle((prev) => (prev.trim() ? prev : ev.title))
-    }
+    if (ev) setTitle((prev) => (prev.trim() ? prev : ev.title))
   }
 
   const videoId = parseVideoId(url)
@@ -208,28 +215,27 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         </div>
 
         <div className="field">
-          <label htmlFor="rec-event">일정 연결 (선택)</label>
-          <select id="rec-event" value={eventId} onChange={(e) => onPickEvent(e.target.value)}>
-            <option value="">연결 안 함 (일자 직접 입력)</option>
-            {eventOpts.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.date.replaceAll('-', '.')} · [{TYPE_META[ev.type].label}] {ev.title}
-              </option>
-            ))}
-          </select>
+          <label htmlFor="rec-date">일자</label>
+          <input id="rec-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
 
-        <div className="field">
-          <label htmlFor="rec-date">일자</label>
-          <input
-            id="rec-date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            disabled={!!linkedEvent}
-          />
-          {linkedEvent && <p className="hint">연결된 일정 ‘{linkedEvent.title}’의 일자예요.</p>}
-        </div>
+        {eventsOnDate.length > 0 ? (
+          <div className="field">
+            <label htmlFor="rec-event">일정 연결 (선택)</label>
+            <select id="rec-event" value={eventId} onChange={(e) => onPickEvent(e.target.value)}>
+              <option value="">연결 안 함</option>
+              {eventsOnDate.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  [{TYPE_META[ev.type].label}] {ev.title}
+                  {ev.rehStart ? ` · ${ev.rehStart}` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="hint">이 날짜에 등록된 일정이 있어요. 연결하면 기록에 함께 표시돼요.</p>
+          </div>
+        ) : (
+          <p className="hint rec-noevent">이 날짜에 등록된 일정이 없어요 · 일자만 저장돼요.</p>
+        )}
 
         <div className="field">
           <label htmlFor="rec-url">링크 (유튜브·구글 드라이브 등)</label>
