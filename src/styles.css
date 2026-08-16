@@ -637,8 +637,10 @@ button { font-family: inherit; }
 .rec-note { margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); white-space: pre-wrap; line-height: 1.5; }
 .rec-extlink { margin-top: 12px; }
 /* 드라이브 등 임베드 재생 (16:9 iframe) — padding-top 기법으로 어떤 환경에서도 비율 고정 */
-.rec-embed { position: relative; width: 100%; height: 0; padding-top: 56.25%; margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; }
-.rec-embed iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; display: block; }
+/* 16:9 는 iframe 자체에 aspect-ratio 로 준다 — padding-top+height:100%(절대배치)는
+   삼성 인터넷/안드로이드 WebView 에서 높이 해석이 어긋나 iframe 이 박스보다 커지는 문제가 있음 */
+.rec-embed { width: 100%; margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; }
+.rec-embed iframe { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; border: 0; }
 /* 기록 보기 — 삭제·수정·닫기 버튼을 1:1:2 비율로 (닫기가 가장 넓게) */
 .actions.rec-actions .btn { flex: 1 1 0; padding-left: 10px; padding-right: 10px; }
 .actions.rec-actions .rec-close { flex: 2 1 0; }
