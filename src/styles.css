@@ -689,6 +689,7 @@ button { font-family: inherit; }
 }
 .rec-sort svg { width: 15px; height: 15px; }
 .rec-sort:hover { color: var(--ink); border-color: var(--line-strong); }
+.rec-toolbar-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 /* 기록(녹음/영상) 갤러리 */
 .rec-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }

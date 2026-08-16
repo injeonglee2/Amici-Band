@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
 import { deleteRecording, newId, saveRecording, watchEvents, watchRecordings, watchTracks } from '../data'
 import { TYPE_META, type BandEvent, type Recording, type Track } from '../types'
-import { fetchYouTubeMeta, parseVideoId, thumbnailUrl } from '../youtube'
+import { fetchPlaylistItems, fetchYouTubeMeta, parsePlaylistId, parseVideoId, PlaylistImportError, thumbnailUrl } from '../youtube'
 import { parseDate, todayStr, weekday } from '../time'
 import ConfirmDialog from './ConfirmDialog'
 import MusicPicker from './MusicPicker'
@@ -39,9 +39,12 @@ export function recThumb(r: Recording): string | null {
 
 /** 기록 탭 — 합주 녹음/영상 갤러리 (링크 기반). 전체 멤버 공개(보기·추가 가능, 삭제·수정은 올린 사람/관리자) */
 export default function RecordingsView({ toast }: { toast: ToastState }) {
+  const { member } = useAuth()
+  const isAdmin = !!member?.admin
   const [items, setItems] = useState<Recording[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [editingRec, setEditingRec] = useState<Recording | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   // 필터: 특정 합주(일정) 또는 특정 음악에 연결된 기록만. 둘은 상호배타. · 정렬: 최신순 / 오래된순
@@ -132,6 +135,11 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
           <div className="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
             <p>기록이 없어요.<br />아래 <b>+ 기록 추가</b>로 유튜브·드라이브 링크를 올려보세요.</p>
+            {isAdmin && (
+              <button type="button" className="btn subtle" style={{ marginTop: 14 }} onClick={() => setImporting(true)}>
+                유튜브 재생목록 가져오기
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -166,14 +174,22 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
                   </span>
                 )}
               </div>
-              <button
-                type="button"
-                className="rec-sort"
-                onClick={() => setSort((s) => (s === 'new' ? 'old' : 'new'))}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h11M3 12h8M3 18h5" /><path d="m17 6 4 4M17 6l-4 4M17 6v12" /></svg>
-                {sort === 'new' ? '최신순' : '오래된순'}
-              </button>
+              <div className="rec-toolbar-right">
+                {isAdmin && (
+                  <button type="button" className="rec-sort" onClick={() => setImporting(true)}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 21h16" /></svg>
+                    가져오기
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="rec-sort"
+                  onClick={() => setSort((s) => (s === 'new' ? 'old' : 'new'))}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h11M3 12h8M3 18h5" /><path d="m17 6 4 4M17 6l-4 4M17 6v12" /></svg>
+                  {sort === 'new' ? '최신순' : '오래된순'}
+                </button>
+              </div>
             </div>
 
             {shown.length === 0 ? (
@@ -209,6 +225,13 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
       </button>
 
       {adding && <RecordingForm editing={null} toast={toast} onClose={() => setAdding(false)} />}
+      {importing && (
+        <ImportPlaylistSheet
+          existingVideoIds={new Set(items.filter((r) => r.videoId).map((r) => r.videoId as string))}
+          toast={toast}
+          onClose={() => setImporting(false)}
+        />
+      )}
       {editingRec && <RecordingForm editing={editingRec} toast={toast} onClose={() => setEditingRec(null)} />}
       {open && (
         <RecordingPlayer
@@ -350,6 +373,108 @@ function RecFilterSheet({
           ) : (
             <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ---------------- 유튜브 재생목록 → 기록 일괄 가져오기 ---------------- */
+function ImportPlaylistSheet({
+  existingVideoIds,
+  toast,
+  onClose,
+}: {
+  existingVideoIds: Set<string>
+  toast: ToastState
+  onClose: () => void
+}) {
+  const { user, member } = useAuth()
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose)
+  const [url, setUrl] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState('')
+  const [result, setResult] = useState('')
+  const [err, setErr] = useState('')
+
+  async function run() {
+    const pid = parsePlaylistId(url)
+    if (!pid) {
+      setErr('유튜브 재생목록 URL이 아니에요. (list=… 링크)')
+      return
+    }
+    if (!user) return
+    setBusy(true)
+    setErr('')
+    setResult('')
+    try {
+      setProgress('재생목록 불러오는 중…')
+      const songs = await fetchPlaylistItems(pid)
+      const fresh = songs.filter((s) => !existingVideoIds.has(s.videoId))
+      if (fresh.length === 0) {
+        setResult(`재생목록 ${songs.length}개가 모두 이미 기록에 있어요.`)
+        return
+      }
+      let added = 0
+      for (const s of fresh) {
+        setProgress(`추가 중 ${added + 1}/${fresh.length}`)
+        const rec: Recording = {
+          id: newId(),
+          title: s.title || '(제목 없음)',
+          date: s.publishedAt || todayStr(),
+          url: s.url,
+          videoId: s.videoId,
+          thumbnail: s.thumbnail,
+          addedBy: user.uid,
+          addedByName: member?.name,
+          createdAt: Date.now(),
+        }
+        await saveRecording(rec)
+        added++
+      }
+      const skipped = songs.length - fresh.length
+      setResult(`${added}개를 기록에 추가했어요.` + (skipped > 0 ? ` (${skipped}개는 이미 있어 건너뜀)` : ''))
+      toast.show(`${added}개 가져왔어요`)
+    } catch (e) {
+      const code = e instanceof PlaylistImportError ? e.code : ''
+      setErr(
+        code === 'NO_KEY'
+          ? '유튜브 API 키가 설정돼 있지 않아요.'
+          : code === 'NOT_FOUND'
+            ? '재생목록을 찾을 수 없어요. 공개/일부공개인지, URL이 맞는지 확인해 주세요.'
+            : code === 'QUOTA'
+              ? '오늘 유튜브 조회 한도를 초과했어요. 내일 다시 시도해 주세요.'
+              : code === 'FORBIDDEN'
+                ? '재생목록 접근이 거부됐어요(비공개일 수 있어요).'
+                : '가져오기에 실패했어요.' + (code ? ` (${code})` : ''),
+      )
+      console.error(e)
+    } finally {
+      setBusy(false)
+      setProgress('')
+    }
+  }
+
+  return (
+    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" ref={sheetRef}>
+        <div className="grab-zone" {...grabHandlers}>
+          <div className="grab" />
+        </div>
+        <h2>유튜브 재생목록 가져오기</h2>
+        <div className="field">
+          <label htmlFor="imp-url">재생목록 URL</label>
+          <input id="imp-url" type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://youtube.com/playlist?list=…" autoFocus />
+          <p className="hint">공개·일부공개 재생목록의 영상을 기록으로 추가해요. 이미 있는 영상은 건너뜁니다. (다시 눌러 새 영상만 동기화)</p>
+        </div>
+        {result && <p className="hint" style={{ color: 'var(--ok)' }}>{result}</p>}
+        {err && <p className="err small">{err}</p>}
+        <div className="actions">
+          <button type="button" className="btn subtle" onClick={onClose} disabled={busy}>닫기</button>
+          <button type="button" className="btn primary" onClick={() => void run()} disabled={busy || !url.trim()}>
+            {busy ? progress || '가져오는 중…' : '가져오기'}
+          </button>
         </div>
       </div>
     </div>
