@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { watchPlaylists, watchTracks } from '../data'
 import type { Playlist, Track } from '../types'
 import { thumbnailUrl } from '../youtube'
-import { useSheetSwipe } from './useSheetSwipe'
+import Sheet from './Sheet'
 import { useBackHandler } from '../backnav'
 
 export type MusicSel = {
@@ -24,7 +24,6 @@ export default function MusicPicker({
   onPick: (sel: MusicSel) => void
   onClose: () => void
 }) {
-  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [open, setOpen] = useState<Playlist | null>(null)
   const [tracks, setTracks] = useState<Track[]>([])
@@ -40,11 +39,7 @@ export default function MusicPicker({
   useBackHandler(() => (open ? setOpen(null) : onClose()))
 
   return (
-    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" ref={sheetRef}>
-        <div className="grab-zone" {...grabHandlers}>
-          <div className="grab" />
-        </div>
+    <Sheet onClose={onClose}>
         <h2>음악 연결 — 곡 고르기</h2>
 
         {!open ? (
@@ -103,7 +98,6 @@ export default function MusicPicker({
         <div className="actions">
           <button type="button" className="btn subtle block" onClick={onClose}>취소</button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }

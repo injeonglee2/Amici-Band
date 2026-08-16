@@ -12,7 +12,7 @@ import {
 import { todayStr, toMin } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import ThemeSelect from './ThemeSelect'
-import { useSheetSwipe } from './useSheetSwipe'
+import Sheet from './Sheet'
 import { useBackHandler } from '../backnav'
 import { searchPlaces, type PlaceHit } from '../mapsearch'
 
@@ -26,7 +26,6 @@ export default function EventForm({
   onClose: () => void
 }) {
   const { user } = useAuth()
-  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose) // 뒤로가기로 일정 폼 닫기
   const grapePlaceId = places.find((p) => p.name === '포도나무 합주실')?.id
   // 유형별 기본값: 합주 → 포도나무 합주실·18:00~22:00, 그 외 → 초기화
@@ -139,11 +138,7 @@ export default function EventForm({
   }
 
   return (
-    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" ref={sheetRef}>
-        <div className="grab-zone" {...grabHandlers}>
-          <div className="grab" />
-        </div>
+    <Sheet onClose={onClose}>
         <h2>{editing ? '일정 수정' : '일정 추가'}</h2>
 
         <div className="field">
@@ -248,7 +243,6 @@ export default function EventForm({
           <button type="button" className="btn subtle" onClick={onClose} disabled={busy}>취소</button>
           <button type="button" className="btn primary" onClick={submit} disabled={!valid || busy}>{busy ? '저장 중…' : '저장'}</button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }

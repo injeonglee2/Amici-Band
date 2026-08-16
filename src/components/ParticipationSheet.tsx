@@ -4,7 +4,7 @@ import { isFixedPart, PART_META, PART_ORDER, type Member, type Score, type Track
 import { thumbnailUrl } from '../youtube'
 import type { ToastState } from './Toast'
 import { ScoreSongSheet } from './Scores'
-import { useSheetSwipe } from './useSheetSwipe'
+import Sheet from './Sheet'
 import { useBackHandler } from '../backnav'
 
 /**
@@ -27,7 +27,6 @@ export default function ParticipationSheet({
   toast: ToastState
   onClose: () => void
 }) {
-  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [busy, setBusy] = useState(false)
 
   // 이 곡에 등록된 악보 — 있으면 바로가기 아이콘을 보여준다
@@ -139,12 +138,7 @@ export default function ParticipationSheet({
 
   return (
     <>
-    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" ref={sheetRef}>
-        <div className="grab-zone" {...grabHandlers}>
-          <div className="grab" />
-        </div>
-
+    <Sheet onClose={onClose}>
         <div className="part-sheet-song">
           <div className="track-thumb sm">
             {track.thumbnail || track.videoId ? (
@@ -272,8 +266,7 @@ export default function ParticipationSheet({
             </>
           )}
         </div>
-      </div>
-    </div>
+    </Sheet>
     {openScores && (
       <ScoreSongSheet
         song={{

@@ -14,7 +14,7 @@ import { TypeGlyph } from './TypeGlyph'
 import ConfirmDialog from './ConfirmDialog'
 import PartTally from './PartTally'
 import ThemeSelect from './ThemeSelect'
-import { useSheetSwipe } from './useSheetSwipe'
+import Sheet from './Sheet'
 import { useBackHandler } from '../backnav'
 
 const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
@@ -39,7 +39,6 @@ export default function AttendanceModal({
   onClose: () => void
 }) {
   const { user, member } = useAuth()
-  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose) // 뒤로가기로 참석 모달 닫기 (내부 취소 확인창은 ConfirmDialog 가 먼저 받는다)
   const [saving, setSaving] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
@@ -104,6 +103,9 @@ export default function AttendanceModal({
   const byStatus = (s: AttendStatus) => list.filter((a) => a.status === s)
   const votedUids = new Set(list.map((a) => a.uid))
   const undecided = members.filter((m) => !votedUids.has(m.uid))
+  // 투표자 이름은 현재 멤버 프로필(라이브)을 우선, 없으면 투표 당시 스냅샷
+  const memberMap = useMemo(() => new Map(members.map((m) => [m.uid, m])), [members])
+  const nameOf = (uid: string, snapshot: string) => memberMap.get(uid)?.name ?? snapshot
   const d = parseDate(ev.date)
 
   // 리마인더: 합주·공연 일정에서, 관리자에게만, 미정이 있을 때만
@@ -132,11 +134,7 @@ export default function AttendanceModal({
 
   return (
     <>
-      <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="sheet" ref={sheetRef}>
-          <div className="grab-zone" {...grabHandlers}>
-            <div className="grab" />
-          </div>
+      <Sheet onClose={onClose}>
           <h2>{heading}</h2>
 
           <div className="modal-evhead" style={{ ['--k' as string]: TYPE_META[ev.type].color }}>
@@ -221,7 +219,7 @@ export default function AttendanceModal({
                         {people.length === 0 && <li className="muted">-</li>}
                         {people.map((p) => (
                           <li key={p.uid} className={(p.note?.length ?? 0) > WIDE_NOTE_LEN ? 'wide' : undefined}>
-                            {p.name}
+                            {nameOf(p.uid, p.name)}
                             {p.status === 'late' && p.arriveTime && <em> · {p.arriveTime}</em>}
                             {p.status === 'leave' && p.leaveTime && <em> · {p.leaveTime}</em>}
                             {p.note && <span className="li-note">{p.note}</span>}
@@ -262,8 +260,7 @@ export default function AttendanceModal({
               </div>
             </>
           )}
-        </div>
-      </div>
+      </Sheet>
 
       {confirmCancel && (
         <ConfirmDialog

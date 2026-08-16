@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { deletePlace, newId, savePlace } from '../data'
 import type { Place } from '../types'
 import { isMockSearch, searchPlaces, type PlaceHit } from '../mapsearch'
-import { useSheetSwipe } from './useSheetSwipe'
+import Sheet from './Sheet'
 import { useBackHandler } from '../backnav'
 
 /**
@@ -18,7 +18,6 @@ export default function PlaceForm({
   onClose: () => void
   onSaved?: (placeId: string) => void
 }) {
-  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose) // 뒤로가기로 장소 폼 닫기
   const [name, setName] = useState(editing?.name ?? '')
   const [memo, setMemo] = useState(editing?.memo ?? '')
@@ -114,11 +113,7 @@ export default function PlaceForm({
   }
 
   return (
-    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" ref={sheetRef}>
-        <div className="grab-zone" {...grabHandlers}>
-          <div className="grab" />
-        </div>
+    <Sheet onClose={onClose}>
         <h2>{editing ? '장소 수정' : '장소 추가'}</h2>
 
         <div className="field">
@@ -188,7 +183,6 @@ export default function PlaceForm({
           <button type="button" className="btn subtle" onClick={onClose} disabled={busy}>취소</button>
           <button type="button" className="btn primary" onClick={submit} disabled={!valid || busy}>{busy ? '저장 중…' : '저장'}</button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }

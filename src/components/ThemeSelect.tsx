@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useSheetSwipe } from './useSheetSwipe'
+import Sheet from './Sheet'
 import { useBackHandler } from '../backnav'
 
 export type SelectOption = { value: string; label: string }
@@ -64,14 +64,9 @@ function SelectSheet({
   onPick: (v: string) => void
   onClose: () => void
 }) {
-  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
   return (
-    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet tsel-sheet" ref={sheetRef}>
-        <div className="grab-zone" {...grabHandlers}>
-          <div className="grab" />
-        </div>
+    <Sheet onClose={onClose} className="tsel-sheet">
         {title && <h2>{title}</h2>}
         <ul className="tsel-list">
           {options.map((o) => (
@@ -89,7 +84,6 @@ function SelectSheet({
             </li>
           ))}
         </ul>
-      </div>
-    </div>
+    </Sheet>
   )
 }

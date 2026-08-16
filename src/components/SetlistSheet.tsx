@@ -23,7 +23,8 @@ import {
   type SetlistSong,
   type Track,
 } from '../types'
-import { dayDiff, parseDate, weekday } from '../time'
+import { dayDiff } from '../time'
+import EventSheetHeader from './EventSheetHeader'
 import { thumbnailUrl } from '../youtube'
 import type { ResolvedPlace } from '../place'
 import ConfirmDialog from './ConfirmDialog'
@@ -319,7 +320,6 @@ export default function SetlistSheet({
     }
   }
 
-  const d = parseDate(ev.date)
 
   if (picking) {
     return (
@@ -341,13 +341,7 @@ export default function SetlistSheet({
             <div className="grab" />
           </div>
 
-          <div className="setlist-head">
-            <h2>{ev.title}</h2>
-            <p>
-              {d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}
-              {place && <> · {place.name}</>}
-            </p>
-          </div>
+          <EventSheetHeader ev={ev} place={place} />
 
           {/* 파트별 참석 — 참석 현황 모달과 같은 컴포넌트. 펼친 곡 참여자는 볼드로 강조 */}
           <PartTally members={members} att={att} highlightUids={openPartUids} className="setlist-part-tally" />
@@ -402,6 +396,9 @@ export default function SetlistSheet({
                 {items.map((s, i) => {
                   const track = tracks.get(trackKey(s.playlistId, s.id))
                   const joined = Object.keys(track?.participants ?? {}).length
+                  // 제목·가수는 원본 곡(라이브)을 우선 표시, 삭제됐으면 스냅샷으로 폴백
+                  const songTitle = track?.title || s.title || '(제목 없음)'
+                  const songArtist = track?.artist || s.artist
                   const open = openId === s.id
                   return (
                     <li
@@ -420,8 +417,8 @@ export default function SetlistSheet({
                         </div>
                         <div className="setlist-body">
                           <div className="track-info">
-                            <h3>{s.title || '(제목 없음)'}</h3>
-                            {s.artist && <p>{s.artist}</p>}
+                            <h3>{songTitle}</h3>
+                            {songArtist && <p>{songArtist}</p>}
                           </div>
                         </div>
                         {editMode ? (

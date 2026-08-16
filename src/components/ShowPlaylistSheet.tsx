@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth'
 import { setEventPlaylist, watchAttendance, watchPlaylists, watchTracks } from '../data'
 import type { Attendance, BandEvent, Member, Playlist, Track } from '../types'
-import { parseDate, weekday } from '../time'
+import EventSheetHeader from './EventSheetHeader'
 import { thumbnailUrl } from '../youtube'
 import type { ResolvedPlace } from '../place'
 import ConfirmDialog from './ConfirmDialog'
@@ -60,7 +60,6 @@ export default function ShowPlaylistSheet({
   }, [playlistId])
 
   const memberMap = useMemo(() => new Map(members.map((m) => [m.uid, m])), [members])
-  const d = parseDate(ev.date)
 
   async function link(p: Playlist) {
     try {
@@ -131,13 +130,7 @@ export default function ShowPlaylistSheet({
             <div className="grab" />
           </div>
 
-          <div className="setlist-head">
-            <h2>{ev.title}</h2>
-            <p>
-              {d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}
-              {place && <> · {place.name}</>}
-            </p>
-          </div>
+          <EventSheetHeader ev={ev} place={place} />
 
           <PartTally members={members} att={att} className="setlist-part-tally" />
 
