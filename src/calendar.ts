@@ -40,12 +40,7 @@ function icsEscape(value: string): string {
     .replace(/\r?\n/g, '\\n')
 }
 
-/**
- * 일정을 표준 .ics 파일로 내려받는다.
- * (예전엔 안드로이드 TWA 전용 커스텀 인텐트를 썼는데, 앱에 해당 액티비티가 없어
- *  일부 갤럭시에서 로딩 후 홈으로 튕기는 문제가 있어 .ics 로 통일함)
- */
-export function addToDeviceCalendar(ev: BandEvent, place: ResolvedPlace | null): void {
+function buildIcs(ev: BandEvent, place: ResolvedPlace | null): string {
   const dtstamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
   const lines = [
     'BEGIN:VCALENDAR',
@@ -63,14 +58,49 @@ export function addToDeviceCalendar(ev: BandEvent, place: ResolvedPlace | null):
   if (location) lines.push(`LOCATION:${icsEscape(location)}`)
   if (ev.note) lines.push(`DESCRIPTION:${icsEscape(ev.note)}`)
   lines.push('END:VEVENT', 'END:VCALENDAR')
+  return lines.join('\r\n')
+}
 
-  const blob = new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' })
+function icsFilename(ev: BandEvent): string {
+  return `${(ev.title || 'event').replace(/[\\/:*?"<>|]/g, '_')}.ics`
+}
+
+function downloadIcs(ics: string, filename: string): void {
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = `${(ev.title || 'event').replace(/[\\/:*?"<>|]/g, '_')}.ics`
+  anchor.download = filename
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+const isAndroid = (): boolean => /Android/i.test(navigator.userAgent)
+
+/**
+ * 일정을 캘린더로 내보낸다.
+ * - 안드로이드(갤럭시 등): Web Share 로 .ics 파일을 공유 → 캘린더 앱을 바로 선택 (파일 다운로드 안 함)
+ * - iOS·데스크톱: .ics 열기 (iOS 는 '캘린더에 추가' 미리보기로 뜸)
+ */
+export async function addToDeviceCalendar(ev: BandEvent, place: ResolvedPlace | null): Promise<void> {
+  const ics = buildIcs(ev, place)
+  const filename = icsFilename(ev)
+
+  if (isAndroid() && typeof navigator.canShare === 'function') {
+    const file = new File([ics], filename, { type: 'text/calendar' })
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: eventTitle(ev) })
+        return
+      } catch (e) {
+        // 사용자가 공유창을 닫으면 AbortError — 다운로드로 떨어뜨리지 않고 종료
+        if ((e as { name?: string })?.name === 'AbortError') return
+        // 그 외 오류면 아래 다운로드로 폴백
+      }
+    }
+  }
+
+  downloadIcs(ics, filename)
 }
