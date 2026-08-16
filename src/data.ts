@@ -12,7 +12,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { db, fbApp } from './firebase'
 import { DEMO, demoDb } from './demo'
-import type { Attendance, BandEvent, Member, Place, Playlist, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Attendance, BandEvent, Member, Place, Playlist, Recording, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -204,6 +204,42 @@ export async function savePlaylist(p: Playlist): Promise<void> {
   if (DEMO) return demoDb.savePlaylist(p)
   const { id, ...data } = p
   await setDoc(doc(db, 'playlists', id), data, { merge: true })
+}
+
+/* ---------------- recordings (합주 녹음/영상 기록 — 링크 기반) ---------------- */
+export function watchRecordings(
+  cb: (recordings: Recording[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) {
+    cb([]) // DEMO(가짜 데이터)에선 기록 없음 — 실제 데이터는 배포본에서만
+    return () => {}
+  }
+  return onSnapshot(
+    collection(db, 'recordings'),
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Recording, 'id'>) }))
+      // 최근 일자 우선, 같은 날짜면 최근 등록 순
+      list.sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : b.date.localeCompare(a.date)))
+      cb(list)
+    },
+    (err) => {
+      console.error('watchRecordings', err)
+      onError?.(err)
+    },
+  )
+}
+
+export async function saveRecording(r: Recording): Promise<void> {
+  if (DEMO) return
+  const { id, ...rest } = r
+  const data = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+  await setDoc(doc(db, 'recordings', id), data, { merge: true })
+}
+
+export async function deleteRecording(id: string): Promise<void> {
+  if (DEMO) return
+  await deleteDoc(doc(db, 'recordings', id))
 }
 
 export async function deletePlaylist(id: string): Promise<void> {

@@ -82,6 +82,20 @@ export interface SetlistSong {
   addedAt: number
 }
 
+/** 합주 녹음/영상 기록 — recordings/{id}. 링크(유튜브·드라이브 등)로 저장한다(파일 업로드 아님) */
+export interface Recording {
+  id: string
+  title: string // 제목
+  date: string // 일자 YYYY-MM-DD
+  url: string // 원본 링크 (유튜브/구글 드라이브 등)
+  videoId?: string // 유튜브면 임베드·썸네일용 영상 ID
+  thumbnail?: string // 썸네일 URL (유튜브 자동)
+  note?: string // 메모 (선택)
+  addedBy: string
+  addedByName?: string // 올린 사람 이름 스냅샷
+  createdAt: number
+}
+
 export type AttendStatus = 'present' | 'late' | 'leave' | 'absent'
 
 export const STATUS_META: Record<AttendStatus, { label: string; color: string }> = {

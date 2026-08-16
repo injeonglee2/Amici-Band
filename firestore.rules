@@ -27,6 +27,13 @@ service cloud.firestore {
       allow update, delete: if signedIn();
     }
 
+    // 합주 녹음/영상 기록: 로그인하면 읽기·추가 가능, 수정·삭제는 올린 사람 또는 관리자
+    match /recordings/{recId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin() || (signedIn() && resource.data.addedBy == request.auth.uid);
+    }
+
     // 음악 재생목록: 로그인한 멤버는 읽기/쓰기 가능 (공동 관리)
     match /playlists/{playlistId} {
       allow read, write: if signedIn();

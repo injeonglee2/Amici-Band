@@ -602,9 +602,30 @@ button { font-family: inherit; }
 .evt-place-row { display: flex; gap: 8px; align-items: stretch; }
 .evt-place-row .place-select { flex: 1; min-width: 0; }
 .evt-place-row .place-search { flex: 1.3; min-width: 0; }
-/* 날짜+진행시간 한 줄에서 시간 입력이 좁은 칸에 들어가도록 */
-.field-row .time-range { gap: 4px; }
-.field-row .time-range input { flex: 1; min-width: 0; }
+/* 날짜+진행시간 한 줄: 날짜는 내용 너비, 진행시간에 남는 공간을 몰아준다 */
+.evt-datetime { display: flex; gap: 12px; align-items: flex-start; }
+.evt-datetime .evt-date { flex: 0 0 auto; min-width: 0; }
+.evt-datetime .evt-date input { width: auto; } /* 날짜는 자연 너비(다 보이게) */
+.evt-datetime .evt-time { flex: 1 1 0; min-width: 0; } /* 진행시간이 나머지 전부 차지 */
+.evt-datetime .time-range { gap: 6px; }
+.evt-datetime .time-range input { flex: 1; min-width: 0; }
+
+/* 기록(녹음/영상) 갤러리 */
+.rec-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
+.rec-card {
+  appearance: none; cursor: pointer; text-align: left; padding: 0; border: 1px solid var(--glass-border);
+  background: var(--surface); border-radius: var(--radius-sm); overflow: hidden; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; min-width: 0;
+}
+.rec-thumb { position: relative; width: 100%; aspect-ratio: 16 / 9; background: rgba(255, 255, 255, 0.06); }
+.rec-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rec-thumb-none { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-faint); }
+.rec-thumb-none svg { width: 30px; height: 30px; }
+.rec-meta { padding: 9px 11px 11px; min-width: 0; }
+.rec-meta h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-meta p { margin: 3px 0 0; font-size: 11.5px; color: var(--ink-faint); }
+.rec-note { margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); white-space: pre-wrap; line-height: 1.5; }
+.rec-extlink { margin-top: 12px; }
 .btn.text:hover { color: var(--ink); }
 
 /* ---------- toast ---------- */

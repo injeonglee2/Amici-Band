@@ -18,6 +18,7 @@ import { TypeGlyph } from './TypeGlyph'
 import Settings from './Settings'
 import PlacesView from './Places'
 import MusicView from './Music'
+import RecordingsView from './Recordings'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
@@ -33,7 +34,7 @@ export default function Main() {
   const [members, setMembers] = useState<Member[]>([])
   const [filter, setFilter] = useState<Filter>('all')
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
-  const [nav, setNav] = useState<'home' | 'places' | 'music'>('home')
+  const [nav, setNav] = useState<'home' | 'places' | 'music' | 'recordings'>('home')
   const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -148,7 +149,7 @@ export default function Main() {
             <img src="/logo.png" alt="Amici Band" />
           </div>
           <div className="brand">
-            <h1>{nav === 'places' ? '장소' : nav === 'music' ? '음악' : 'Amici Band'}</h1>
+            <h1>{nav === 'places' ? '장소' : nav === 'music' ? '음악' : nav === 'recordings' ? '기록' : 'Amici Band'}</h1>
           </div>
           <button className="ghost-btn icon" onClick={() => setSettingsOpen(true)} aria-label="설정" title="설정">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -269,6 +270,8 @@ export default function Main() {
       </>
       ) : nav === 'places' ? (
         <PlacesView places={places} loadErr={placesErr} toast={toast} />
+      ) : nav === 'recordings' ? (
+        <RecordingsView toast={toast} />
       ) : (
         <MusicView toast={toast} />
       )}
@@ -283,6 +286,17 @@ export default function Main() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
           음악
         </button>
+        {isAdmin && (
+          <button
+            role="tab"
+            aria-selected={nav === 'recordings'}
+            className={'navitem' + (nav === 'recordings' ? ' on' : '')}
+            onClick={() => setNav('recordings')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
+            기록
+          </button>
+        )}
         <button
           role="tab"
           aria-selected={nav === 'home'}
