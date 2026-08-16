@@ -20,7 +20,6 @@ function parseDriveId(url: string): string | null {
   return m ? m[1] : null
 }
 const driveThumb = (id: string) => `https://drive.google.com/thumbnail?id=${id}&sz=w640`
-const drivePreview = (id: string) => `https://drive.google.com/file/d/${id}/preview`
 const ytEmbed = (id: string) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1`
 
 /** 기록의 썸네일 URL (유튜브·드라이브 자동, 저장된 값 우선). 없으면 null */
@@ -295,7 +294,19 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
           <div className="grab-zone" {...grabHandlers}>
             <div className="grab" />
           </div>
-          <div className="setlist-head">
+          <div className="setlist-head rec-view-head">
+            {canManage && (
+              <div className="rec-head-actions">
+                {onEdit && (
+                  <button type="button" onClick={onEdit} aria-label="수정">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  </button>
+                )}
+                <button type="button" className="del" onClick={() => setConfirmDel(true)} aria-label="삭제">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6M14 11v6" /></svg>
+                </button>
+              </div>
+            )}
             <h2>{rec.title || '(제목 없음)'}</h2>
             <p>{fmtDate(rec.date)}</p>
             {rec.eventTitle && <p className="rec-event">🗓 {rec.eventTitle}</p>}
@@ -311,14 +322,25 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
               />
             </div>
           ) : driveId ? (
-            <div className="rec-embed">
-              <iframe
-                src={drivePreview(driveId)}
-                title={rec.title || '기록'}
-                allow="autoplay"
-                allowFullScreen
+            <button
+              type="button"
+              className="rec-poster"
+              onClick={() => window.open(rec.url, '_blank', 'noopener')}
+              aria-label="드라이브에서 영상 열기"
+            >
+              <img
+                src={driveThumb(driveId)}
+                alt=""
+                loading="lazy"
+                onError={(e) => {
+                  ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                }}
               />
-            </div>
+              <span className="rec-play" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              </span>
+              <span className="rec-openhint">드라이브에서 보기 ↗</span>
+            </button>
           ) : (
             <div className="rec-extlink">
               <p className="hint">앱에서 바로 재생할 수 없는 링크예요. 새 탭에서 열립니다.</p>
@@ -330,16 +352,8 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
 
           {rec.note && <p className="rec-note">{rec.note}</p>}
 
-          <div className={'actions' + (canManage ? ' rec-actions' : '')}>
-            {canManage ? (
-              <>
-                <button type="button" className="btn danger" onClick={() => setConfirmDel(true)}>삭제</button>
-                {onEdit && <button type="button" className="btn subtle" onClick={onEdit}>수정</button>}
-                <button type="button" className="btn subtle rec-close" onClick={onClose}>닫기</button>
-              </>
-            ) : (
-              <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
-            )}
+          <div className="actions">
+            <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
           </div>
         </div>
       </div>
