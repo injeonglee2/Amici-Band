@@ -97,6 +97,7 @@ export interface Recording {
   playlistName?: string // 재생목록 이름 스냅샷
   trackId?: string // 연결된 곡 id (선택, 재생목록 안의 특정 곡)
   trackTitle?: string // 곡 제목 스냅샷
+  trackArtist?: string // 곡 아티스트 스냅샷
   addedBy: string
   addedByName?: string // 올린 사람 이름 스냅샷
   createdAt: number

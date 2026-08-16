@@ -532,9 +532,13 @@ button { font-family: inherit; }
   width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; appearance: none;
   cursor: pointer; background: transparent; border: 0; padding: 15px 6px; color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; text-align: left;
 }
-.tsel-opt-label { flex: 1; min-width: 0; }
+.tsel-opt-label { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 10px; overflow: hidden; }
+.tsel-opt-label svg { flex: none; width: 18px; height: 18px; }
 .tsel-opt.on { color: var(--accent); }
-.tsel-opt svg { flex: none; width: 20px; height: 20px; color: var(--accent); }
+.tsel-opt > svg { flex: none; width: 20px; height: 20px; color: var(--accent); }
+.tsel-opt > svg.tsel-chev { color: var(--ink-faint); }
+/* 우측 보조 정보(날짜·가수) — 볼드 아님, 옅은 색 */
+.tsel-opt-sub { flex: none; margin-left: 10px; font-size: 13px; font-weight: 400; color: var(--ink-faint); max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 장소 관리 목록 */
 .place-list { margin-top: 12px; }

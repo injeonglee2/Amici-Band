@@ -15,6 +15,11 @@ function fmtDate(date: string): string {
   const d = parseDate(date)
   return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} (${weekday(date)})`
 }
+/** 필터 목록 우측용 짧은 날짜 (YYYY.M.D) */
+function shortDate(date: string): string {
+  const p = date.split('-')
+  return p.length === 3 ? `${p[0]}.${+p[1]}.${+p[2]}` : date
+}
 
 /** 구글 드라이브 파일 링크에서 파일 ID 추출 (…/file/d/{ID}/… 또는 ?id={ID}) */
 function parseDriveId(url: string): string | null {
@@ -62,18 +67,21 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
 
   // 필터 옵션은 실제 기록에 연결된 합주·음악만 모아서 만든다
   const eventOpts = useMemo(() => {
-    const m = new Map<string, string>()
+    const m = new Map<string, { title: string; sub: string }>()
     items.forEach((r) => {
-      if (r.eventId) m.set(r.eventId, r.eventTitle || '(제목 없음)')
+      if (r.eventId && !m.has(r.eventId)) m.set(r.eventId, { title: r.eventTitle || '(제목 없음)', sub: shortDate(r.date) })
     })
-    return [...m].map(([id, title]) => ({ id, title }))
+    return [...m].map(([id, v]) => ({ id, title: v.title, sub: v.sub }))
   }, [items])
   const musicOpts = useMemo(() => {
-    const m = new Map<string, string>()
+    const m = new Map<string, { label: string; sub: string }>()
     items.forEach((r) => {
-      if (r.playlistId) m.set(r.trackId || r.playlistId, r.trackTitle || r.playlistName || '(음악)')
+      if (r.playlistId) {
+        const key = r.trackId || r.playlistId
+        if (!m.has(key)) m.set(key, { label: r.trackTitle || r.playlistName || '(음악)', sub: r.trackArtist || '' })
+      }
     })
-    return [...m].map(([key, label]) => ({ key, label }))
+    return [...m].map(([key, v]) => ({ key, label: v.label, sub: v.sub }))
   }, [items])
 
   const activeEvent = eventFilter ? eventOpts.find((o) => o.id === eventFilter) ?? null : null
@@ -226,8 +234,8 @@ function RecFilterSheet({
   onClear,
   onClose,
 }: {
-  eventOpts: { id: string; title: string }[]
-  musicOpts: { key: string; label: string }[]
+  eventOpts: { id: string; title: string; sub: string }[]
+  musicOpts: { key: string; label: string; sub: string }[]
   eventFilter: string
   musicFilter: string
   onPickEvent: (id: string) => void
@@ -241,9 +249,9 @@ function RecFilterSheet({
   useBackHandler(() => (cat ? setCat(null) : onClose()))
   const hasActive = !!(eventFilter || musicFilter)
   const items = cat === 'event'
-    ? eventOpts.map((o) => ({ v: o.id, l: o.title }))
+    ? eventOpts.map((o) => ({ v: o.id, l: o.title, sub: o.sub }))
     : cat === 'music'
-      ? musicOpts.map((o) => ({ v: o.key, l: o.label }))
+      ? musicOpts.map((o) => ({ v: o.key, l: o.label, sub: o.sub }))
       : []
   const activeVal = cat === 'event' ? eventFilter : musicFilter
 
@@ -297,9 +305,7 @@ function RecFilterSheet({
                     onClick={() => (cat === 'event' ? onPickEvent(o.v) : onPickMusic(o.v))}
                   >
                     <span className="tsel-opt-label">{o.l}</span>
-                    {activeVal === o.v && (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                    )}
+                    {o.sub && <span className="tsel-opt-sub">{o.sub}</span>}
                   </button>
                 </li>
               ))}
@@ -358,12 +364,14 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
   const [playlistName, setPlaylistName] = useState(editing?.playlistName ?? '')
   const [trackId, setTrackId] = useState(editing?.trackId ?? '')
   const [trackTitle, setTrackTitle] = useState(editing?.trackTitle ?? '')
+  const [trackArtist, setTrackArtist] = useState(editing?.trackArtist ?? '')
   const [musicPickerOpen, setMusicPickerOpen] = useState(false)
   function clearMusic() {
     setPlaylistId('')
     setPlaylistName('')
     setTrackId('')
     setTrackTitle('')
+    setTrackArtist('')
   }
 
   const videoId = parseVideoId(url)
@@ -404,6 +412,7 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         playlistName: playlistId ? playlistName || undefined : undefined,
         trackId: playlistId && trackId ? trackId : undefined,
         trackTitle: playlistId && trackId ? trackTitle || undefined : undefined,
+        trackArtist: playlistId && trackId ? trackArtist || undefined : undefined,
         addedBy: editing?.addedBy ?? member?.uid ?? '',
         addedByName: editing?.addedByName ?? member?.name,
         createdAt: editing?.createdAt ?? now,
@@ -512,6 +521,7 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
           setPlaylistName(sel.playlistName)
           setTrackId(sel.trackId ?? '')
           setTrackTitle(sel.trackTitle ?? '')
+          setTrackArtist(sel.trackArtist ?? '')
           setMusicPickerOpen(false)
         }}
       />

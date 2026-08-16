@@ -10,6 +10,7 @@ export type MusicSel = {
   playlistName: string
   trackId?: string
   trackTitle?: string
+  trackArtist?: string
 }
 
 /**
@@ -82,7 +83,7 @@ export default function MusicPicker({
                   key={t.id}
                   type="button"
                   className="picker-row"
-                  onClick={() => onPick({ playlistId: open.id, playlistName: open.name, trackId: t.id, trackTitle: t.title })}
+                  onClick={() => onPick({ playlistId: open.id, playlistName: open.name, trackId: t.id, trackTitle: t.title, trackArtist: t.artist || undefined })}
                 >
                   <span className="track-thumb sm">
                     {t.thumbnail || t.videoId ? <img src={t.thumbnail || thumbnailUrl(t.videoId ?? '')} alt="" loading="lazy" /> : null}
