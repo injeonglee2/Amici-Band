@@ -13,6 +13,7 @@ import { todayStr, toMin } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
+import { searchPlaces, type PlaceHit } from '../mapsearch'
 
 export default function EventForm({
   editing,
@@ -26,17 +27,65 @@ export default function EventForm({
   const { user } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose) // 뒤로가기로 일정 폼 닫기
+  const grapePlaceId = places.find((p) => p.name === '포도나무 합주실')?.id
+  // 유형별 기본값: 합주 → 포도나무 합주실·18:00~22:00, 그 외 → 초기화
+  function presetFor(t: EventType) {
+    if (t === 'practice') {
+      return { placeId: grapePlaceId ?? '', loc: grapePlaceId ? '' : '포도나무 합주실', rehStart: '18:00', rehEnd: '22:00' }
+    }
+    return { placeId: '', loc: '', rehStart: DEFAULT_REH_START, rehEnd: DEFAULT_REH_END }
+  }
+  // 수정: 저장된 값 그대로 / 추가: 기본 유형(합주) 프리셋으로 시작
+  const seed = editing
+    ? {
+        placeId: editing.placeId ?? '',
+        loc: editing.placeId ? '' : editing.loc ?? '',
+        rehStart: editing.rehStart ?? DEFAULT_REH_START,
+        rehEnd: editing.rehEnd ?? DEFAULT_REH_END,
+      }
+    : presetFor('practice')
+
   const [type, setType] = useState<EventType>(editing?.type ?? 'practice')
   const [title, setTitle] = useState(editing?.title ?? '')
   const [date, setDate] = useState(editing?.date ?? todayStr())
-  const [rehStart, setRehStart] = useState(editing?.rehStart ?? DEFAULT_REH_START)
-  const [rehEnd, setRehEnd] = useState(editing?.rehEnd ?? DEFAULT_REH_END)
-  const [placeId, setPlaceId] = useState(editing?.placeId ?? '')
+  const [rehStart, setRehStart] = useState(seed.rehStart)
+  const [rehEnd, setRehEnd] = useState(seed.rehEnd)
+  const [placeId, setPlaceId] = useState(seed.placeId)
   // 직접 입력 장소(이 일정만, 장소 목록에는 저장 안 함). 등록 장소 미선택일 때만 사용
-  const [loc, setLoc] = useState(editing && !editing.placeId ? (editing.loc ?? '') : '')
+  const [loc, setLoc] = useState(seed.loc)
+
+  // 유형 버튼을 누르면 그 유형의 기본값을 채운다(합주=포도나무·18~22, 나머지=초기화)
+  function chooseType(t: EventType) {
+    setType(t)
+    const p = presetFor(t)
+    setPlaceId(p.placeId)
+    setLoc(p.loc)
+    setRehStart(p.rehStart)
+    setRehEnd(p.rehEnd)
+  }
   const [note, setNote] = useState(editing?.note ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  // 직접 입력 장소 지도 검색 (일회성 — 골라도 장소 목록에는 저장하지 않고 이 일정의 loc 로만 씀)
+  const [placeResults, setPlaceResults] = useState<PlaceHit[]>([])
+  const [placeSearching, setPlaceSearching] = useState(false)
+
+  async function runPlaceSearch() {
+    const q = loc.trim()
+    if (!q || placeSearching) return
+    setPlaceSearching(true)
+    try {
+      setPlaceResults(await searchPlaces(q))
+    } catch {
+      setPlaceResults([])
+    } finally {
+      setPlaceSearching(false)
+    }
+  }
+  function pickPlace(h: PlaceHit) {
+    setLoc(h.name)
+    setPlaceResults([])
+  }
 
   const canDelete = editing && user && editing.createdBy === user.uid
   const timeValid = toMin(rehEnd) > toMin(rehStart)
@@ -105,7 +154,7 @@ export default function EventForm({
                 type="button"
                 aria-pressed={type === k}
                 style={{ ['--k' as string]: TYPE_META[k].color }}
-                onClick={() => setType(k)}
+                onClick={() => chooseType(k)}
               >
                 <TypeGlyph type={k} className="type-ico" />
                 {TYPE_META[k].label}
@@ -119,16 +168,20 @@ export default function EventForm({
           <input id="f-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} autoFocus />
         </div>
 
-        <div className="field-row">
-          <div className="field">
-            <label htmlFor="f-place">장소</label>
+        {/* 장소: 등록 장소 선택 + 직접 지도 검색(한 줄). 검색 후 고르면 이 일정에만 쓰이고 목록엔 저장 안 함 */}
+        <div className="field">
+          <label htmlFor="f-place">장소</label>
+          <div className="place-row">
             <select
               id="f-place"
               className="place-select"
               value={placeId}
               onChange={(e) => {
                 setPlaceId(e.target.value)
-                if (e.target.value) setLoc('') // 등록 장소를 고르면 직접 입력은 비운다
+                if (e.target.value) {
+                  setLoc('')
+                  setPlaceResults([])
+                }
               }}
             >
               <option value="">직접 입력 / 없음</option>
@@ -136,32 +189,52 @@ export default function EventForm({
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+            {!placeId && (
+              <div className="place-search">
+                <input
+                  type="text"
+                  value={loc}
+                  onChange={(e) => setLoc(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runPlaceSearch() } }}
+                  placeholder="장소 검색"
+                  maxLength={60}
+                />
+                <button type="button" className="btn primary place-search-btn" onClick={() => void runPlaceSearch()} disabled={!loc.trim() || placeSearching}>
+                  {placeSearching ? '…' : '검색'}
+                </button>
+              </div>
+            )}
           </div>
+          {!placeId && placeResults.length > 0 && (
+            <ul className="place-results">
+              {placeResults.map((r, i) => (
+                <li key={i}>
+                  <button type="button" onClick={() => pickPlace(r)}>
+                    <b>{r.name}</b>
+                    <span>{r.address}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* 날짜 + 진행 시간 한 줄 */}
+        <div className="field-row">
           <div className="field">
             <label htmlFor="f-date">날짜</label>
             <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-        </div>
-        {!placeId && (
-          <input
-            className="place-loc-input"
-            type="text"
-            value={loc}
-            onChange={(e) => setLoc(e.target.value)}
-            placeholder="장소 직접 입력 (이 일정만, 목록엔 저장 안 함)"
-            maxLength={60}
-          />
-        )}
-
-        <div className="field">
-          <label>진행 시간</label>
-          <div className="time-range">
-            <input type="time" step={1800} value={rehStart} onChange={(e) => setRehStart(e.target.value)} />
-            <span>–</span>
-            <input type="time" step={1800} value={rehEnd} onChange={(e) => setRehEnd(e.target.value)} />
+          <div className="field">
+            <label>진행 시간</label>
+            <div className="time-range">
+              <input type="time" step={1800} value={rehStart} onChange={(e) => setRehStart(e.target.value)} />
+              <span>–</span>
+              <input type="time" step={1800} value={rehEnd} onChange={(e) => setRehEnd(e.target.value)} />
+            </div>
           </div>
-          {!timeValid && <p className="err small">종료 시간이 시작 시간보다 늦어야 해요.</p>}
         </div>
+        {!timeValid && <p className="err small">종료 시간이 시작 시간보다 늦어야 해요.</p>}
 
         <div className="field">
           <label htmlFor="f-note">메모 (선택)</label>
