@@ -21,6 +21,7 @@ import Settings from './Settings'
 import PlacesView from './Places'
 import MusicView from './Music'
 import RecordingsView from './Recordings'
+import ScoresView from './Scores'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
@@ -36,7 +37,7 @@ export default function Main() {
   const [members, setMembers] = useState<Member[]>([])
   const [filter, setFilter] = useState<Filter>('all')
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
-  const [nav, setNav] = useState<'home' | 'places' | 'music' | 'recordings'>('home')
+  const [nav, setNav] = useState<'home' | 'places' | 'music' | 'recordings' | 'scores'>('home')
   const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -151,7 +152,7 @@ export default function Main() {
             <img src="/logo.png" alt="Amici Band" />
           </div>
           <div className="brand">
-            <h1>{nav === 'places' ? '장소' : nav === 'music' ? '음악' : nav === 'recordings' ? '기록' : 'Amici Band'}</h1>
+            <h1>{nav === 'places' ? '장소' : nav === 'music' ? '음악' : nav === 'recordings' ? '기록' : nav === 'scores' ? '악보' : 'Amici Band'}</h1>
           </div>
           <button className="ghost-btn icon" onClick={() => setSettingsOpen(true)} aria-label="설정" title="설정">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -274,6 +275,8 @@ export default function Main() {
         <PlacesView places={places} loadErr={placesErr} toast={toast} />
       ) : nav === 'recordings' ? (
         <RecordingsView toast={toast} />
+      ) : nav === 'scores' ? (
+        <ScoresView toast={toast} />
       ) : (
         <MusicView toast={toast} />
       )}
@@ -297,14 +300,27 @@ export default function Main() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
           기록
         </button>
+        {/* 중앙 = 홈(일정): 브랜드 원형 버튼으로 한 단 띄운다 */}
         <button
           role="tab"
           aria-selected={nav === 'home'}
-          className={'navitem' + (nav === 'home' ? ' on' : '')}
+          className={'navitem navhome' + (nav === 'home' ? ' on' : '')}
           onClick={() => setNav('home')}
+          aria-label="일정 (홈)"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+          <span className="navhome-badge">
+            <img src="/logo.png" alt="" />
+          </span>
           일정
+        </button>
+        <button
+          role="tab"
+          aria-selected={nav === 'scores'}
+          className={'navitem' + (nav === 'scores' ? ' on' : '')}
+          onClick={() => setNav('scores')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2h8l4 4v16H6z" /><path d="M14 2v4h4" /><path d="M10.5 11v6.2" /><circle cx="9" cy="17.4" r="1.7" /></svg>
+          악보
         </button>
         <button
           role="tab"
