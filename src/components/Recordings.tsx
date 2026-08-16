@@ -79,7 +79,6 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
                 <div className="rec-meta">
                   <h3>{r.title || '(제목 없음)'}</h3>
                   <p>{fmtDate(r.date)}</p>
-                  {r.eventTitle && <p className="rec-event">🗓 {r.eventTitle}</p>}
                 </div>
               </button>
             ))}

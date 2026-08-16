@@ -233,7 +233,11 @@ export function watchRecordings(
 export async function saveRecording(r: Recording): Promise<void> {
   if (DEMO) return
   const { id, ...rest } = r
-  const data = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
+  // undefined 필드는 deleteField() 로 바꿔, 수정 시 값 지움(빈 메모·일정 연결 해제 등)이 반영되게 한다.
+  // (merge:true 에서 필드를 그냥 빼면 기존 값이 남아 지워지지 않는다)
+  const data = Object.fromEntries(
+    Object.entries(rest).map(([k, v]) => [k, v === undefined ? deleteField() : v]),
+  )
   await setDoc(doc(db, 'recordings', id), data, { merge: true })
 }
 
