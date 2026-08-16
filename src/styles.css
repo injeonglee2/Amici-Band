@@ -511,6 +511,31 @@ button { font-family: inherit; }
 }
 .place-select option { background: var(--surface-solid); color: var(--ink); }
 
+/* 테마 셀렉트 (native <select> 대신 다크 바텀시트로) */
+.theme-select {
+  width: 100%; display: flex; align-items: center; gap: 8px; font: inherit; font-size: 15px; color: var(--ink);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line-strong); border-radius: 12px;
+  padding: 12px 13px; cursor: pointer; text-align: left; appearance: none;
+}
+.theme-select:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.theme-select-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-select-chev { flex: none; width: 18px; height: 18px; color: var(--ink-faint); }
+.theme-select.pill {
+  width: auto; font-size: 12.5px; font-weight: 700; color: var(--ink-soft);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 8px 6px 12px; max-width: 42vw;
+}
+.theme-select.pill .theme-select-chev { width: 15px; height: 15px; }
+.tsel-sheet h2 { margin-bottom: 6px; }
+.tsel-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; }
+.tsel-list li + li { border-top: 1px solid var(--line); }
+.tsel-opt {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; appearance: none;
+  cursor: pointer; background: transparent; border: 0; padding: 15px 6px; color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; text-align: left;
+}
+.tsel-opt-label { flex: 1; min-width: 0; }
+.tsel-opt.on { color: var(--accent); }
+.tsel-opt svg { flex: none; width: 20px; height: 20px; color: var(--accent); }
+
 /* 장소 관리 목록 */
 .place-list { margin-top: 12px; }
 .place-row {
@@ -610,9 +635,10 @@ button { font-family: inherit; }
 
 /* 일정 폼: 장소(등록 선택 + 직접 지도 검색) 한 줄. (장소 탭의 .place-row 와 충돌 피하려 별도 클래스) */
 .evt-place-row { display: flex; gap: 8px; align-items: stretch; }
-.evt-place-row .place-select { flex: 1; min-width: 0; }
+.evt-place-row .place-select, .evt-place-row .theme-select { flex: 1; min-width: 0; }
 /* 직접 검색이 함께 보일 때만 select 를 안내문("직접 입력 / 없음") 길이만큼 줄이고, 검색창을 넓힌다 */
-.evt-place-row:has(.place-search) .place-select { flex: 0 0 auto; width: 8.6em; }
+.evt-place-row:has(.place-search) .place-select,
+.evt-place-row:has(.place-search) .theme-select { flex: 0 0 auto; width: 8.6em; }
 .evt-place-row .place-search { flex: 1 1 auto; min-width: 0; }
 /* 제목 + 날짜 한 줄: 제목이 남는 공간, 날짜는 표시 내용 너비만 */
 .evt-title-date { display: flex; gap: 12px; align-items: flex-start; }
@@ -623,12 +649,27 @@ button { font-family: inherit; }
 
 /* 기록 필터·정렬 바 */
 .rec-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
-.rec-filters { display: flex; gap: 6px; min-width: 0; flex-wrap: wrap; }
-.rec-fsel {
-  appearance: none; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); cursor: pointer;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; max-width: 42vw;
+.rec-filters { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.rec-filter-btn {
+  flex: none; appearance: none; cursor: pointer; display: grid; place-items: center; width: 38px; height: 32px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft);
 }
-.rec-fsel option { background: var(--surface-solid); color: var(--ink); }
+.rec-filter-btn.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.rec-filter-btn svg { width: 16px; height: 16px; }
+.rec-filter-badge {
+  display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 56vw;
+  font-size: 12px; font-weight: 700; color: #fff; background: var(--accent); border-radius: 999px; padding: 5px 5px 5px 11px;
+}
+.rec-filter-badge > svg { flex: none; width: 13px; height: 13px; }
+.rec-filter-badge-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-filter-badge button {
+  flex: none; appearance: none; cursor: pointer; display: grid; place-items: center; width: 18px; height: 18px;
+  background: rgba(255, 255, 255, 0.25); border: 0; border-radius: 50%; color: #fff;
+}
+.rec-filter-badge button svg { width: 11px; height: 11px; }
+/* 필터 시트 그룹 제목 */
+.tsel-group { font-size: 12px; font-weight: 800; color: var(--ink-faint); margin: 14px 2px 2px; }
+.tsel-group:first-of-type { margin-top: 6px; }
 /* 기록 폼 — 선택된 음악 표시 + 변경/해제 */
 .rec-music-sel { display: flex; align-items: center; gap: 8px; }
 .rec-music-label { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

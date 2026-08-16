@@ -23,6 +23,7 @@ import {
 import { thumbnailUrl } from '../youtube'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import ConfirmDialog from './ConfirmDialog'
+import ThemeSelect from './ThemeSelect'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
@@ -590,12 +591,15 @@ function AddScoreFlow({
 
         <div className="field">
           <label htmlFor="sc-part">파트</label>
-          <select id="sc-part" className="place-select" value={partSel} onChange={(e) => setPartSel(e.target.value)}>
-            {PART_ORDER.map((p) => (
-              <option key={p} value={p}>{PART_META[p].label}</option>
-            ))}
-            <option value="custom">직접 입력…</option>
-          </select>
+          <ThemeSelect
+            title="파트"
+            value={partSel}
+            onChange={setPartSel}
+            options={[
+              ...PART_ORDER.map((p) => ({ value: p as string, label: PART_META[p].label })),
+              { value: 'custom', label: '직접 입력…' },
+            ]}
+          />
           {partSel === 'custom' && (
             <input type="text" value={customPart} onChange={(e) => setCustomPart(e.target.value)} placeholder="예: 코러스, MC" maxLength={20} style={{ marginTop: 8 }} />
           )}
@@ -608,9 +612,9 @@ function AddScoreFlow({
 
         <div className="field">
           <label htmlFor="sc-files">파일 (PDF 1개 또는 이미지 여러 장)</label>
-          {/* accept 에 이미지 형식이 있으면 삼성 등에서 '카메라'가 붙은 작업 선택창이 뜬다.
-              accept 를 비워 일반 파일 선택(갤러리/내 파일)으로 열고, 형식(이미지/PDF)은 아래에서 검증한다. */}
-          <input id="sc-files" type="file" multiple onChange={(e) => onPickFiles(e.target.files)} />
+          {/* accept 를 비우면 삼성에서 녹음/캠코더까지 뜨고 오디오 권한을 요구한다.
+              이미지+PDF 로 한정(카메라 항목은 삼성 시스템 동작이라 웹에서 제거 불가 — '미디어 선택 도구'로 갤러리 선택). */}
+          <input id="sc-files" type="file" accept="image/*,application/pdf" multiple onChange={(e) => onPickFiles(e.target.files)} />
           {files.length > 0 && (
             <ul className="score-files">
               {files.map((f, i) => (

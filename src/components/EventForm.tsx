@@ -11,6 +11,7 @@ import {
 } from '../types'
 import { todayStr, toMin } from '../time'
 import { TypeGlyph } from './TypeGlyph'
+import ThemeSelect from './ThemeSelect'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
 import { searchPlaces, type PlaceHit } from '../mapsearch'
@@ -190,23 +191,21 @@ export default function EventForm({
         <div className="field">
           <label htmlFor="f-place">장소</label>
           <div className="evt-place-row">
-            <select
-              id="f-place"
-              className="place-select"
+            <ThemeSelect
+              title="장소"
               value={placeId}
-              onChange={(e) => {
-                setPlaceId(e.target.value)
-                if (e.target.value) {
+              onChange={(v) => {
+                setPlaceId(v)
+                if (v) {
                   setLoc('')
                   setPlaceResults([])
                 }
               }}
-            >
-              <option value="">직접 입력 / 없음</option>
-              {places.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: '직접 입력 / 없음' },
+                ...places.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+            />
             {!placeId && (
               <div className="place-search">
                 <input

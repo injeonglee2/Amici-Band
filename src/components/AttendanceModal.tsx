@@ -13,6 +13,7 @@ import { lateOptions, leaveOptions, parseDate, weekday } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import ConfirmDialog from './ConfirmDialog'
 import PartTally from './PartTally'
+import ThemeSelect from './ThemeSelect'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
 
@@ -164,21 +165,23 @@ export default function AttendanceModal({
               {mine?.status === 'late' && (
                 <div className="time-pick">
                   <label>도착 예정 시각</label>
-                  <select value={mine.arriveTime ?? lateOpts[0]} onChange={(e) => setTime('arriveTime', e.target.value)}>
-                    {lateOpts.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
+                  <ThemeSelect
+                    title="도착 예정 시각"
+                    value={mine.arriveTime ?? lateOpts[0]}
+                    onChange={(v) => setTime('arriveTime', v)}
+                    options={lateOpts.map((t) => ({ value: t, label: t }))}
+                  />
                 </div>
               )}
               {mine?.status === 'leave' && (
                 <div className="time-pick">
                   <label>조퇴 시각</label>
-                  <select value={mine.leaveTime ?? leaveOpts[leaveOpts.length - 1]} onChange={(e) => setTime('leaveTime', e.target.value)}>
-                    {leaveOpts.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
+                  <ThemeSelect
+                    title="조퇴 시각"
+                    value={mine.leaveTime ?? leaveOpts[leaveOpts.length - 1]}
+                    onChange={(v) => setTime('leaveTime', v)}
+                    options={leaveOpts.map((t) => ({ value: t, label: t }))}
+                  />
                 </div>
               )}
 

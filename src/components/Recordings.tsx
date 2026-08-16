@@ -6,6 +6,7 @@ import { fetchYouTubeMeta, parseVideoId, thumbnailUrl } from '../youtube'
 import { parseDate, todayStr, weekday } from '../time'
 import ConfirmDialog from './ConfirmDialog'
 import MusicPicker from './MusicPicker'
+import ThemeSelect from './ThemeSelect'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
@@ -41,6 +42,7 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
   // 필터: 특정 합주(일정) 또는 특정 음악에 연결된 기록만. 둘은 상호배타. · 정렬: 최신순 / 오래된순
   const [eventFilter, setEventFilter] = useState('')
   const [musicFilter, setMusicFilter] = useState('')
+  const [filterOpen, setFilterOpen] = useState(false)
   const [sort, setSort] = useState<'new' | 'old'>('new')
 
   useEffect(
@@ -74,6 +76,9 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
     return [...m].map(([key, label]) => ({ key, label }))
   }, [items])
 
+  const activeEvent = eventFilter ? eventOpts.find((o) => o.id === eventFilter) ?? null : null
+  const activeMusic = musicFilter ? musicOpts.find((o) => o.key === musicFilter) ?? null : null
+
   const shown = useMemo(() => {
     let list = items
     if (eventFilter) list = list.filter((r) => r.eventId === eventFilter)
@@ -98,35 +103,33 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
           <>
             <div className="rec-toolbar">
               <div className="rec-filters">
-                {eventOpts.length > 0 && (
-                  <select
-                    className="rec-fsel"
-                    value={eventFilter}
-                    onChange={(e) => {
-                      setEventFilter(e.target.value)
-                      setMusicFilter('')
-                    }}
+                {(eventOpts.length > 0 || musicOpts.length > 0) && (
+                  <button
+                    type="button"
+                    className={'rec-filter-btn' + (eventFilter || musicFilter ? ' on' : '')}
+                    onClick={() => setFilterOpen(true)}
+                    aria-label="필터"
                   >
-                    <option value="">합주 전체</option>
-                    {eventOpts.map((o) => (
-                      <option key={o.id} value={o.id}>🗓 {o.title}</option>
-                    ))}
-                  </select>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
+                  </button>
                 )}
-                {musicOpts.length > 0 && (
-                  <select
-                    className="rec-fsel"
-                    value={musicFilter}
-                    onChange={(e) => {
-                      setMusicFilter(e.target.value)
-                      setEventFilter('')
-                    }}
-                  >
-                    <option value="">음악 전체</option>
-                    {musicOpts.map((o) => (
-                      <option key={o.key} value={o.key}>🎵 {o.label}</option>
-                    ))}
-                  </select>
+                {activeEvent && (
+                  <span className="rec-filter-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+                    <span className="rec-filter-badge-label">{activeEvent.title}</span>
+                    <button type="button" onClick={() => setEventFilter('')} aria-label="합주 필터 해제">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                    </button>
+                  </span>
+                )}
+                {activeMusic && (
+                  <span className="rec-filter-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+                    <span className="rec-filter-badge-label">{activeMusic.label}</span>
+                    <button type="button" onClick={() => setMusicFilter('')} aria-label="음악 필터 해제">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                    </button>
+                  </span>
                 )}
               </div>
               <button
@@ -184,7 +187,107 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
           onClose={() => setOpenId(null)}
         />
       )}
+      {filterOpen && (
+        <RecFilterSheet
+          eventOpts={eventOpts}
+          musicOpts={musicOpts}
+          eventFilter={eventFilter}
+          musicFilter={musicFilter}
+          onPickEvent={(id) => {
+            setEventFilter(id)
+            setMusicFilter('')
+            setFilterOpen(false)
+          }}
+          onPickMusic={(key) => {
+            setMusicFilter(key)
+            setEventFilter('')
+            setFilterOpen(false)
+          }}
+          onClear={() => {
+            setEventFilter('')
+            setMusicFilter('')
+            setFilterOpen(false)
+          }}
+          onClose={() => setFilterOpen(false)}
+        />
+      )}
     </>
+  )
+}
+
+/* ---------------- 기록 필터 시트 (합주/음악 골라 뱃지로) ---------------- */
+function RecFilterSheet({
+  eventOpts,
+  musicOpts,
+  eventFilter,
+  musicFilter,
+  onPickEvent,
+  onPickMusic,
+  onClear,
+  onClose,
+}: {
+  eventOpts: { id: string; title: string }[]
+  musicOpts: { key: string; label: string }[]
+  eventFilter: string
+  musicFilter: string
+  onPickEvent: (id: string) => void
+  onPickMusic: (key: string) => void
+  onClear: () => void
+  onClose: () => void
+}) {
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose)
+  const hasActive = !!(eventFilter || musicFilter)
+  return (
+    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" ref={sheetRef}>
+        <div className="grab-zone" {...grabHandlers}>
+          <div className="grab" />
+        </div>
+        <h2>필터</h2>
+
+        {eventOpts.length > 0 && (
+          <>
+            <div className="tsel-group">합주</div>
+            <ul className="tsel-list">
+              {eventOpts.map((o) => (
+                <li key={o.id}>
+                  <button type="button" className={'tsel-opt' + (eventFilter === o.id ? ' on' : '')} onClick={() => onPickEvent(o.id)}>
+                    <span className="tsel-opt-label">{o.title}</span>
+                    {eventFilter === o.id && (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {musicOpts.length > 0 && (
+          <>
+            <div className="tsel-group">음악</div>
+            <ul className="tsel-list">
+              {musicOpts.map((o) => (
+                <li key={o.key}>
+                  <button type="button" className={'tsel-opt' + (musicFilter === o.key ? ' on' : '')} onClick={() => onPickMusic(o.key)}>
+                    <span className="tsel-opt-label">{o.label}</span>
+                    {musicFilter === o.key && (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        <div className="actions">
+          {hasActive && <button type="button" className="btn subtle" onClick={onClear}>필터 해제</button>}
+          <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -329,16 +432,19 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
 
         {eventsOnDate.length > 0 ? (
           <div className="field">
-            <label htmlFor="rec-event">일정 연결 (선택)</label>
-            <select id="rec-event" className="place-select" value={eventId} onChange={(e) => onPickEvent(e.target.value)}>
-              <option value="">연결 안 함</option>
-              {eventsOnDate.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  [{TYPE_META[ev.type].label}] {ev.title}
-                  {ev.rehStart ? ` · ${ev.rehStart}` : ''}
-                </option>
-              ))}
-            </select>
+            <label>일정 연결 (선택)</label>
+            <ThemeSelect
+              title="일정 연결"
+              value={eventId}
+              onChange={onPickEvent}
+              options={[
+                { value: '', label: '연결 안 함' },
+                ...eventsOnDate.map((ev) => ({
+                  value: ev.id,
+                  label: `[${TYPE_META[ev.type].label}] ${ev.title}${ev.rehStart ? ` · ${ev.rehStart}` : ''}`,
+                })),
+              ]}
+            />
             <p className="hint">이 날짜에 등록된 일정이 있어요. 연결하면 기록에 함께 표시돼요.</p>
           </div>
         ) : (
