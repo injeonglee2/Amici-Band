@@ -171,7 +171,7 @@ export default function EventForm({
         {/* 장소: 등록 장소 선택 + 직접 지도 검색(한 줄). 검색 후 고르면 이 일정에만 쓰이고 목록엔 저장 안 함 */}
         <div className="field">
           <label htmlFor="f-place">장소</label>
-          <div className="place-row">
+          <div className="evt-place-row">
             <select
               id="f-place"
               className="place-select"
