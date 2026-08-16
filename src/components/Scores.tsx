@@ -1,16 +1,516 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../auth'
+import {
+  deleteScore,
+  newId,
+  saveScore,
+  uploadScoreFile,
+  watchPlaylists,
+  watchScores,
+  watchTracks,
+} from '../data'
+import {
+  isFixedPart,
+  PART_META,
+  PART_ORDER,
+  type Part,
+  type Playlist,
+  type Score,
+  type ScoreFile,
+  type Track,
+  type TrackPart,
+} from '../types'
+import { thumbnailUrl } from '../youtube'
+import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
+import { useSheetSwipe } from './useSheetSwipe'
+import { useBackHandler } from '../backnav'
+
+const partLabel = (p: TrackPart) => (isFixedPart(p) ? PART_META[p].label : p)
+
+type Song = { trackId: string; title: string; artist?: string; thumbnail?: string; scores: Score[] }
 
 /**
- * 악보 탭 — 재생목록의 곡에 파트별 악보(PDF/이미지)를 붙여 보는 갤러리.
- * (1단계: 자리만 잡아둔 플레이스홀더. 다음 단계에서 업로드·뷰어를 붙인다.)
+ * 악보 탭 — 재생목록의 곡에 파트별 악보(PDF/이미지)를 붙여 본다.
+ * 곡 중심(곡을 열면 파트별로 악보), 상단 '내 파트만' 필터. 파일은 Firebase Storage.
  */
-export default function ScoresView(_props: { toast: ToastState }) {
+export default function ScoresView({ toast }: { toast: ToastState }) {
+  const { member } = useAuth()
+  const myPart = member?.part
+  const [scores, setScores] = useState<Score[]>([])
+  const [loadErr, setLoadErr] = useState('')
+  const [mineOnly, setMineOnly] = useState(false)
+  const [openTrackId, setOpenTrackId] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+
+  useEffect(
+    () =>
+      watchScores(setScores, (e) => {
+        const code = (e as { code?: string })?.code ?? ''
+        setLoadErr(
+          code === 'permission-denied'
+            ? '악보를 불러올 권한이 없어요. Firestore 보안 규칙을 확인해 주세요.'
+            : '악보를 불러오지 못했어요.' + (code ? ` (${code})` : ''),
+        )
+      }),
+    [],
+  )
+
+  // 곡(trackId)별로 묶기. scores 는 최신순이라 first-seen = 최신 곡 순서 유지.
+  const songs = useMemo(() => {
+    const m = new Map<string, Song>()
+    for (const s of scores) {
+      let g = m.get(s.trackId)
+      if (!g) {
+        g = { trackId: s.trackId, title: s.songTitle, artist: s.songArtist, thumbnail: s.thumbnail, scores: [] }
+        m.set(s.trackId, g)
+      }
+      g.scores.push(s)
+    }
+    let list = [...m.values()]
+    if (mineOnly && myPart) list = list.filter((g) => g.scores.some((s) => s.part === myPart))
+    return list
+  }, [scores, mineOnly, myPart])
+
+  const myCount = useMemo(
+    () => (myPart ? new Set(scores.filter((s) => s.part === myPart).map((s) => s.trackId)).size : 0),
+    [scores, myPart],
+  )
+
+  // 열린 곡: 필터와 무관하게 전체 scores 에서 다시 구성(필터로 사라져도 유지)
+  const openSong: Song | null = useMemo(() => {
+    if (!openTrackId) return null
+    const ss = scores.filter((s) => s.trackId === openTrackId)
+    if (!ss.length) return null
+    return { trackId: openTrackId, title: ss[0].songTitle, artist: ss[0].songArtist, thumbnail: ss[0].thumbnail, scores: ss }
+  }, [openTrackId, scores])
+
   return (
-    <main className="scroll">
-      <div className="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2h8l4 4v16H6z" /><path d="M14 2v4h4" /><path d="M10.5 11v6.2" /><circle cx="9" cy="17.4" r="1.7" /></svg>
-        <p>악보 기능을 준비하고 있어요.<br />곧 재생목록의 곡에 파트별 악보를 올릴 수 있어요.</p>
+    <>
+      <main className="scroll">
+        {loadErr && <div className="banner-err">{loadErr}</div>}
+
+        {myPart && myCount > 0 && (
+          <div className="track-filter">
+            <button
+              type="button"
+              className={'chip mine-filter' + (mineOnly ? ' on' : '')}
+              aria-pressed={mineOnly}
+              onClick={() => setMineOnly((v) => !v)}
+            >
+              내 파트만 · {PART_META[myPart].label} <b>{myCount}</b>
+            </button>
+          </div>
+        )}
+
+        {songs.length === 0 && !loadErr ? (
+          <div className="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2h8l4 4v16H6z" /><path d="M14 2v4h4" /><path d="M10.5 11v6.2" /><circle cx="9" cy="17.4" r="1.7" /></svg>
+            <p>
+              {mineOnly ? '내 파트 악보가 아직 없어요.' : '아직 등록된 악보가 없어요.'}
+              <br />아래 <b>+ 악보 추가</b>로 재생목록의 곡에 악보를 올려보세요.
+            </p>
+          </div>
+        ) : (
+          <div className="rec-grid">
+            {songs.map((g) => {
+              const parts = [...new Set(g.scores.map((s) => s.part))]
+              return (
+                <button key={g.trackId} type="button" className="rec-card" onClick={() => setOpenTrackId(g.trackId)}>
+                  <div className="rec-thumb">
+                    {g.thumbnail ? (
+                      <img src={g.thumbnail} alt="" loading="lazy" />
+                    ) : (
+                      <span className="rec-thumb-none" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 2h8l4 4v16H6z" /><path d="M14 2v4h4" /></svg>
+                      </span>
+                    )}
+                  </div>
+                  <div className="rec-meta">
+                    <h3>{g.title || '(제목 없음)'}</h3>
+                    {g.artist && <p>{g.artist}</p>}
+                    <div className="score-partchips">
+                      {parts.map((p) => (
+                        <span key={String(p)} className={'score-partchip' + (p === myPart ? ' me' : '')}>
+                          {partLabel(p)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </main>
+
+      <button className="fab" onClick={() => setAdding(true)}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+        악보 추가
+      </button>
+
+      {adding && <AddScoreFlow toast={toast} onClose={() => setAdding(false)} />}
+      {openSong && <ScoreSongSheet song={openSong} myPart={myPart} toast={toast} onClose={() => setOpenTrackId(null)} />}
+    </>
+  )
+}
+
+/* ---------------- 곡 상세: 파트별 악보 목록 ---------------- */
+function ScoreSongSheet({
+  song,
+  myPart,
+  toast,
+  onClose,
+}: {
+  song: Song
+  myPart?: Part
+  toast: ToastState
+  onClose: () => void
+}) {
+  const { user, member } = useAuth()
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  const [viewing, setViewing] = useState<Score | null>(null)
+  const [removing, setRemoving] = useState<Score | null>(null)
+  useBackHandler(() => (viewing ? setViewing(null) : onClose()))
+
+  // 파트별 묶음: 고정 5파트 순서 먼저, 커스텀 라벨은 뒤에
+  const groups = useMemo(() => {
+    const map = new Map<string, Score[]>()
+    for (const s of song.scores) {
+      const k = String(s.part)
+      if (!map.has(k)) map.set(k, [])
+      map.get(k)!.push(s)
+    }
+    const out: { part: TrackPart; scores: Score[] }[] = []
+    for (const p of PART_ORDER) if (map.has(p)) out.push({ part: p, scores: map.get(p)! })
+    for (const [k, arr] of map) if (!PART_ORDER.includes(k as Part)) out.push({ part: k, scores: arr })
+    return out
+  }, [song])
+
+  async function doRemove(s: Score) {
+    setRemoving(null)
+    try {
+      await deleteScore(s.id, s.files)
+      toast.show('악보를 삭제했어요')
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? ''
+      toast.show(code === 'permission-denied' ? '삭제 권한이 없어요.' : '삭제에 실패했어요.')
+      console.error(e)
+    }
+  }
+
+  return (
+    <>
+      <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="sheet" ref={sheetRef}>
+          <div className="grab-zone" {...grabHandlers}>
+            <div className="grab" />
+          </div>
+          <div className="setlist-head">
+            <h2>{song.title || '(제목 없음)'}</h2>
+            {song.artist && <p>{song.artist}</p>}
+          </div>
+
+          {groups.map((g) => (
+            <div key={String(g.part)} className="score-part-group">
+              <div className={'score-part-hd' + (g.part === myPart ? ' me' : '')}>
+                {partLabel(g.part)} <b>{g.scores.length}</b>
+              </div>
+              <div className="score-cards">
+                {g.scores.map((s) => {
+                  const canManage = !!user && (s.addedBy === user.uid || !!member?.admin)
+                  return (
+                    <div key={s.id} className="score-card">
+                      <button type="button" className="score-card-main" onClick={() => setViewing(s)}>
+                        <span className="score-kind">{s.kind === 'pdf' ? 'PDF' : `IMG ${s.files.length}`}</span>
+                        <span className="score-card-title">{s.title || '악보'}</span>
+                        {s.addedByName && <span className="score-by">{s.addedByName}</span>}
+                      </button>
+                      {canManage && (
+                        <button type="button" className="score-del" onClick={() => setRemoving(s)} aria-label="악보 삭제">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6M14 11v6" /></svg>
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+
+          <div className="actions">
+            <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
+          </div>
+        </div>
       </div>
-    </main>
+
+      {viewing && <ScoreViewer score={viewing} onClose={() => setViewing(null)} />}
+      {removing && (
+        <ConfirmDialog
+          message={`'${removing.title || '악보'}'을(를) 삭제할까요?`}
+          confirmLabel="삭제"
+          cancelLabel="닫기"
+          danger
+          onConfirm={() => void doRemove(removing)}
+          onCancel={() => setRemoving(null)}
+        />
+      )}
+    </>
+  )
+}
+
+/* ---------------- 악보 뷰어 (이미지 세로 스크롤 / PDF) ---------------- */
+function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) {
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose)
+  return (
+    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" ref={sheetRef}>
+        <div className="grab-zone" {...grabHandlers}>
+          <div className="grab" />
+        </div>
+        <div className="setlist-head">
+          <h2>{score.title || '악보'}</h2>
+          <p>{score.songTitle} · {partLabel(score.part)}</p>
+        </div>
+
+        {score.kind === 'images' ? (
+          <div className="score-gallery">
+            {score.files.map((f, i) => (
+              <img key={i} src={f.url} alt={`${i + 1}페이지`} loading="lazy" />
+            ))}
+          </div>
+        ) : (
+          <div className="score-pdf">
+            <iframe src={score.files[0]?.url} title={score.title || '악보'} />
+          </div>
+        )}
+
+        <div className="actions">
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => window.open(score.files[0]?.url, '_blank', 'noopener')}
+          >
+            새 탭에서 열기 ↗
+          </button>
+          <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ---------------- 악보 추가: 재생목록→곡 고르고 → 파트·제목·파일 업로드 ---------------- */
+function AddScoreFlow({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
+  const { user, member } = useAuth()
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [openPl, setOpenPl] = useState<Playlist | null>(null)
+  const [tracks, setTracks] = useState<Track[]>([])
+  const [track, setTrack] = useState<Track | null>(null)
+
+  const [partSel, setPartSel] = useState<string>(member?.part ?? 'vocal')
+  const [customPart, setCustomPart] = useState('')
+  const [title, setTitle] = useState('')
+  const [files, setFiles] = useState<File[]>([])
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState('')
+  const [err, setErr] = useState('')
+
+  useEffect(() => watchPlaylists(setPlaylists), [])
+  useEffect(() => {
+    if (!openPl) {
+      setTracks([])
+      return
+    }
+    return watchTracks(openPl.id, setTracks)
+  }, [openPl])
+  // 뒤로가기: 곡 선택됨→곡 해제, 재생목록 선택됨→해제, 아니면 닫기
+  useBackHandler(() => (track ? setTrack(null) : openPl ? setOpenPl(null) : onClose()))
+
+  const pdfs = files.filter((f) => f.type === 'application/pdf')
+  const imgs = files.filter((f) => f.type.startsWith('image/'))
+  const kindOk = files.length > 0 && ((pdfs.length === 1 && imgs.length === 0) || (pdfs.length === 0 && imgs.length > 0))
+  const partOk = partSel !== 'custom' || customPart.trim().length > 0
+  const valid = !!track && title.trim().length > 0 && kindOk && partOk
+
+  function onPickFiles(list: FileList | null) {
+    if (!list) return
+    setFiles(Array.from(list))
+  }
+  function move(i: number, dir: -1 | 1) {
+    setFiles((arr) => {
+      const next = arr.slice()
+      const j = i + dir
+      if (j < 0 || j >= next.length) return arr
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  }
+  function removeAt(i: number) {
+    setFiles((arr) => arr.filter((_, k) => k !== i))
+  }
+
+  async function submit() {
+    if (!valid || !user || !track || !openPl || busy) return
+    setBusy(true)
+    setErr('')
+    try {
+      const id = newId()
+      const isPdf = pdfs.length === 1
+      const use = isPdf ? pdfs.slice(0, 1) : imgs
+      const uploaded: ScoreFile[] = []
+      for (let i = 0; i < use.length; i++) {
+        setProgress(`업로드 중 ${i + 1}/${use.length}`)
+        uploaded.push(await uploadScoreFile(id, use[i], i))
+      }
+      const part: TrackPart = partSel === 'custom' ? customPart.trim() : (partSel as Part)
+      const s: Score = {
+        id,
+        trackId: track.id,
+        playlistId: openPl.id,
+        songTitle: track.title,
+        songArtist: track.artist || undefined,
+        thumbnail: track.thumbnail || (track.videoId ? thumbnailUrl(track.videoId) : undefined),
+        part,
+        title: title.trim(),
+        kind: isPdf ? 'pdf' : 'images',
+        files: uploaded,
+        addedBy: user.uid,
+        addedByName: member?.name,
+        createdAt: Date.now(),
+      }
+      await saveScore(s)
+      toast.show('악보를 올렸어요')
+      onClose()
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? ''
+      setErr(
+        code === 'permission-denied' || code === 'storage/unauthorized'
+          ? '업로드 권한이 없어요. 보안 규칙을 확인해 주세요.'
+          : '업로드에 실패했어요.' + (code ? ` (${code})` : ''),
+      )
+      console.error(e)
+    } finally {
+      setBusy(false)
+      setProgress('')
+    }
+  }
+
+  // 1) 곡 고르기 (재생목록 → 곡)
+  if (!track) {
+    return (
+      <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="sheet" ref={sheetRef}>
+          <div className="grab-zone" {...grabHandlers}>
+            <div className="grab" />
+          </div>
+          <h2>악보 추가 — 곡 고르기</h2>
+          {!openPl ? (
+            <div className="picker-list">
+              {playlists.length === 0 && <p className="setlist-empty">재생목록이 없어요. 음악 탭에서 먼저 만들어 주세요.</p>}
+              {playlists.map((p) => (
+                <button key={p.id} type="button" className="picker-row" onClick={() => setOpenPl(p)}>
+                  <span className="track-info"><h3>{p.name}</h3></span>
+                  <svg className="track-open-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="picker-bar">
+                <button type="button" className="btn subtle" onClick={() => setOpenPl(null)}>← 재생목록</button>
+                <b>{openPl.name}</b>
+              </div>
+              <div className="picker-list">
+                {tracks.length === 0 && <p className="setlist-empty">이 재생목록에 곡이 없어요.</p>}
+                {tracks.map((t) => (
+                  <button key={t.id} type="button" className="picker-row" onClick={() => { setTrack(t); if (!title) setTitle('풀 스코어') }}>
+                    <span className="track-thumb sm">
+                      {t.thumbnail || t.videoId ? <img src={t.thumbnail || thumbnailUrl(t.videoId ?? '')} alt="" loading="lazy" /> : null}
+                    </span>
+                    <span className="track-info"><h3>{t.title}</h3>{t.artist && <p>{t.artist}</p>}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="actions">
+            <button type="button" className="btn subtle block" onClick={onClose}>취소</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 2) 파트·제목·파일
+  return (
+    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" ref={sheetRef}>
+        <div className="grab-zone" {...grabHandlers}>
+          <div className="grab" />
+        </div>
+        <h2>악보 추가</h2>
+
+        <div className="score-picked">
+          <span className="track-thumb sm">
+            {track.thumbnail || track.videoId ? <img src={track.thumbnail || thumbnailUrl(track.videoId ?? '')} alt="" /> : null}
+          </span>
+          <div className="track-info"><h3>{track.title}</h3>{track.artist && <p>{track.artist}</p>}</div>
+          <button type="button" className="btn subtle" onClick={() => setTrack(null)}>곡 변경</button>
+        </div>
+
+        <div className="field">
+          <label htmlFor="sc-part">파트</label>
+          <select id="sc-part" className="place-select" value={partSel} onChange={(e) => setPartSel(e.target.value)}>
+            {PART_ORDER.map((p) => (
+              <option key={p} value={p}>{PART_META[p].label}</option>
+            ))}
+            <option value="custom">직접 입력…</option>
+          </select>
+          {partSel === 'custom' && (
+            <input type="text" value={customPart} onChange={(e) => setCustomPart(e.target.value)} placeholder="예: 코러스, MC" maxLength={20} style={{ marginTop: 8 }} />
+          )}
+        </div>
+
+        <div className="field">
+          <label htmlFor="sc-title">악보 제목</label>
+          <input id="sc-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={40} placeholder="예: 풀 스코어 · 1절 · 코드" />
+        </div>
+
+        <div className="field">
+          <label htmlFor="sc-files">파일 (PDF 1개 또는 이미지 여러 장)</label>
+          <input id="sc-files" type="file" accept="image/*,application/pdf" multiple onChange={(e) => onPickFiles(e.target.files)} />
+          {files.length > 0 && (
+            <ul className="score-files">
+              {files.map((f, i) => (
+                <li key={i}>
+                  <span className="score-file-name">{f.name}</span>
+                  <span className="score-file-btns">
+                    <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label="위로">↑</button>
+                    <button type="button" onClick={() => move(i, 1)} disabled={i === files.length - 1} aria-label="아래로">↓</button>
+                    <button type="button" onClick={() => removeAt(i)} aria-label="빼기">×</button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {files.length > 0 && !kindOk && (
+            <p className="err small">PDF 1개, 또는 이미지 여러 장 중 하나로 올려주세요 (섞을 수 없어요).</p>
+          )}
+          {kindOk && <p className="hint">{pdfs.length ? 'PDF 1개' : `이미지 ${imgs.length}장`}로 등록됩니다. 이미지는 위 순서대로 보여요.</p>}
+        </div>
+
+        {err && <p className="err small">{err}</p>}
+
+        <div className="actions">
+          <button type="button" className="btn subtle" onClick={onClose} disabled={busy}>취소</button>
+          <button type="button" className="btn primary" onClick={submit} disabled={!valid || busy}>
+            {busy ? progress || '저장 중…' : '올리기'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

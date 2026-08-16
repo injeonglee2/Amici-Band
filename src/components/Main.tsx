@@ -300,17 +300,13 @@ export default function Main() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
           기록
         </button>
-        {/* 중앙 = 홈(일정): 브랜드 원형 버튼으로 한 단 띄운다 */}
         <button
           role="tab"
           aria-selected={nav === 'home'}
-          className={'navitem navhome' + (nav === 'home' ? ' on' : '')}
+          className={'navitem' + (nav === 'home' ? ' on' : '')}
           onClick={() => setNav('home')}
-          aria-label="일정 (홈)"
         >
-          <span className="navhome-badge">
-            <img src="/logo.png" alt="" />
-          </span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
           일정
         </button>
         <button

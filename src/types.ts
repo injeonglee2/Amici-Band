@@ -98,6 +98,33 @@ export interface Recording {
   createdAt: number
 }
 
+/** 악보 파일 하나 (Storage 업로드 결과) */
+export interface ScoreFile {
+  url: string // 다운로드 URL
+  path: string // Storage 경로 (삭제용)
+  name?: string // 원본 파일명
+}
+
+/**
+ * 악보 — 재생목록의 곡(Track)에 붙는 파트별 악보. scores/{id}
+ * 한 곡·한 파트에 여러 개 등록 가능(문서 하나 = 악보 하나). PDF 1개 또는 이미지 여러 장.
+ */
+export interface Score {
+  id: string
+  trackId: string // 원본 곡 id
+  playlistId: string // 원본 재생목록 id
+  songTitle: string // 곡 제목 스냅샷
+  songArtist?: string // 아티스트 스냅샷
+  thumbnail?: string // 곡 썸네일 스냅샷
+  part: TrackPart // 파트(고정 5 + 커스텀 라벨)
+  title: string // 악보 제목 (예: 풀스코어·1절·코드)
+  kind: 'pdf' | 'images'
+  files: ScoreFile[] // 순서대로
+  addedBy: string
+  addedByName?: string
+  createdAt: number
+}
+
 export type AttendStatus = 'present' | 'late' | 'leave' | 'absent'
 
 export const STATUS_META: Record<AttendStatus, { label: string; color: string }> = {

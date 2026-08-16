@@ -10,9 +10,10 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
-import { db, fbApp } from './firebase'
+import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
+import { db, fbApp, storage } from './firebase'
 import { DEMO, demoDb } from './demo'
-import type { Attendance, BandEvent, Member, Place, Playlist, Recording, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Attendance, BandEvent, Member, Place, Playlist, Recording, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -244,6 +245,55 @@ export async function saveRecording(r: Recording): Promise<void> {
 export async function deleteRecording(id: string): Promise<void> {
   if (DEMO) return
   await deleteDoc(doc(db, 'recordings', id))
+}
+
+/* ---------------- scores (악보 — 파트별 PDF·이미지, Firebase Storage) ---------------- */
+export function watchScores(
+  cb: (scores: Score[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) {
+    cb([])
+    return () => {}
+  }
+  return onSnapshot(
+    collection(db, 'scores'),
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Score, 'id'>) }))
+      list.sort((a, b) => b.createdAt - a.createdAt)
+      cb(list)
+    },
+    (err) => {
+      console.error('watchScores', err)
+      onError?.(err)
+    },
+  )
+}
+
+/** 악보 파일 하나를 Storage 에 올리고 {url, path, name} 반환. path = scores/{scoreId}/{i}-{안전한이름} */
+export async function uploadScoreFile(scoreId: string, file: File, index: number): Promise<ScoreFile> {
+  const safe = file.name.replace(/[^\w.-]+/g, '_').slice(-60)
+  const path = `scores/${scoreId}/${index}-${safe}`
+  const r = storageRef(storage, path)
+  await uploadBytes(r, file, { contentType: file.type || undefined })
+  const url = await getDownloadURL(r)
+  return { url, path, name: file.name }
+}
+
+export async function saveScore(s: Score): Promise<void> {
+  if (DEMO) return
+  const { id, ...rest } = s
+  const data = Object.fromEntries(
+    Object.entries(rest).map(([k, v]) => [k, v === undefined ? deleteField() : v]),
+  )
+  await setDoc(doc(db, 'scores', id), data, { merge: true })
+}
+
+/** 악보 문서 + Storage 파일들을 함께 삭제 (파일 삭제 실패는 무시하고 문서는 지운다) */
+export async function deleteScore(id: string, files: ScoreFile[]): Promise<void> {
+  if (DEMO) return
+  await Promise.allSettled(files.map((f) => deleteObject(storageRef(storage, f.path))))
+  await deleteDoc(doc(db, 'scores', id))
 }
 
 export async function deletePlaylist(id: string): Promise<void> {

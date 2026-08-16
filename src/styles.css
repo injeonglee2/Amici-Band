@@ -429,23 +429,6 @@ button { font-family: inherit; }
 .navitem svg { width: 22px; height: 22px; }
 .navitem:hover { color: var(--ink-soft); }
 .navitem.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-/* 중앙 홈(일정) — 한 단 띄운 브랜드 원형 버튼 */
-.navitem.navhome { justify-content: flex-end; background: transparent; }
-.navitem.navhome:hover { background: transparent; }
-.navhome-badge {
-  width: 48px; height: 48px; margin-top: -22px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: linear-gradient(135deg, #f0a32a, #d6297e);
-  box-shadow: 0 6px 18px rgba(214, 41, 126, 0.5);
-  border: 3px solid rgba(10, 10, 18, 0.92);
-  transition: box-shadow 0.16s, transform 0.16s;
-}
-.navhome-badge img { width: 27px; height: 27px; display: block; }
-.navitem.navhome.on { color: var(--accent); }
-.navitem.navhome.on .navhome-badge {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent), 0 6px 18px rgba(214, 41, 126, 0.55);
-}
-.navitem.navhome:active .navhome-badge { transform: scale(0.94); }
 
 /* ---------- modal / sheet ---------- */
 .scrim {
@@ -696,6 +679,53 @@ button { font-family: inherit; }
 .rec-event { display: inline-flex; align-items: center; gap: 4px; margin: 4px 0 0; font-size: 11px; font-weight: 600; color: var(--ink-soft); }
 .rec-card .rec-event { color: var(--ink-faint); }
 .rec-noevent { margin: -2px 2px 2px; }
+
+/* ---------------- 악보 탭 ---------------- */
+/* 곡 카드의 파트 칩 */
+.score-partchips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.score-partchip {
+  font-size: 10.5px; font-weight: 700; color: var(--ink-soft);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 7px;
+}
+.score-partchip.me { color: #fff; background: var(--accent); border-color: var(--accent); }
+/* 곡 상세: 파트별 그룹 */
+.score-part-group { margin-top: 14px; }
+.score-part-group:first-of-type { margin-top: 6px; }
+.score-part-hd { font-size: 13px; font-weight: 800; color: var(--ink-soft); padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
+.score-part-hd b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.score-part-hd.me { color: var(--accent); }
+.score-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.score-card { display: flex; align-items: stretch; gap: 8px; }
+.score-card-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left; appearance: none; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 11px 12px; color: inherit; font: inherit;
+}
+.score-kind { flex: none; font-size: 10.5px; font-weight: 800; color: #fff; background: var(--accent); border-radius: 6px; padding: 3px 7px; letter-spacing: 0.02em; }
+.score-card-title { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-by { flex: none; font-size: 11px; color: var(--ink-faint); }
+.score-del {
+  flex: none; appearance: none; cursor: pointer; width: 42px; display: grid; place-items: center;
+  background: var(--surface); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); color: var(--accent);
+}
+.score-del svg { width: 17px; height: 17px; }
+/* 뷰어 */
+.score-gallery { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.score-gallery img { width: 100%; height: auto; display: block; border-radius: 10px; background: #fff; }
+.score-pdf { margin-top: 8px; border-radius: 10px; overflow: hidden; background: #000; }
+.score-pdf iframe { display: block; width: 100%; height: 62vh; border: 0; background: #fff; }
+/* 추가 폼 */
+.score-picked { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+.score-picked .track-info { flex: 1; min-width: 0; }
+.score-picked .btn { flex: none; padding: 8px 12px; font-size: 12.5px; }
+.score-files { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.score-files li { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.score-file-name { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-file-btns { flex: none; display: flex; gap: 4px; }
+.score-file-btns button {
+  appearance: none; cursor: pointer; width: 28px; height: 28px; border-radius: 8px; font-size: 14px; font-weight: 800;
+  background: var(--surface); border: 1px solid var(--glass-border); color: var(--ink-soft);
+}
+.score-file-btns button:disabled { opacity: 0.35; cursor: default; }
 .btn.text:hover { color: var(--ink); }
 
 /* ---------- toast ---------- */
