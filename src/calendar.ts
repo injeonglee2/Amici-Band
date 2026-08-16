@@ -26,13 +26,18 @@ type NavigatorWithRelatedApps = Navigator & {
   getInstalledRelatedApps?: () => Promise<RelatedApp[]>
 }
 
+/**
+ * 캘린더 내보내기는 어디서나 가능하다:
+ * - 안드로이드 앱(TWA 설치): 기기 캘린더 인텐트
+ * - 그 외(iOS·데스크톱·안드로이드 웹): .ics 다운로드 → 애플/구글/아웃룩 캘린더에서 열림
+ */
 export async function calendarExportSupported(): Promise<boolean> {
-  const isAppleMobile =
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  if (isAppleMobile) return false
-  if (!isAndroid()) return true
+  return true
+}
 
+/** 설치된 TWA(안드로이드 앱)인지 — 그럴 때만 네이티브 캘린더 인텐트를 쓴다. */
+async function twaInstalled(): Promise<boolean> {
+  if (!isAndroid()) return false
   const getInstalledRelatedApps = (navigator as NavigatorWithRelatedApps).getInstalledRelatedApps
   if (!getInstalledRelatedApps) return false
   try {
@@ -56,8 +61,14 @@ function androidCalendarIntent(ev: BandEvent, place: ResolvedPlace | null): stri
   return `intent://calendar/add?${params.toString()}#Intent;scheme=amicicalender;package=${ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`
 }
 
-function icsStamp(date: string, time: string): string {
-  return date.replace(/-/g, '') + 'T' + time.replace(':', '') + '00'
+/** KST 일정을 시간대에 상관없이 정확히 표현하려고 UTC(Z)로 변환해 넣는다. */
+function icsUtc(date: string, time: string): string {
+  const dt = new Date(epochMillis(date, time))
+  const p = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${dt.getUTCFullYear()}${p(dt.getUTCMonth() + 1)}${p(dt.getUTCDate())}` +
+    `T${p(dt.getUTCHours())}${p(dt.getUTCMinutes())}00Z`
+  )
 }
 
 function icsEscape(value: string): string {
@@ -79,8 +90,8 @@ function downloadIcs(ev: BandEvent, place: ResolvedPlace | null): void {
     'BEGIN:VEVENT',
     `UID:${ev.id}@amici-band`,
     `DTSTAMP:${dtstamp}`,
-    `DTSTART:${icsStamp(ev.date, ev.rehStart)}`,
-    `DTEND:${icsStamp(ev.date, ev.rehEnd)}`,
+    `DTSTART:${icsUtc(ev.date, ev.rehStart)}`,
+    `DTEND:${icsUtc(ev.date, ev.rehEnd)}`,
     `SUMMARY:${icsEscape(eventTitle(ev))}`,
   ]
   const location = eventLocation(place)
@@ -99,8 +110,9 @@ function downloadIcs(ev: BandEvent, place: ResolvedPlace | null): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export function addToDeviceCalendar(ev: BandEvent, place: ResolvedPlace | null): void {
-  if (isAndroid()) {
+export async function addToDeviceCalendar(ev: BandEvent, place: ResolvedPlace | null): Promise<void> {
+  // 안드로이드 앱(TWA)일 때만 네이티브 캘린더 인텐트, 그 외엔 .ics 다운로드(애플/구글/아웃룩/타임트리 등)
+  if (await twaInstalled()) {
     window.location.href = androidCalendarIntent(ev, place)
     return
   }

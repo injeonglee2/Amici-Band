@@ -152,7 +152,7 @@ export default function EventCard({
                 {/* 아랫줄: 캘린더에 추가 + 참석 투표 (관리자·일반 공통) */}
                 <div className="ca-bottom">
                   {showCalendarExport && (
-                    <button className="edit-btn" onClick={() => addToDeviceCalendar(ev, place)} aria-label="캘린더에 추가" title="캘린더에 추가">
+                    <button className="edit-btn" onClick={() => void addToDeviceCalendar(ev, place)} aria-label="캘린더에 추가" title="캘린더에 추가">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
                     </button>
                   )}
