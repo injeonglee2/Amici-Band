@@ -1031,6 +1031,14 @@ button { font-family: inherit; }
 
 /* 파트 참여 팝업(시트) */
 .part-sheet-song { display: flex; align-items: center; gap: 12px; margin: 4px 2px 14px; }
+/* 곡에 등록된 악보 바로가기 (곡 참여 시트 우측 상단) */
+.part-score-link {
+  flex: none; margin-left: auto; align-self: flex-start; appearance: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); font-size: 12px; font-weight: 700;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px;
+}
+.part-score-link svg { width: 14px; height: 14px; }
+.part-score-link:hover { color: var(--ink); border-color: var(--line-strong); }
 .part-sheet-song .track-thumb { width: 64px; height: 42px; }
 .part-sheet-songinfo { flex: 1; min-width: 0; }
 .part-sheet-songinfo h2 {

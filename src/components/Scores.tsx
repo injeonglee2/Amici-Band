@@ -55,7 +55,7 @@ const extOf = (name: string) => name.match(/\.([a-zA-Z0-9]+)$/)?.[1].toLowerCase
 const PART_TITLE: Record<string, string> = { drum: 'Drum', bass: 'Base', guitar: 'Guitar', keyboard: 'Piano', vocal: 'Vocal' }
 const defaultTitleFor = (p: string) => PART_TITLE[p] ?? ''
 
-type Song = { trackId: string; title: string; artist?: string; thumbnail?: string; scores: Score[] }
+export type Song = { trackId: string; title: string; artist?: string; thumbnail?: string; scores: Score[] }
 
 /**
  * 악보 탭 — 재생목록의 곡에 파트별 악보(PDF/이미지)를 붙여 본다.
@@ -183,7 +183,7 @@ export default function ScoresView({ toast }: { toast: ToastState }) {
 }
 
 /* ---------------- 곡 상세: 파트별 악보 목록 ---------------- */
-function ScoreSongSheet({
+export function ScoreSongSheet({
   song,
   myPart,
   toast,
@@ -625,9 +625,9 @@ function AddScoreFlow({
 
         <div className="field">
           <label htmlFor="sc-files">파일 (PDF 1개 또는 이미지 여러 장)</label>
-          {/* accept 를 비우면 삼성에서 녹음/캠코더까지 뜨고 오디오 권한을 요구한다.
-              이미지+PDF 로 한정(카메라 항목은 삼성 시스템 동작이라 웹에서 제거 불가 — '미디어 선택 도구'로 갤러리 선택). */}
-          <input id="sc-files" type="file" accept="image/*,application/pdf" multiple onChange={(e) => onPickFiles(e.target.files)} />
+          {/* MIME(image/*)이면 삼성이 카메라 촬영을 우선 띄운다. 확장자 기반 accept 는
+              문서 선택기(갤러리/내 파일)로 열리는 경우가 많아 확장자로 지정한다. */}
+          <input id="sc-files" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple onChange={(e) => onPickFiles(e.target.files)} />
           {files.length > 0 && (
             <ul className="score-files">
               {files.map((f, i) => (

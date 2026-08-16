@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { clearTrackParticipation, setTrackParticipation } from '../data'
-import { isFixedPart, PART_META, PART_ORDER, type Member, type Track, type TrackPart } from '../types'
+import { useEffect, useState } from 'react'
+import { clearTrackParticipation, setTrackParticipation, watchScores } from '../data'
+import { isFixedPart, PART_META, PART_ORDER, type Member, type Score, type Track, type TrackPart } from '../types'
 import { thumbnailUrl } from '../youtube'
 import type { ToastState } from './Toast'
+import { ScoreSongSheet } from './Scores'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
 
@@ -28,6 +29,12 @@ export default function ParticipationSheet({
 }) {
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [busy, setBusy] = useState(false)
+
+  // 이 곡에 등록된 악보 — 있으면 바로가기 아이콘을 보여준다
+  const [allScores, setAllScores] = useState<Score[]>([])
+  const [openScores, setOpenScores] = useState(false)
+  useEffect(() => watchScores(setAllScores, () => {}), [])
+  const trackScores = allScores.filter((s) => s.trackId === track.id)
 
   const parts = track.participants ?? {}
   const uids = Object.keys(parts)
@@ -131,6 +138,7 @@ export default function ParticipationSheet({
   const name = (uid: string) => memberMap.get(uid)?.name ?? '(탈퇴)'
 
   return (
+    <>
     <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet" ref={sheetRef}>
         <div className="grab-zone" {...grabHandlers}>
@@ -147,6 +155,12 @@ export default function ParticipationSheet({
             <h2>{track.title || '(제목 없음)'}</h2>
             {track.artist && <p>{track.artist}</p>}
           </div>
+          {trackScores.length > 0 && (
+            <button type="button" className="part-score-link" onClick={() => setOpenScores(true)} aria-label="악보 보기">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" /></svg>
+              <span>악보 {trackScores.length}</span>
+            </button>
+          )}
         </div>
 
         <div className="part-sheet-summary">
@@ -260,5 +274,20 @@ export default function ParticipationSheet({
         </div>
       </div>
     </div>
+    {openScores && (
+      <ScoreSongSheet
+        song={{
+          trackId: track.id,
+          title: track.title,
+          artist: track.artist || undefined,
+          thumbnail: track.thumbnail || (track.videoId ? thumbnailUrl(track.videoId) : undefined),
+          scores: trackScores,
+        }}
+        myPart={me?.part}
+        toast={toast}
+        onClose={() => setOpenScores(false)}
+      />
+    )}
+    </>
   )
 }
