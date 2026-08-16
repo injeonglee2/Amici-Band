@@ -281,9 +281,15 @@ function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) 
             ))}
           </div>
         ) : (
-          <div className="score-pdf">
-            <iframe src={score.files[0]?.url} title={score.title || '악보'} />
-          </div>
+          <button
+            type="button"
+            className="score-pdf-card"
+            onClick={() => window.open(score.files[0]?.url, '_blank', 'noopener')}
+          >
+            <span className="score-pdf-ico">PDF</span>
+            <span className="score-pdf-name">{score.files[0]?.name || '악보 PDF'}</span>
+            <span className="score-pdf-hint">눌러서 새 탭에서 크게 보기 ↗</span>
+          </button>
         )}
 
         <div className="actions">
