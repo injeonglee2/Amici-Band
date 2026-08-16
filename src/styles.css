@@ -658,19 +658,20 @@ button { font-family: inherit; }
   flex: none; appearance: none; cursor: pointer; display: grid; place-items: center; width: 38px; height: 32px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft);
 }
-.rec-filter-btn.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.rec-filter-btn.on { color: var(--ink); background: var(--surface-2); border-color: var(--line-strong); }
 .rec-filter-btn svg { width: 16px; height: 16px; }
 .rec-filter-badge {
-  display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 56vw;
-  font-size: 12px; font-weight: 700; color: #fff; background: var(--accent); border-radius: 999px; padding: 5px 5px 5px 11px;
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 56vw; line-height: 1;
+  font-size: 12px; font-weight: 700; color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--line-strong); border-radius: 999px; padding: 5px 5px 5px 11px;
 }
-.rec-filter-badge > svg { flex: none; width: 13px; height: 13px; }
+.rec-filter-badge > svg { flex: none; width: 13px; height: 13px; color: var(--ink-soft); }
 .rec-filter-badge-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rec-filter-badge button {
-  flex: none; appearance: none; cursor: pointer; display: grid; place-items: center; width: 18px; height: 18px;
-  background: rgba(255, 255, 255, 0.25); border: 0; border-radius: 50%; color: #fff;
+  flex: none; align-self: center; appearance: none; cursor: pointer; display: grid; place-items: center; width: 20px; height: 20px; padding: 0;
+  background: rgba(255, 255, 255, 0.08); border: 0; border-radius: 50%; color: var(--ink-soft);
 }
-.rec-filter-badge button svg { width: 11px; height: 11px; }
+.rec-filter-badge button svg { display: block; width: 12px; height: 12px; }
 /* 필터 시트 그룹 제목 */
 .tsel-group { font-size: 12px; font-weight: 800; color: var(--ink-faint); margin: 14px 2px 2px; }
 .tsel-group:first-of-type { margin-top: 6px; }
