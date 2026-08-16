@@ -17,7 +17,8 @@ function getModel(): GenerativeModel | null {
   try {
     model = fbApp
       ? getGenerativeModel(getAI(fbApp, { backend: new GoogleAIBackend() }), {
-          model: 'gemini-2.0-flash',
+          // 'latest' 별칭 — 구버전(2.0/2.5)은 만료됨. flash-lite 는 이 단순 추출에 충분하고 가장 저렴.
+          model: 'gemini-flash-lite-latest',
           generationConfig: { responseMimeType: 'application/json', temperature: 0 },
         })
       : null
