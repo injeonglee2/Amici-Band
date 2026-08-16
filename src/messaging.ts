@@ -133,15 +133,23 @@ export function notificationPermission(): NotificationPermission | 'unsupported'
   return 'Notification' in window ? Notification.permission : 'unsupported'
 }
 
+/** 홈 화면에 설치된(standalone) 앱으로 실행 중인지 */
+export function isStandaloneApp(): boolean {
+  const nav = navigator as Navigator & { standalone?: boolean }
+  return nav.standalone === true || window.matchMedia('(display-mode: standalone)').matches
+}
+
+/** 모바일 OS 구분 — 알림 설정 경로 안내를 플랫폼에 맞게 보여주기 위함 */
+export function mobileOS(): 'ios' | 'android' | 'other' {
+  const ua = navigator.userAgent
+  if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios'
+  if (/Android/.test(ua)) return 'android'
+  return 'other'
+}
+
 /** 아이폰(애플 모바일)인데 홈 화면 PWA로 설치되지 않아, 먼저 설치해야 알림을 켤 수 있는 상태 */
 export function isApplePwaNeedsInstall(): boolean {
-  const nav = navigator as Navigator & { standalone?: boolean }
-  const isAppleMobile =
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  const isHomeScreenApp =
-    nav.standalone === true || window.matchMedia('(display-mode: standalone)').matches
-  return isAppleMobile && !isHomeScreenApp
+  return mobileOS() === 'ios' && !isStandaloneApp()
 }
 
 /**

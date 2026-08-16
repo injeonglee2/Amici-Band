@@ -15,11 +15,28 @@ function fmtDate(date: string): string {
   return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} (${weekday(date)})`
 }
 
+/** 구글 드라이브 파일 링크에서 파일 ID 추출 (…/file/d/{ID}/… 또는 ?id={ID}) */
+function parseDriveId(url: string): string | null {
+  const m = url.match(/\/file\/d\/([\w-]+)/) || url.match(/[?&]id=([\w-]+)/)
+  return m ? m[1] : null
+}
+const driveThumb = (id: string) => `https://drive.google.com/thumbnail?id=${id}&sz=w640`
+const drivePreview = (id: string) => `https://drive.google.com/file/d/${id}/preview`
+
+/** 기록의 썸네일 URL (유튜브·드라이브 자동, 저장된 값 우선). 없으면 null */
+function recThumb(r: Recording): string | null {
+  if (r.thumbnail) return r.thumbnail
+  if (r.videoId) return thumbnailUrl(r.videoId)
+  const dId = parseDriveId(r.url)
+  return dId ? driveThumb(dId) : null
+}
+
 /** 기록 탭 — 합주 녹음/영상 갤러리 (링크 기반). 지금은 관리자에게만 노출(다듬는 중) */
 export default function RecordingsView({ toast }: { toast: ToastState }) {
   const [items, setItems] = useState<Recording[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [adding, setAdding] = useState(false)
+  const [editingRec, setEditingRec] = useState<Recording | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(
@@ -52,8 +69,8 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
             {items.map((r) => (
               <button key={r.id} type="button" className="rec-card" onClick={() => setOpenId(r.id)}>
                 <div className="rec-thumb">
-                  {r.thumbnail || r.videoId ? (
-                    <img src={r.thumbnail || thumbnailUrl(r.videoId ?? '')} alt="" loading="lazy" />
+                  {recThumb(r) ? (
+                    <img src={recThumb(r) ?? ''} alt="" loading="lazy" />
                   ) : (
                     <span className="rec-thumb-none" aria-hidden="true">
                       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
@@ -75,26 +92,39 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
         기록 추가
       </button>
 
-      {adding && <RecordingForm toast={toast} onClose={() => setAdding(false)} />}
-      {open && <RecordingPlayer rec={open} toast={toast} onClose={() => setOpenId(null)} />}
+      {adding && <RecordingForm editing={null} toast={toast} onClose={() => setAdding(false)} />}
+      {editingRec && <RecordingForm editing={editingRec} toast={toast} onClose={() => setEditingRec(null)} />}
+      {open && (
+        <RecordingPlayer
+          rec={open}
+          toast={toast}
+          onEdit={() => {
+            setEditingRec(open)
+            setOpenId(null)
+          }}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </>
   )
 }
 
-/* ---------------- 기록 추가 시트 ---------------- */
-function RecordingForm({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
+/* ---------------- 기록 추가/수정 시트 ---------------- */
+function RecordingForm({ editing, toast, onClose }: { editing: Recording | null; toast: ToastState; onClose: () => void }) {
   const { member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
-  const [title, setTitle] = useState('')
-  const [date, setDate] = useState(todayStr())
-  const [url, setUrl] = useState('')
-  const [note, setNote] = useState('')
+  const [title, setTitle] = useState(editing?.title ?? '')
+  const [date, setDate] = useState(editing?.date ?? todayStr())
+  const [url, setUrl] = useState(editing?.url ?? '')
+  const [note, setNote] = useState(editing?.note ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const lastFetchedId = useRef<string | null>(null)
 
   const videoId = parseVideoId(url)
+  const driveId = videoId ? null : parseDriveId(url)
+  const previewThumb = videoId ? thumbnailUrl(videoId) : driveId ? driveThumb(driveId) : null
   const valid = title.trim().length > 0 && !!date && url.trim().length > 0
 
   // 링크가 유튜브면 제목을 자동으로 채운다(사용자가 이미 입력한 제목은 건드리지 않음). 드라이브 등은 수동.
@@ -117,19 +147,19 @@ function RecordingForm({ toast, onClose }: { toast: ToastState; onClose: () => v
     try {
       const now = Date.now()
       const r: Recording = {
-        id: newId(),
+        id: editing?.id ?? newId(),
         title: title.trim(),
         date,
         url: url.trim(),
         videoId: videoId ?? undefined,
-        thumbnail: videoId ? thumbnailUrl(videoId) : undefined,
+        thumbnail: videoId ? thumbnailUrl(videoId) : driveId ? driveThumb(driveId) : undefined,
         note: note.trim() || undefined,
-        addedBy: member?.uid ?? '',
-        addedByName: member?.name,
-        createdAt: now,
+        addedBy: editing?.addedBy ?? member?.uid ?? '',
+        addedByName: editing?.addedByName ?? member?.name,
+        createdAt: editing?.createdAt ?? now,
       }
       await saveRecording(r)
-      toast.show('기록을 추가했어요')
+      toast.show(editing ? '기록을 수정했어요' : '기록을 추가했어요')
       onClose()
     } catch (e) {
       const code = (e as { code?: string })?.code ?? ''
@@ -150,7 +180,7 @@ function RecordingForm({ toast, onClose }: { toast: ToastState; onClose: () => v
         <div className="grab-zone" {...grabHandlers}>
           <div className="grab" />
         </div>
-        <h2>기록 추가</h2>
+        <h2>{editing ? '기록 수정' : '기록 추가'}</h2>
 
         <div className="field">
           <label htmlFor="rec-title">제목</label>
@@ -165,12 +195,12 @@ function RecordingForm({ toast, onClose }: { toast: ToastState; onClose: () => v
         <div className="field">
           <label htmlFor="rec-url">링크 (유튜브·구글 드라이브 등)</label>
           <input id="rec-url" type="url" inputMode="url" value={url} onChange={(e) => onUrlChange(e.target.value)} placeholder="https://youtu.be/… 또는 드라이브 링크" />
-          <p className="hint">유튜브 링크를 넣으면 제목을 자동으로 채워줘요.</p>
+          <p className="hint">유튜브는 제목 자동 채움, 유튜브·드라이브 영상은 앱에서 바로 재생돼요.</p>
         </div>
 
-        {videoId && (
+        {previewThumb && (
           <div className="track-preview">
-            <img src={thumbnailUrl(videoId)} alt="" />
+            <img src={previewThumb} alt="" />
           </div>
         )}
 
@@ -191,12 +221,13 @@ function RecordingForm({ toast, onClose }: { toast: ToastState; onClose: () => v
 }
 
 /* ---------------- 기록 재생/보기 시트 ---------------- */
-function RecordingPlayer({ rec, toast, onClose }: { rec: Recording; toast: ToastState; onClose: () => void }) {
+function RecordingPlayer({ rec, toast, onEdit, onClose }: { rec: Recording; toast: ToastState; onEdit: () => void; onClose: () => void }) {
   const { user, member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
   const [confirmDel, setConfirmDel] = useState(false)
-  const canDelete = !!user && (rec.addedBy === user.uid || !!member?.admin)
+  const canManage = !!user && (rec.addedBy === user.uid || !!member?.admin)
+  const driveId = rec.videoId ? null : parseDriveId(rec.url)
 
   const track: Track = {
     id: rec.id,
@@ -246,9 +277,18 @@ function RecordingPlayer({ rec, toast, onClose }: { rec: Recording; toast: Toast
               onEnded={() => {}}
               onClose={onClose}
             />
+          ) : driveId ? (
+            <div className="rec-embed">
+              <iframe
+                src={drivePreview(driveId)}
+                title={rec.title || '기록'}
+                allow="autoplay"
+                allowFullScreen
+              />
+            </div>
           ) : (
             <div className="rec-extlink">
-              <p className="hint">유튜브가 아닌 링크예요. 새 탭에서 열립니다.</p>
+              <p className="hint">앱에서 바로 재생할 수 없는 링크예요. 새 탭에서 열립니다.</p>
               <button type="button" className="btn primary block" onClick={() => window.open(rec.url, '_blank', 'noopener')}>
                 링크 열기
               </button>
@@ -258,8 +298,15 @@ function RecordingPlayer({ rec, toast, onClose }: { rec: Recording; toast: Toast
           {rec.note && <p className="rec-note">{rec.note}</p>}
 
           <div className="actions">
-            {canDelete && <button type="button" className="btn danger" onClick={() => setConfirmDel(true)}>삭제</button>}
-            <button type="button" className={'btn subtle' + (canDelete ? '' : ' block')} onClick={onClose}>닫기</button>
+            {canManage ? (
+              <>
+                <button type="button" className="btn danger" onClick={() => setConfirmDel(true)}>삭제</button>
+                <button type="button" className="btn subtle" onClick={onEdit}>수정</button>
+                <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
+              </>
+            ) : (
+              <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
+            )}
           </div>
         </div>
       </div>

@@ -7,6 +7,8 @@ import { copyValue, resolvePlace } from '../place'
 import {
   autoRegisterPush,
   isApplePwaNeedsInstall,
+  isStandaloneApp,
+  mobileOS,
   notificationPermission,
   pushConfigured,
   requestNotificationRegistrations,
@@ -384,16 +386,38 @@ function NotifBanner() {
           <button type="button" className="notif-help-toggle" onClick={() => setHelpOpen((o) => !o)} aria-expanded={helpOpen}>
             {helpOpen ? '설정 방법 접기' : '설정 방법 보기'}
           </button>
-          {helpOpen && (
-            <ul className="notif-help-steps">
-              <li>브라우저: 주소창 왼쪽 <b>자물쇠(사이트 정보)</b> → 알림 → <b>허용</b></li>
-              <li>설치한 앱: <b>기기 설정 → 앱 → Amici → 알림</b> 켜기</li>
-              <li>허용한 뒤 위 <b>‘알림 켜기’</b>를 다시 눌러주세요.</li>
-            </ul>
-          )}
+          {helpOpen && <NotifHelpSteps />}
         </div>
       )}
     </div>
+  )
+}
+
+/** 알림 차단 해제 방법 — iOS / 안드로이드(설치 여부) / 데스크톱에 맞춰 안내 */
+function NotifHelpSteps() {
+  const os = mobileOS()
+  const standalone = isStandaloneApp()
+  const first =
+    os === 'ios' ? (
+      <>
+        <b>iPhone 설정 → 알림 → Amici</b> → ‘알림 허용’ 켜기
+        <span className="notif-help-sub">(홈 화면에 추가된 앱에서만 알림을 받을 수 있어요)</span>
+      </>
+    ) : os === 'android' ? (
+      standalone ? (
+        <><b>기기 설정 → 앱 → Amici → 알림</b> → 켜기</>
+      ) : (
+        <>Chrome 주소창 왼쪽 <b>자물쇠(사이트 정보) → 권한 → 알림</b> → 허용</>
+      )
+    ) : (
+      <>주소창 왼쪽 <b>자물쇠(사이트 정보) → 알림</b> → 허용</>
+    )
+
+  return (
+    <ul className="notif-help-steps">
+      <li>{first}</li>
+      <li>허용한 뒤 위 <b>‘알림 켜기’</b>를 다시 눌러주세요.</li>
+    </ul>
   )
 }
 
