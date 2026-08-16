@@ -104,6 +104,16 @@ export async function deleteEvent(id: string): Promise<void> {
   await deleteDoc(doc(db, 'events', id))
 }
 
+/** (공연) 연결 재생목록만 갱신 — playlistId 만 merge, null 이면 연결 해제 */
+export async function setEventPlaylist(ev: BandEvent, playlistId: string | null): Promise<void> {
+  if (DEMO) return demoDb.saveEvent({ ...ev, playlistId: playlistId ?? undefined })
+  await setDoc(
+    doc(db, 'events', ev.id),
+    { playlistId: playlistId ?? deleteField() },
+    { merge: true },
+  )
+}
+
 /* ---------------- places ---------------- */
 export function watchPlaces(
   cb: (places: Place[]) => void,

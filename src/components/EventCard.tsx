@@ -23,6 +23,7 @@ import { TypeGlyph } from './TypeGlyph'
 import { CopyButton } from './CopyButton'
 import AttendanceModal from './AttendanceModal'
 import SetlistSheet from './SetlistSheet'
+import ShowPlaylistSheet from './ShowPlaylistSheet'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
 
@@ -55,8 +56,9 @@ export default function EventCard({
   const past = dayDiff(ev.date) < 0
   const isAdmin = !!member?.admin
   const canDelete = !!user && (ev.createdBy === user.uid || isAdmin)
-  // 합주곡은 곡이 필요한 유형(합주·공연)에서만 다룬다
+  // 곡이 필요한 유형: 합주=합주곡(곡 하나씩), 공연=재생목록(통째로 연결)
   const hasSetlist = ev.type === 'practice' || ev.type === 'show'
+  const setlistLabel = ev.type === 'show' ? '재생목록' : '합주곡'
 
   function openSetlist() {
     if (hasSetlist) setSetlistOpen(true)
@@ -110,7 +112,7 @@ export default function EventCard({
           className={'event-row' + (hasSetlist ? ' tappable' : '')}
           role={hasSetlist ? 'button' : undefined}
           tabIndex={hasSetlist ? 0 : undefined}
-          aria-label={hasSetlist ? `${ev.title} 합주곡` : undefined}
+          aria-label={hasSetlist ? `${ev.title} ${setlistLabel}` : undefined}
           onClick={hasSetlist ? openSetlist : undefined}
           onKeyDown={hasSetlist ? onRowKeyDown : undefined}
         >
@@ -226,15 +228,24 @@ export default function EventCard({
         <AttendanceModal ev={ev} list={att} members={members} mode={modal} readOnly={past} onClose={() => setModal(null)} />
       )}
 
-      {setlistOpen && (
-        <SetlistSheet
-          ev={ev}
-          place={place}
-          members={members}
-          toast={toast}
-          onClose={() => setSetlistOpen(false)}
-        />
-      )}
+      {setlistOpen &&
+        (ev.type === 'show' ? (
+          <ShowPlaylistSheet
+            ev={ev}
+            place={place}
+            members={members}
+            toast={toast}
+            onClose={() => setSetlistOpen(false)}
+          />
+        ) : (
+          <SetlistSheet
+            ev={ev}
+            place={place}
+            members={members}
+            toast={toast}
+            onClose={() => setSetlistOpen(false)}
+          />
+        ))}
 
 
       {confirmDelete && (

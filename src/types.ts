@@ -16,6 +16,7 @@ export interface BandEvent {
   rehEnd: string // HH:MM 합주 종료 (기본 22:00)
   placeId?: string // 설정에서 관리하는 장소 참조
   loc?: string // 레거시/직접입력 장소명 (placeId 없을 때 표시용)
+  playlistId?: string // (공연 전용) 연결된 재생목록 — 공연 셋리스트를 재생목록으로 대신함
   note: string
   createdBy: string
   createdAt: number
