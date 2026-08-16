@@ -13,6 +13,7 @@ import { todayStr, toMin } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
+import PlaceForm from './PlaceForm'
 
 export default function EventForm({
   editing,
@@ -35,6 +36,7 @@ export default function EventForm({
   const [note, setNote] = useState(editing?.note ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [placeFormOpen, setPlaceFormOpen] = useState(false) // 새 장소 검색·추가 시트
 
   // 레거시(직접 입력) 장소: placeId 없이 loc 텍스트만 있던 기존 일정
   const legacyLoc = editing && !editing.placeId ? (editing.loc ?? '') : ''
@@ -140,6 +142,9 @@ export default function EventForm({
             <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
         </div>
+        <button type="button" className="btn text small add-place-btn" onClick={() => setPlaceFormOpen(true)}>
+          + 새 장소 검색·추가
+        </button>
 
         <div className="field">
           <label>진행 시간</label>
@@ -164,6 +169,14 @@ export default function EventForm({
           <button type="button" className="btn primary" onClick={submit} disabled={!valid || busy}>{busy ? '저장 중…' : '저장'}</button>
         </div>
       </div>
+
+      {placeFormOpen && (
+        <PlaceForm
+          editing={null}
+          onClose={() => setPlaceFormOpen(false)}
+          onSaved={(id) => setPlaceId(id)} // 방금 추가한 장소를 바로 선택
+        />
+      )}
     </div>
   )
 }

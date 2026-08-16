@@ -584,6 +584,8 @@ button { font-family: inherit; }
 .btn.block { width: 100%; }
 .btn.text { flex: none; background: transparent; color: var(--ink-soft); border: none; font-weight: 600; font-size: 14px; }
 .btn.text.small { align-self: flex-start; padding: 4px 0; font-size: 13px; }
+/* 일정 폼: 새 장소 검색·추가 링크 */
+.add-place-btn { display: inline-flex; margin-top: 6px; color: var(--accent); font-size: 12.5px; }
 .btn.text:hover { color: var(--ink); }
 
 /* ---------- toast ---------- */
