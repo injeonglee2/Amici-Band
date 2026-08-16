@@ -336,11 +336,13 @@ function NotifBanner() {
   const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>(notificationPermission())
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   if (!user || dismissed) return null
   if (perm === 'granted' || perm === 'unsupported') return null
   const iosInstall = isApplePwaNeedsInstall()
   if (!iosInstall && !pushConfigured()) return null // 알림 자체가 불가한 환경
+  const denied = perm === 'denied'
 
   async function enable() {
     if (busy || !user) return
@@ -352,27 +354,45 @@ function NotifBanner() {
         webPushSubscription ? saveWebPushSubscription(user.uid, webPushSubscription) : Promise.resolve(),
       ])
     } finally {
-      setPerm(notificationPermission())
+      const p = notificationPermission()
+      setPerm(p)
+      if (p !== 'granted') setHelpOpen(true) // 팝업이 안 뜨면(이미 차단 등) 설정 안내를 펼친다
       setBusy(false)
     }
   }
 
   return (
     <div className="notif-banner">
-      <span className="notif-banner-ico" aria-hidden="true">🔔</span>
-      <span className="notif-banner-text">
-        {iosInstall
-          ? '아이폰은 홈 화면에 추가한 뒤 알림을 켤 수 있어요 (공유 → 홈 화면에 추가).'
-          : perm === 'denied'
-            ? '알림이 차단돼 있어요. 기기·브라우저 설정에서 이 사이트 알림을 허용해 주세요.'
-            : '알림을 켜면 새 일정·투표 요청을 바로 받아요.'}
-      </span>
-      {!iosInstall && perm !== 'denied' && (
-        <button type="button" className="btn primary notif-banner-btn" onClick={() => void enable()} disabled={busy}>
-          {busy ? '켜는 중…' : '알림 켜기'}
-        </button>
+      <div className="notif-banner-main">
+        <span className="notif-banner-ico" aria-hidden="true">🔔</span>
+        <span className="notif-banner-text">
+          {iosInstall
+            ? '아이폰은 홈 화면에 추가한 뒤 알림을 켤 수 있어요 (공유 → 홈 화면에 추가).'
+            : denied
+              ? '알림이 차단돼 있어요. 아래 안내대로 허용해 주세요.'
+              : '알림을 켜면 새 일정·투표 요청을 바로 받아요.'}
+        </span>
+        {!iosInstall && (
+          <button type="button" className="btn primary notif-banner-btn" onClick={() => void enable()} disabled={busy}>
+            {busy ? '켜는 중…' : '알림 켜기'}
+          </button>
+        )}
+        <button type="button" className="notif-banner-x" onClick={() => setDismissed(true)} aria-label="닫기">×</button>
+      </div>
+      {!iosInstall && denied && (
+        <div className="notif-banner-help">
+          <button type="button" className="notif-help-toggle" onClick={() => setHelpOpen((o) => !o)} aria-expanded={helpOpen}>
+            {helpOpen ? '설정 방법 접기' : '설정 방법 보기'}
+          </button>
+          {helpOpen && (
+            <ul className="notif-help-steps">
+              <li>브라우저: 주소창 왼쪽 <b>자물쇠(사이트 정보)</b> → 알림 → <b>허용</b></li>
+              <li>설치한 앱: <b>기기 설정 → 앱 → Amici → 알림</b> 켜기</li>
+              <li>허용한 뒤 위 <b>‘알림 켜기’</b>를 다시 눌러주세요.</li>
+            </ul>
+          )}
+        </div>
       )}
-      <button type="button" className="notif-banner-x" onClick={() => setDismissed(true)} aria-label="닫기">×</button>
     </div>
   )
 }

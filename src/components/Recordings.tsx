@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth'
 import { deleteRecording, newId, saveRecording, watchRecordings } from '../data'
 import type { Recording, Track } from '../types'
-import { parseVideoId, thumbnailUrl } from '../youtube'
+import { fetchYouTubeMeta, parseVideoId, thumbnailUrl } from '../youtube'
 import { parseDate, todayStr, weekday } from '../time'
 import SetlistPlayer from './SetlistPlayer'
 import ConfirmDialog from './ConfirmDialog'
@@ -92,9 +92,23 @@ function RecordingForm({ toast, onClose }: { toast: ToastState; onClose: () => v
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const lastFetchedId = useRef<string | null>(null)
 
   const videoId = parseVideoId(url)
   const valid = title.trim().length > 0 && !!date && url.trim().length > 0
+
+  // 링크가 유튜브면 제목을 자동으로 채운다(사용자가 이미 입력한 제목은 건드리지 않음). 드라이브 등은 수동.
+  function onUrlChange(v: string) {
+    setUrl(v)
+    const id = parseVideoId(v)
+    if (!id || id === lastFetchedId.current) return
+    lastFetchedId.current = id
+    fetchYouTubeMeta(id)
+      .then((meta) => {
+        if (meta.title) setTitle((prev) => (prev.trim() ? prev : meta.title))
+      })
+      .catch(() => {})
+  }
 
   async function submit() {
     if (!valid || busy) return
@@ -150,7 +164,8 @@ function RecordingForm({ toast, onClose }: { toast: ToastState; onClose: () => v
 
         <div className="field">
           <label htmlFor="rec-url">링크 (유튜브·구글 드라이브 등)</label>
-          <input id="rec-url" type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://youtu.be/… 또는 드라이브 링크" />
+          <input id="rec-url" type="url" inputMode="url" value={url} onChange={(e) => onUrlChange(e.target.value)} placeholder="https://youtu.be/… 또는 드라이브 링크" />
+          <p className="hint">유튜브 링크를 넣으면 제목을 자동으로 채워줘요.</p>
         </div>
 
         {videoId && (

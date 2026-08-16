@@ -586,10 +586,11 @@ button { font-family: inherit; }
 .btn.text.small { align-self: flex-start; padding: 4px 0; font-size: 13px; }
 /* 알림 켜기 배너 */
 .notif-banner {
-  display: flex; align-items: center; gap: 10px; margin: 12px 0 0; padding: 10px 12px; border-radius: 12px;
+  display: flex; flex-direction: column; gap: 8px; margin: 12px 0 0; padding: 10px 12px; border-radius: 12px;
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
+.notif-banner-main { display: flex; align-items: center; gap: 10px; }
 .notif-banner-ico { flex: none; font-size: 16px; }
 .notif-banner-text { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink); line-height: 1.4; }
 .notif-banner-btn { flex: none; padding: 8px 14px; font-size: 13px; }
@@ -597,6 +598,14 @@ button { font-family: inherit; }
   flex: none; appearance: none; background: none; border: none; color: var(--ink-faint);
   font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px;
 }
+.notif-banner-help { border-top: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); padding-top: 8px; }
+.notif-help-toggle {
+  appearance: none; background: none; border: none; cursor: pointer; padding: 0;
+  color: var(--accent); font-size: 12px; font-weight: 700; text-decoration: underline;
+}
+.notif-help-steps { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+.notif-help-steps b { color: var(--ink); }
 
 /* 일정 폼: 장소(등록 선택 + 직접 지도 검색) 한 줄. (장소 탭의 .place-row 와 충돌 피하려 별도 클래스) */
 .evt-place-row { display: flex; gap: 8px; align-items: stretch; }
