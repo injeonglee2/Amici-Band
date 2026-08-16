@@ -997,6 +997,23 @@ button { font-family: inherit; }
 .setlist-part { display: inline-flex; align-items: center; gap: 4px; }
 .setlist-part > b { color: var(--ink-faint); font-weight: 700; }
 
+/* 추천 합주곡 — 다가오는 공연 셋리스트 중 '보컬 참석' 곡 (접이식 콜아웃) */
+.setlist-rec { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.setlist-rec-head {
+  width: 100%; display: flex; align-items: center; gap: 8px; padding: 4px 2px;
+  background: none; border: 0; color: var(--ink); cursor: pointer; font: inherit; text-align: left;
+}
+.setlist-rec-title { flex: 1; min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; font-weight: 800; }
+.setlist-rec-title b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.setlist-rec-title em { flex-basis: 100%; font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--ink-faint); }
+.setlist-rec-head .track-open-chev { flex: none; transition: transform 0.18s ease; }
+.setlist-rec-head[aria-expanded='true'] .track-open-chev { transform: rotate(180deg); }
+.rec-list { margin-top: 10px; }
+/* 참여 보컬 이름 — 추천의 근거라 살짝 강조 */
+.rec-vocal { color: var(--ink-soft); font-weight: 600; }
+.rec-add { flex: none; align-self: center; padding: 6px 12px; font-size: 12.5px; }
+.rec-added { flex: none; align-self: center; font-size: 12px; font-weight: 700; color: var(--ink-faint); padding: 0 4px; }
+
 /* 곡 고르기 (재생목록 → 곡) */
 .picker-bar { display: flex; align-items: center; gap: 6px; margin: 2px 0 14px; }
 .picker-list { display: flex; flex-direction: column; gap: 8px; }

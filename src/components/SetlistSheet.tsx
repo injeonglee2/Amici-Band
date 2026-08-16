@@ -5,6 +5,7 @@ import {
   removeSetlistSong,
   saveSetlistSong,
   watchAttendance,
+  watchEvents,
   watchPlaylists,
   watchSetlist,
   watchTracks,
@@ -20,7 +21,7 @@ import {
   type SetlistSong,
   type Track,
 } from '../types'
-import { parseDate, weekday } from '../time'
+import { dayDiff, parseDate, weekday } from '../time'
 import { thumbnailUrl } from '../youtube'
 import type { ResolvedPlace } from '../place'
 import ConfirmDialog from './ConfirmDialog'
@@ -142,6 +143,59 @@ export default function SetlistSheet({
     return new Set(Object.keys(track?.participants ?? {}))
   }, [openId, songs, tracks])
 
+  // ── 추천 합주곡: 다가오는 공연 셋리스트 중 '보컬 참석' 곡을 추천 ────────────
+  // 합주(practice) 일정에서만 동작한다. 가장 가까운 공연에 연결된 재생목록의 곡 중,
+  // 그 곡의 보컬(파트=보컬)이 이번 합주에 오는 곡만 골라 보여 준다.
+  const isPractice = ev.type === 'practice'
+  const [events, setEvents] = useState<BandEvent[]>([])
+  const [recPlaylists, setRecPlaylists] = useState<Playlist[]>([])
+  const [showTracks, setShowTracks] = useState<Track[]>([])
+  const [recOpen, setRecOpen] = useState(false)
+  const [recOpenId, setRecOpenId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isPractice) return
+    return watchEvents(setEvents, () => {})
+  }, [isPractice])
+  useEffect(() => {
+    if (!isPractice) return
+    return watchPlaylists(setRecPlaylists)
+  }, [isPractice])
+
+  // 오늘 이후 가장 가까운 공연 중 재생목록이 연결된 것
+  const nearestShow = useMemo(() => {
+    if (!isPractice) return null
+    return (
+      events
+        .filter((e) => e.type === 'show' && e.playlistId && dayDiff(e.date) >= 0)
+        .sort((a, b) => (a.date + (a.rehStart ?? '')).localeCompare(b.date + (b.rehStart ?? '')))[0] ??
+      null
+    )
+  }, [isPractice, events])
+
+  const showPlaylistId = nearestShow?.playlistId
+  useEffect(() => {
+    if (!showPlaylistId) {
+      setShowTracks([])
+      return
+    }
+    return watchTracks(showPlaylistId, setShowTracks)
+  }, [showPlaylistId])
+
+  const showPlaylistName = useMemo(
+    () => recPlaylists.find((p) => p.id === showPlaylistId)?.name ?? nearestShow?.title ?? '',
+    [recPlaylists, showPlaylistId, nearestShow],
+  )
+
+  // 보컬이 이번 합주에 오는(참석·늦참·조퇴) 곡만 추천
+  const recommended = useMemo(() => {
+    if (!isPractice || !showPlaylistId) return []
+    return showTracks.filter((t) => {
+      const parts = t.participants ?? {}
+      return Object.keys(parts).some((u) => parts[u] === 'vocal' && attendingUids.has(u))
+    })
+  }, [isPractice, showPlaylistId, showTracks, attendingUids])
+
   /* ----- 드래그로 합주 순서 바꾸기 (재생목록 곡 정렬과 같은 방식) ----- */
   function onDragStart(e: ReactPointerEvent, id: string) {
     const idx = items.findIndex((s) => s.id === id)
@@ -222,6 +276,31 @@ export default function SetlistSheet({
     } catch (e) {
       const code = (e as { code?: string })?.code ?? ''
       toast.show(code === 'permission-denied' ? '삭제 권한이 없어요.' : '곡을 빼지 못했어요.')
+      console.error(e)
+    }
+  }
+
+  // 추천곡을 이 합주 셋리스트에 담기 (관리자 전용, SongPicker.add 와 같은 방식)
+  async function addRec(t: Track) {
+    if (!user || !showPlaylistId) return
+    const nextOrder = songs.reduce((m, s) => Math.max(m, s.order ?? s.addedAt), 0) + 1000
+    try {
+      await addSetlistSong(ev.id, {
+        id: t.id,
+        playlistId: showPlaylistId,
+        playlistName: showPlaylistName,
+        title: t.title,
+        artist: t.artist,
+        videoId: t.videoId,
+        thumbnail: t.thumbnail,
+        order: nextOrder,
+        addedBy: user.uid,
+        addedAt: Date.now(),
+      })
+      toast.show(`'${t.title}'을(를) 담았어요`)
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? ''
+      toast.show(code === 'permission-denied' ? '곡을 담을 권한이 없어요.' : '곡을 담지 못했어요.')
       console.error(e)
     }
   }
@@ -395,6 +474,110 @@ export default function SetlistSheet({
                 })}
               </ol>
             </>
+          )}
+
+          {/* 추천 합주곡 — 다가오는 공연 셋리스트 중 '보컬 참석' 곡 */}
+          {isPractice && nearestShow && recommended.length > 0 && (
+            <div className="setlist-rec">
+              <button
+                type="button"
+                className="setlist-rec-head"
+                onClick={() => setRecOpen((o) => !o)}
+                aria-expanded={recOpen}
+              >
+                <span className="setlist-rec-title">
+                  <span aria-hidden="true">💡</span> 추천 합주곡 <b>{recommended.length}</b>
+                  <em>다가오는 공연 ‘{nearestShow.title}’ · 보컬 참석 곡</em>
+                </span>
+                <svg
+                  className={'track-open-chev' + (recOpen ? ' open' : '')}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              {recOpen && (
+                <ol className="setlist-list rec-list">
+                  {recommended.map((t, i) => {
+                    const added = songs.some((s) => s.id === t.id && s.playlistId === showPlaylistId)
+                    const open = recOpenId === t.id
+                    const joined = Object.keys(t.participants ?? {}).length
+                    const vocalNames = Object.keys(t.participants ?? {})
+                      .filter((u) => t.participants?.[u] === 'vocal' && attendingUids.has(u))
+                      .map((u) => memberMap.get(u)?.name ?? '?')
+                    return (
+                      <li key={t.id} className="setlist-row">
+                        <div className="setlist-rowhead">
+                          <span className="setlist-no">{i + 1}</span>
+                          <div className="track-thumb sm">
+                            {t.thumbnail || t.videoId ? (
+                              <img src={t.thumbnail || thumbnailUrl(t.videoId ?? '')} alt="" loading="lazy" />
+                            ) : null}
+                          </div>
+                          <div className="setlist-body">
+                            <div className="track-info">
+                              <h3>{t.title || '(제목 없음)'}</h3>
+                              {vocalNames.length > 0 ? (
+                                <p className="rec-vocal">🎤 {vocalNames.join(', ')}</p>
+                              ) : t.artist ? (
+                                <p>{t.artist}</p>
+                              ) : null}
+                            </div>
+                          </div>
+                          {isAdmin &&
+                            (added ? (
+                              <span className="rec-added">담김</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn primary rec-add"
+                                onClick={() => void addRec(t)}
+                              >
+                                담기
+                              </button>
+                            ))}
+                          <button
+                            type="button"
+                            className="setlist-toggle"
+                            onClick={() => setRecOpenId(open ? null : t.id)}
+                            aria-expanded={open}
+                            aria-label={`${t.title} 참여자 ${open ? '접기' : '펼치기'}`}
+                          >
+                            <span className="setlist-joined">{joined}</span>
+                            <svg
+                              className={'track-open-chev' + (open ? ' open' : '')}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
+                          </button>
+                        </div>
+                        {open && (
+                          <PartGrid
+                            track={t}
+                            memberMap={memberMap}
+                            attendingUids={attendingUids}
+                            myUid={user?.uid}
+                          />
+                        )}
+                      </li>
+                    )
+                  })}
+                </ol>
+              )}
+            </div>
           )}
 
           <div className="actions">
