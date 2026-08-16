@@ -13,7 +13,6 @@ import { todayStr, toMin } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
-import PlaceForm from './PlaceForm'
 
 export default function EventForm({
   editing,
@@ -33,13 +32,11 @@ export default function EventForm({
   const [rehStart, setRehStart] = useState(editing?.rehStart ?? DEFAULT_REH_START)
   const [rehEnd, setRehEnd] = useState(editing?.rehEnd ?? DEFAULT_REH_END)
   const [placeId, setPlaceId] = useState(editing?.placeId ?? '')
+  // 직접 입력 장소(이 일정만, 장소 목록에는 저장 안 함). 등록 장소 미선택일 때만 사용
+  const [loc, setLoc] = useState(editing && !editing.placeId ? (editing.loc ?? '') : '')
   const [note, setNote] = useState(editing?.note ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [placeFormOpen, setPlaceFormOpen] = useState(false) // 새 장소 검색·추가 시트
-
-  // 레거시(직접 입력) 장소: placeId 없이 loc 텍스트만 있던 기존 일정
-  const legacyLoc = editing && !editing.placeId ? (editing.loc ?? '') : ''
 
   const canDelete = editing && user && editing.createdBy === user.uid
   const timeValid = toMin(rehEnd) > toMin(rehStart)
@@ -57,9 +54,9 @@ export default function EventForm({
         date,
         rehStart,
         rehEnd,
-        // 장소를 골랐으면 placeId, 아니면 레거시 직접입력(loc)을 유지 (둘 중 하나만)
+        // 등록 장소를 골랐으면 placeId, 아니면 직접 입력(loc). 둘 중 하나만 저장
         placeId: placeId || undefined,
-        loc: placeId ? undefined : legacyLoc || undefined,
+        loc: placeId ? undefined : loc.trim() || undefined,
         note: note.trim(),
         createdBy: editing?.createdBy ?? user.uid,
         createdAt: editing?.createdAt ?? Date.now(),
@@ -125,13 +122,16 @@ export default function EventForm({
         <div className="field-row">
           <div className="field">
             <label htmlFor="f-place">장소</label>
-            <select id="f-place" className="place-select" value={placeId} onChange={(e) => setPlaceId(e.target.value)}>
-              <option value="">장소 없음</option>
-              {legacyLoc && !places.some((p) => p.name === legacyLoc) && (
-                <option value="" disabled>
-                  (현재: {legacyLoc} — 직접 입력)
-                </option>
-              )}
+            <select
+              id="f-place"
+              className="place-select"
+              value={placeId}
+              onChange={(e) => {
+                setPlaceId(e.target.value)
+                if (e.target.value) setLoc('') // 등록 장소를 고르면 직접 입력은 비운다
+              }}
+            >
+              <option value="">직접 입력 / 없음</option>
               {places.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -142,9 +142,16 @@ export default function EventForm({
             <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
         </div>
-        <button type="button" className="btn text small add-place-btn" onClick={() => setPlaceFormOpen(true)}>
-          + 새 장소 검색·추가
-        </button>
+        {!placeId && (
+          <input
+            className="place-loc-input"
+            type="text"
+            value={loc}
+            onChange={(e) => setLoc(e.target.value)}
+            placeholder="장소 직접 입력 (이 일정만, 목록엔 저장 안 함)"
+            maxLength={60}
+          />
+        )}
 
         <div className="field">
           <label>진행 시간</label>
@@ -169,14 +176,6 @@ export default function EventForm({
           <button type="button" className="btn primary" onClick={submit} disabled={!valid || busy}>{busy ? '저장 중…' : '저장'}</button>
         </div>
       </div>
-
-      {placeFormOpen && (
-        <PlaceForm
-          editing={null}
-          onClose={() => setPlaceFormOpen(false)}
-          onSaved={(id) => setPlaceId(id)} // 방금 추가한 장소를 바로 선택
-        />
-      )}
     </div>
   )
 }
