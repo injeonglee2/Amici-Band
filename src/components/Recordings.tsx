@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
-import { deleteRecording, newId, saveRecording, watchEvents, watchRecordings } from '../data'
-import { TYPE_META, type BandEvent, type Recording } from '../types'
+import { deleteRecording, newId, saveRecording, watchEvents, watchRecordings, watchTracks } from '../data'
+import { TYPE_META, type BandEvent, type Recording, type Track } from '../types'
 import { fetchYouTubeMeta, parseVideoId, thumbnailUrl } from '../youtube'
 import { parseDate, todayStr, weekday } from '../time'
 import ConfirmDialog from './ConfirmDialog'
@@ -66,6 +66,29 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
   const open = openId ? items.find((r) => r.id === openId) ?? null : null
 
   // 필터 옵션은 실제 기록에 연결된 합주·음악만 모아서 만든다
+  // 음악 연결된 곡의 가수를 원본 곡에서 실시간으로 끌어온다(기록에 스냅샷이 없어도 표시되게)
+  const [trackArtists, setTrackArtists] = useState<Map<string, string>>(new Map())
+  const linkedPlaylistIds = useMemo(
+    () => [...new Set(items.filter((r) => r.playlistId && r.trackId).map((r) => r.playlistId!))].sort().join(','),
+    [items],
+  )
+  useEffect(() => {
+    if (!linkedPlaylistIds) {
+      setTrackArtists(new Map())
+      return
+    }
+    const byList = new Map<string, Track[]>()
+    const unsubs = linkedPlaylistIds.split(',').map((pid) =>
+      watchTracks(pid, (list) => {
+        byList.set(pid, list)
+        const m = new Map<string, string>()
+        byList.forEach((ts) => ts.forEach((t) => t.artist && m.set(t.id, t.artist)))
+        setTrackArtists(m)
+      }),
+    )
+    return () => unsubs.forEach((u) => u())
+  }, [linkedPlaylistIds])
+
   const eventOpts = useMemo(() => {
     const m = new Map<string, { title: string; sub: string }>()
     items.forEach((r) => {
@@ -78,11 +101,14 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
     items.forEach((r) => {
       if (r.playlistId) {
         const key = r.trackId || r.playlistId
-        if (!m.has(key)) m.set(key, { label: r.trackTitle || r.playlistName || '(음악)', sub: r.trackArtist || '' })
+        if (!m.has(key)) {
+          const artist = r.trackArtist || (r.trackId ? trackArtists.get(r.trackId) : '') || ''
+          m.set(key, { label: r.trackTitle || r.playlistName || '(음악)', sub: artist })
+        }
       }
     })
     return [...m].map(([key, v]) => ({ key, label: v.label, sub: v.sub }))
-  }, [items])
+  }, [items, trackArtists])
 
   const activeEvent = eventFilter ? eventOpts.find((o) => o.id === eventFilter) ?? null : null
   const activeMusic = musicFilter ? musicOpts.find((o) => o.key === musicFilter) ?? null : null
