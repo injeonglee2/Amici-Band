@@ -271,6 +271,9 @@ function RecordingPlayer({ rec, toast, onEdit, onClose }: { rec: Recording; toas
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
   const [confirmDel, setConfirmDel] = useState(false)
+  // 드라이브 영상은 처음엔 썸네일+정중앙 재생버튼(포스터)을 보이고, 탭하면 드라이브 플레이어로 바꾼다.
+  // (드라이브 프리뷰 플레이어는 재생버튼을 자체적으로 중앙보다 아래에 두어 어색해 보이므로)
+  const [playing, setPlaying] = useState(false)
   const canManage = !!user && (rec.addedBy === user.uid || !!member?.admin)
   const driveId = rec.videoId ? null : parseDriveId(rec.url)
 
@@ -310,14 +313,35 @@ function RecordingPlayer({ rec, toast, onEdit, onClose }: { rec: Recording; toas
               />
             </div>
           ) : driveId ? (
-            <div className="rec-embed">
-              <iframe
-                src={drivePreview(driveId)}
-                title={rec.title || '기록'}
-                allow="autoplay"
-                allowFullScreen
-              />
-            </div>
+            playing ? (
+              <div className="rec-embed">
+                <iframe
+                  src={drivePreview(driveId)}
+                  title={rec.title || '기록'}
+                  allow="autoplay"
+                  allowFullScreen
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="rec-poster"
+                onClick={() => setPlaying(true)}
+                aria-label="영상 재생"
+              >
+                <img
+                  src={driveThumb(driveId)}
+                  alt=""
+                  loading="lazy"
+                  onError={(e) => {
+                    ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                  }}
+                />
+                <span className="rec-play" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                </span>
+              </button>
+            )
           ) : (
             <div className="rec-extlink">
               <p className="hint">앱에서 바로 재생할 수 없는 링크예요. 새 탭에서 열립니다.</p>
