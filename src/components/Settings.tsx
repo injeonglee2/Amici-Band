@@ -18,7 +18,6 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           </button>
           <div className="brand">
             <h1>설정</h1>
-            <p>알림 등 개인 설정</p>
           </div>
         </div>
       </header>

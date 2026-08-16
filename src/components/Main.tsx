@@ -142,13 +142,6 @@ export default function Main() {
           </div>
           <div className="brand">
             <h1>{nav === 'places' ? '장소' : nav === 'music' ? '음악' : 'Amici Band'}</h1>
-            <p>
-              {nav === 'places'
-                ? '주차·비밀번호 등 메모를 남겨두세요'
-                : nav === 'music'
-                  ? '재생목록에 유튜브 곡을 담아보세요'
-                  : '연습 · 공연 일정'}
-            </p>
           </div>
           <button className="ghost-btn icon" onClick={() => setSettingsOpen(true)} aria-label="설정" title="설정">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
