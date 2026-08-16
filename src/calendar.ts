@@ -79,28 +79,41 @@ function downloadIcs(ics: string, filename: string): void {
 
 const isAndroid = (): boolean => /Android/i.test(navigator.userAgent)
 
+/** 구글 캘린더 '이벤트 추가' 웹 링크 (파일 다운로드 없이 캘린더에 바로 추가). */
+function googleCalendarUrl(ev: BandEvent, place: ResolvedPlace | null): string {
+  const u = new URL('https://calendar.google.com/calendar/render')
+  u.searchParams.set('action', 'TEMPLATE')
+  u.searchParams.set('text', eventTitle(ev))
+  u.searchParams.set('dates', `${icsUtc(ev.date, ev.rehStart)}/${icsUtc(ev.date, ev.rehEnd)}`)
+  const loc = eventLocation(place)
+  if (loc) u.searchParams.set('location', loc)
+  if (ev.note) u.searchParams.set('details', ev.note)
+  return u.toString()
+}
+
 /**
- * 일정을 캘린더로 내보낸다.
- * - 안드로이드(갤럭시 등): Web Share 로 .ics 파일을 공유 → 캘린더 앱을 바로 선택 (파일 다운로드 안 함)
+ * 일정을 캘린더로 내보낸다 — 파일 다운로드창이 뜨지 않게 한다.
+ * - 안드로이드: Web Share 로 .ics 공유(앱 선택). 미지원(삼성 인터넷 등)이면 구글 캘린더 웹으로 바로 추가.
  * - iOS·데스크톱: .ics 열기 (iOS 는 '캘린더에 추가' 미리보기로 뜸)
  */
 export async function addToDeviceCalendar(ev: BandEvent, place: ResolvedPlace | null): Promise<void> {
-  const ics = buildIcs(ev, place)
-  const filename = icsFilename(ev)
-
-  if (isAndroid() && typeof navigator.canShare === 'function') {
-    const file = new File([ics], filename, { type: 'text/calendar' })
-    if (navigator.canShare({ files: [file] })) {
+  if (isAndroid()) {
+    const ics = buildIcs(ev, place)
+    const file = new File([ics], icsFilename(ev), { type: 'text/calendar' })
+    if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: eventTitle(ev) })
         return
       } catch (e) {
-        // 사용자가 공유창을 닫으면 AbortError — 다운로드로 떨어뜨리지 않고 종료
-        if ((e as { name?: string })?.name === 'AbortError') return
-        // 그 외 오류면 아래 다운로드로 폴백
+        if ((e as { name?: string })?.name === 'AbortError') return // 사용자가 닫음
+        // 그 외 오류면 구글 캘린더로 폴백
       }
     }
+    // Web Share 파일 공유 미지원 → 다운로드 대신 구글 캘린더 웹으로
+    window.open(googleCalendarUrl(ev, place), '_blank', 'noopener')
+    return
   }
 
-  downloadIcs(ics, filename)
+  // iOS·데스크톱
+  downloadIcs(buildIcs(ev, place), icsFilename(ev))
 }

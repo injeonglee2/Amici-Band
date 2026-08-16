@@ -179,6 +179,7 @@ export interface ImportedSong {
   artist: string
   thumbnail: string
   url: string
+  publishedAt: string // 재생목록 추가 일자 (YYYY-MM-DD), 없으면 빈 문자열
 }
 
 export interface YouTubeSearchResult {
@@ -268,6 +269,7 @@ export async function fetchPlaylistItems(playlistId: string): Promise<ImportedSo
       items?: {
         snippet?: {
           title?: string
+          publishedAt?: string
           videoOwnerChannelTitle?: string
           resourceId?: { videoId?: string }
         }
@@ -281,7 +283,14 @@ export async function fetchPlaylistItems(playlistId: string): Promise<ImportedSo
       // 비공개·삭제된 항목은 제목이 이렇게 옴 → 건너뜀
       if (!vid || !rawTitle || rawTitle === 'Private video' || rawTitle === 'Deleted video') continue
       const { title, artist } = splitTitle(rawTitle, sn?.videoOwnerChannelTitle ?? '')
-      out.push({ videoId: vid, title, artist, thumbnail: thumbnailUrl(vid), url: watchUrl(vid) })
+      out.push({
+        videoId: vid,
+        title,
+        artist,
+        thumbnail: thumbnailUrl(vid),
+        url: watchUrl(vid),
+        publishedAt: (sn?.publishedAt ?? '').slice(0, 10),
+      })
     }
     pageToken = data.nextPageToken ?? ''
     if (!pageToken) break
