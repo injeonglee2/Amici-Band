@@ -194,7 +194,21 @@ function ScoreSongSheet({
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [viewing, setViewing] = useState<Score | null>(null)
   const [removing, setRemoving] = useState<Score | null>(null)
+  const [adding, setAdding] = useState(false)
   useBackHandler(() => (viewing ? setViewing(null) : onClose()))
+
+  // 이 곡에 바로 악보 추가 — 곡 고르기를 건너뛰도록 preset 으로 넘긴다
+  const presetTrack: Track = {
+    id: song.trackId,
+    url: '',
+    videoId: '',
+    title: song.title,
+    artist: song.artist ?? '',
+    thumbnail: song.thumbnail,
+    addedBy: '',
+    addedAt: 0,
+  }
+  const presetPlaylistId = song.scores[0]?.playlistId ?? ''
 
   // 파트별 묶음: 고정 5파트 순서 먼저, 커스텀 라벨은 뒤에
   const groups = useMemo(() => {
@@ -262,11 +276,20 @@ function ScoreSongSheet({
           ))}
 
           <div className="actions">
-            <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
+            <button type="button" className="btn primary" onClick={() => setAdding(true)}>악보 추가</button>
+            <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
           </div>
         </div>
       </div>
 
+      {adding && (
+        <AddScoreFlow
+          toast={toast}
+          presetTrack={presetTrack}
+          presetPlaylistId={presetPlaylistId}
+          onClose={() => setAdding(false)}
+        />
+      )}
       {viewing && <ScoreViewer score={viewing} onClose={() => setViewing(null)} />}
       {removing && (
         <ConfirmDialog
@@ -390,17 +413,29 @@ function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) 
 }
 
 /* ---------------- 악보 추가: 재생목록→곡 고르고 → 파트·제목·파일 업로드 ---------------- */
-function AddScoreFlow({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
+/** presetTrack/presetPlaylistId 를 주면 곡 고르기를 건너뛰고 바로 그 곡에 악보를 올린다(곡 상세에서 '악보 추가'). */
+function AddScoreFlow({
+  toast,
+  onClose,
+  presetTrack,
+  presetPlaylistId,
+}: {
+  toast: ToastState
+  onClose: () => void
+  presetTrack?: Track
+  presetPlaylistId?: string
+}) {
   const { user, member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [openPl, setOpenPl] = useState<Playlist | null>(null)
   const [tracks, setTracks] = useState<Track[]>([])
-  const [track, setTrack] = useState<Track | null>(null)
+  const [track, setTrack] = useState<Track | null>(presetTrack ?? null)
+  const presetPl = presetPlaylistId ?? ''
 
   const [partSel, setPartSel] = useState<string>(member?.part ?? 'vocal')
   const [customPart, setCustomPart] = useState('')
-  const [title, setTitle] = useState('')
+  const [title, setTitle] = useState(presetTrack ? '풀 스코어' : '')
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState('')
@@ -441,7 +476,8 @@ function AddScoreFlow({ toast, onClose }: { toast: ToastState; onClose: () => vo
   }
 
   async function submit() {
-    if (!valid || !user || !track || !openPl || busy) return
+    const plId = openPl?.id || presetPl
+    if (!valid || !user || !track || !plId || busy) return
     setBusy(true)
     setErr('')
     try {
@@ -460,7 +496,7 @@ function AddScoreFlow({ toast, onClose }: { toast: ToastState; onClose: () => vo
       const s: Score = {
         id,
         trackId: track.id,
-        playlistId: openPl.id,
+        playlistId: plId,
         songTitle: track.title,
         songArtist: track.artist || undefined,
         thumbnail: track.thumbnail || (track.videoId ? thumbnailUrl(track.videoId) : undefined),
