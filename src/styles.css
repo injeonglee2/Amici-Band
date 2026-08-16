@@ -639,8 +639,13 @@ button { font-family: inherit; }
 /* 드라이브 등 임베드 재생 (16:9 iframe) — padding-top 기법으로 어떤 환경에서도 비율 고정 */
 /* 16:9 는 iframe 자체에 aspect-ratio 로 준다 — padding-top+height:100%(절대배치)는
    삼성 인터넷/안드로이드 WebView 에서 높이 해석이 어긋나 iframe 이 박스보다 커지는 문제가 있음 */
-.rec-embed { width: 100%; margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; }
-.rec-embed iframe { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; border: 0; }
+/* 영상을 프레임으로 감싼다 — 딱 맞추지 않고 여백을 둬서 (드라이브가 남는 공간을 블러로 채우더라도)
+   영상 경계가 분명히 보이고, 잘리지 않았음을 확인할 수 있게 한다 */
+.rec-embed {
+  width: 100%; margin-top: 8px; padding: 10px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--glass-border);
+}
+.rec-embed iframe { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; border: 0; border-radius: 8px; background: #000; }
 /* 기록 보기 — 삭제·수정·닫기 버튼을 1:1:2 비율로 (닫기가 가장 넓게) */
 .actions.rec-actions .btn { flex: 1 1 0; padding-left: 10px; padding-right: 10px; }
 .actions.rec-actions .rec-close { flex: 2 1 0; }
