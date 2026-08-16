@@ -219,13 +219,13 @@ export default function EventForm({
           )}
         </div>
 
-        {/* 날짜 + 진행 시간 한 줄 */}
-        <div className="field-row">
-          <div className="field">
+        {/* 날짜 + 진행 시간 한 줄. 날짜는 내용 너비, 진행시간에 남는 공간을 몰아준다 */}
+        <div className="evt-datetime">
+          <div className="field evt-date">
             <label htmlFor="f-date">날짜</label>
             <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <div className="field">
+          <div className="field evt-time">
             <label>진행 시간</label>
             <div className="time-range">
               <input type="time" step={1800} value={rehStart} onChange={(e) => setRehStart(e.target.value)} />

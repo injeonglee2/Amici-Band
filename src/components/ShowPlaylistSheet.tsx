@@ -221,12 +221,13 @@ export default function ShowPlaylistSheet({
           )}
 
           <div className="actions">
-            {isAdmin && !linked && (
-              <button type="button" className="btn primary" onClick={() => setPicking(true)}>재생목록 연결</button>
-            )}
-            {isAdmin && linked ? (
+            {isAdmin ? (
               <>
-                <button type="button" className="btn danger" onClick={() => setUnlinking(true)}>연결 해제</button>
+                {linked ? (
+                  <button type="button" className="btn danger" onClick={() => setUnlinking(true)}>연결 해제</button>
+                ) : (
+                  <button type="button" className="btn primary" onClick={() => setPicking(true)}>재생목록 연결</button>
+                )}
                 <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
               </>
             ) : (

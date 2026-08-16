@@ -266,8 +266,9 @@ export default function SetlistSheet({
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
             </span>
             {songs.length === 0 ? '합주곡 없음' : `합주곡 ${songs.length}곡`}
-            {/* 수정(연필)/완료(체크) — 편집 대상인 곡 목록 바로 위에 둔다 */}
+            {/* 수정(연필)/완료(체크) — 곡이 있을 때만(빈 목록은 편집할 게 없음) */}
             {isAdmin &&
+              songs.length > 0 &&
               (editMode ? (
                 <button
                   type="button"
