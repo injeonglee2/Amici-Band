@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
-import { deleteRecording, newId, saveRecording, watchEvents, watchPlaylists, watchRecordings, watchTracks } from '../data'
-import { TYPE_META, type BandEvent, type Playlist, type Recording, type Track } from '../types'
+import { deleteRecording, newId, saveRecording, watchEvents, watchRecordings } from '../data'
+import { TYPE_META, type BandEvent, type Recording } from '../types'
 import { fetchYouTubeMeta, parseVideoId, thumbnailUrl } from '../youtube'
 import { parseDate, todayStr, weekday } from '../time'
 import ConfirmDialog from './ConfirmDialog'
+import MusicPicker from './MusicPicker'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
@@ -224,21 +225,18 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
     if (ev) setTitle((prev) => (prev.trim() ? prev : ev.title))
   }
 
-  // 음악 연결(선택) — 재생목록, 그리고 원하면 그 안의 특정 곡까지
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  // 음악 연결(선택) — 악보 탭과 같은 곡 고르기(MusicPicker)로 재생목록/곡을 고른다
   const [playlistId, setPlaylistId] = useState(editing?.playlistId ?? '')
+  const [playlistName, setPlaylistName] = useState(editing?.playlistName ?? '')
   const [trackId, setTrackId] = useState(editing?.trackId ?? '')
-  const [plTracks, setPlTracks] = useState<Track[]>([])
-  useEffect(() => watchPlaylists(setPlaylists), [])
-  useEffect(() => {
-    if (!playlistId) {
-      setPlTracks([])
-      return
-    }
-    return watchTracks(playlistId, setPlTracks)
-  }, [playlistId])
-  const linkedPlaylist = playlistId ? playlists.find((p) => p.id === playlistId) ?? null : null
-  const linkedTrack = trackId ? plTracks.find((t) => t.id === trackId) ?? null : null
+  const [trackTitle, setTrackTitle] = useState(editing?.trackTitle ?? '')
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false)
+  function clearMusic() {
+    setPlaylistId('')
+    setPlaylistName('')
+    setTrackId('')
+    setTrackTitle('')
+  }
 
   const videoId = parseVideoId(url)
   const driveId = videoId ? null : parseDriveId(url)
@@ -275,9 +273,9 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         eventId: eventId || undefined,
         eventTitle: eventId ? linkedEvent?.title ?? editing?.eventTitle : undefined,
         playlistId: playlistId || undefined,
-        playlistName: playlistId ? linkedPlaylist?.name ?? editing?.playlistName : undefined,
+        playlistName: playlistId ? playlistName || undefined : undefined,
         trackId: playlistId && trackId ? trackId : undefined,
-        trackTitle: playlistId && trackId ? linkedTrack?.title ?? editing?.trackTitle : undefined,
+        trackTitle: playlistId && trackId ? trackTitle || undefined : undefined,
         addedBy: editing?.addedBy ?? member?.uid ?? '',
         addedByName: editing?.addedByName ?? member?.name,
         createdAt: editing?.createdAt ?? now,
@@ -299,6 +297,7 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
   }
 
   return (
+    <>
     <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet" ref={sheetRef}>
         <div className="grab-zone" {...grabHandlers}>
@@ -347,36 +346,17 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         )}
 
         <div className="field">
-          <label htmlFor="rec-pl">음악 연결 (선택)</label>
-          <select
-            id="rec-pl"
-            className="place-select"
-            value={playlistId}
-            onChange={(e) => {
-              setPlaylistId(e.target.value)
-              setTrackId('')
-            }}
-          >
-            <option value="">연결 안 함</option>
-            {playlists.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          {playlistId && (
-            <select
-              className="place-select"
-              style={{ marginTop: 8 }}
-              value={trackId}
-              onChange={(e) => setTrackId(e.target.value)}
-            >
-              <option value="">(재생목록 전체)</option>
-              {plTracks.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.title}
-                  {t.artist ? ` · ${t.artist}` : ''}
-                </option>
-              ))}
-            </select>
+          <label>음악 연결 (선택)</label>
+          {playlistId ? (
+            <div className="rec-music-sel">
+              <span className="rec-music-label">🎵 {trackTitle || playlistName}</span>
+              <button type="button" className="btn subtle" onClick={() => setMusicPickerOpen(true)}>변경</button>
+              <button type="button" className="btn subtle" onClick={clearMusic}>해제</button>
+            </div>
+          ) : (
+            <button type="button" className="btn subtle block" onClick={() => setMusicPickerOpen(true)}>
+              재생목록에서 곡 고르기
+            </button>
           )}
         </div>
 
@@ -393,6 +373,19 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         </div>
       </div>
     </div>
+    {musicPickerOpen && (
+      <MusicPicker
+        onClose={() => setMusicPickerOpen(false)}
+        onPick={(sel) => {
+          setPlaylistId(sel.playlistId)
+          setPlaylistName(sel.playlistName)
+          setTrackId(sel.trackId ?? '')
+          setTrackTitle(sel.trackTitle ?? '')
+          setMusicPickerOpen(false)
+        }}
+      />
+    )}
+    </>
   )
 }
 
