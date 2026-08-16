@@ -21,12 +21,35 @@ import {
   type TrackPart,
 } from '../types'
 import { thumbnailUrl } from '../youtube'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
 
+/** 악보 파일을 지정된 이름으로 내려받기 (CORS 설정돼 blob 로 받아 파일명 제어) */
+async function downloadFile(f: ScoreFile) {
+  try {
+    const res = await fetch(f.url)
+    const blob = await res.blob()
+    const objUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objUrl
+    a.download = f.name || 'score'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(objUrl), 4000)
+  } catch (e) {
+    console.error('download', e)
+    window.open(f.url, '_blank', 'noopener')
+  }
+}
+
 const partLabel = (p: TrackPart) => (isFixedPart(p) ? PART_META[p].label : p)
+// 다운로드 파일명용 — 파일명에 못 쓰는 문자만 정리(한글은 그대로 둔다)
+const cleanName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim()
+const extOf = (name: string) => name.match(/\.([a-zA-Z0-9]+)$/)?.[1].toLowerCase() ?? ''
 
 type Song = { trackId: string; title: string; artist?: string; thumbnail?: string; scores: Score[] }
 
@@ -259,10 +282,72 @@ function ScoreSongSheet({
   )
 }
 
-/* ---------------- 악보 뷰어 (이미지 세로 스크롤 / PDF) ---------------- */
+/* PDF를 앱 안에서 페이지별로 렌더 (pdf.js — 버킷 CORS 설정 필요). 실패 시 새 탭 안내 */
+function PdfPages({ url }: { url: string }) {
+  const [pages, setPages] = useState<string[]>([])
+  const [status, setStatus] = useState<'loading' | 'done' | 'error'>('loading')
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const pdfjs = await import('pdfjs-dist')
+        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+        const doc = await pdfjs.getDocument({ url }).promise
+        const scale = Math.min(2, (window.devicePixelRatio || 1) * 1.5)
+        const imgs: string[] = []
+        for (let i = 1; i <= doc.numPages; i++) {
+          if (cancelled) break
+          const page = await doc.getPage(i)
+          const viewport = page.getViewport({ scale })
+          const canvas = document.createElement('canvas')
+          canvas.width = Math.ceil(viewport.width)
+          canvas.height = Math.ceil(viewport.height)
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            await page.render({ canvas, canvasContext: ctx, viewport }).promise
+            imgs.push(canvas.toDataURL('image/jpeg', 0.85))
+          }
+          page.cleanup()
+        }
+        if (!cancelled) {
+          setPages(imgs)
+          setStatus('done')
+        }
+      } catch (e) {
+        console.error('pdf render', e)
+        if (!cancelled) setStatus('error')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [url])
+
+  if (status === 'loading') return <p className="hint score-pdf-loading">PDF 불러오는 중…</p>
+  if (status === 'error')
+    return <p className="err small">앱에서 PDF를 표시하지 못했어요. 아래 ‘새 탭에서 열기’로 확인해 주세요.</p>
+  return (
+    <div className="score-gallery">
+      {pages.map((p, i) => (
+        <img key={i} src={p} alt={`${i + 1}페이지`} />
+      ))}
+    </div>
+  )
+}
+
+/* ---------------- 악보 뷰어 (이미지 세로 스크롤 / PDF 인앱 렌더) ---------------- */
 function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) {
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
+  const isPdf = score.kind === 'pdf'
+
+  async function download() {
+    for (const f of score.files) {
+      await downloadFile(f)
+      if (score.files.length > 1) await new Promise((r) => setTimeout(r, 400))
+    }
+  }
+
   return (
     <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet" ref={sheetRef}>
@@ -274,32 +359,25 @@ function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) 
           <p>{score.songTitle} · {partLabel(score.part)}</p>
         </div>
 
-        {score.kind === 'images' ? (
+        {isPdf ? (
+          <PdfPages url={score.files[0]?.url ?? ''} />
+        ) : (
           <div className="score-gallery">
             {score.files.map((f, i) => (
               <img key={i} src={f.url} alt={`${i + 1}페이지`} loading="lazy" />
             ))}
           </div>
-        ) : (
-          <button
-            type="button"
-            className="score-pdf-card"
-            onClick={() => window.open(score.files[0]?.url, '_blank', 'noopener')}
-          >
-            <span className="score-pdf-ico">PDF</span>
-            <span className="score-pdf-name">{score.files[0]?.name || '악보 PDF'}</span>
-            <span className="score-pdf-hint">눌러서 새 탭에서 크게 보기 ↗</span>
-          </button>
         )}
 
         <div className="actions">
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => window.open(score.files[0]?.url, '_blank', 'noopener')}
-          >
-            새 탭에서 열기 ↗
+          <button type="button" className="btn primary" onClick={() => void download()}>
+            다운로드
           </button>
+          {isPdf && (
+            <button type="button" className="btn subtle" onClick={() => window.open(score.files[0]?.url, '_blank', 'noopener')}>
+              새 탭 ↗
+            </button>
+          )}
           <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
         </div>
       </div>
@@ -366,10 +444,13 @@ function AddScoreFlow({ toast, onClose }: { toast: ToastState; onClose: () => vo
       const id = newId()
       const isPdf = pdfs.length === 1
       const use = isPdf ? pdfs.slice(0, 1) : imgs
+      const base = cleanName(`${track.title} - ${title.trim()}`) || '악보'
       const uploaded: ScoreFile[] = []
       for (let i = 0; i < use.length; i++) {
         setProgress(`업로드 중 ${i + 1}/${use.length}`)
-        uploaded.push(await uploadScoreFile(id, use[i], i))
+        const ext = extOf(use[i].name) || (isPdf ? 'pdf' : 'png')
+        const dl = isPdf ? `${base}.${ext}` : `${base}_${String(i + 1).padStart(2, '0')}.${ext}`
+        uploaded.push(await uploadScoreFile(id, use[i], i, dl))
       }
       const part: TrackPart = partSel === 'custom' ? customPart.trim() : (partSel as Part)
       const s: Score = {

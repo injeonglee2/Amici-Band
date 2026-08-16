@@ -270,14 +270,26 @@ export function watchScores(
   )
 }
 
-/** 악보 파일 하나를 Storage 에 올리고 {url, path, name} 반환. path = scores/{scoreId}/{i}-{안전한이름} */
-export async function uploadScoreFile(scoreId: string, file: File, index: number): Promise<ScoreFile> {
+/**
+ * 악보 파일 하나를 Storage 에 올리고 {url, path, name} 반환. path = scores/{scoreId}/{i}-{안전한이름}
+ * downloadName 을 주면 저장 시 그 이름으로 받아지도록 contentDisposition 을 붙이고, name 에도 담는다.
+ */
+export async function uploadScoreFile(
+  scoreId: string,
+  file: File,
+  index: number,
+  downloadName?: string,
+): Promise<ScoreFile> {
   const safe = file.name.replace(/[^\w.-]+/g, '_').slice(-60)
   const path = `scores/${scoreId}/${index}-${safe}`
   const r = storageRef(storage, path)
-  await uploadBytes(r, file, { contentType: file.type || undefined })
+  const metadata: { contentType?: string; contentDisposition?: string } = {
+    contentType: file.type || undefined,
+  }
+  if (downloadName) metadata.contentDisposition = `inline; filename="${downloadName.replace(/"/g, '')}"`
+  await uploadBytes(r, file, metadata)
   const url = await getDownloadURL(r)
-  return { url, path, name: file.name }
+  return { url, path, name: downloadName || file.name }
 }
 
 export async function saveScore(s: Score): Promise<void> {
