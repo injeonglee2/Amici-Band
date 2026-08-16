@@ -163,9 +163,27 @@ export default function EventForm({
           </div>
         </div>
 
+        {/* 제목 + 날짜 한 줄: 제목이 남는 공간, 날짜는 내용 너비 */}
+        <div className="evt-title-date">
+          <div className="field evt-title">
+            <label htmlFor="f-title">제목</label>
+            <input id="f-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} autoFocus />
+          </div>
+          <div className="field evt-date">
+            <label htmlFor="f-date">날짜</label>
+            <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+        </div>
+
+        {/* 진행 시간 (제목·날짜 바로 아래) */}
         <div className="field">
-          <label htmlFor="f-title">제목</label>
-          <input id="f-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} autoFocus />
+          <label>진행 시간</label>
+          <div className="time-range">
+            <input type="time" step={1800} value={rehStart} onChange={(e) => setRehStart(e.target.value)} />
+            <span>–</span>
+            <input type="time" step={1800} value={rehEnd} onChange={(e) => setRehEnd(e.target.value)} />
+          </div>
+          {!timeValid && <p className="err small">종료 시간이 시작 시간보다 늦어야 해요.</p>}
         </div>
 
         {/* 장소: 등록 장소 선택 + 직접 지도 검색(한 줄). 검색 후 고르면 이 일정에만 쓰이고 목록엔 저장 안 함 */}
@@ -218,23 +236,6 @@ export default function EventForm({
             </ul>
           )}
         </div>
-
-        {/* 날짜 + 진행 시간 한 줄. 날짜는 내용 너비, 진행시간에 남는 공간을 몰아준다 */}
-        <div className="evt-datetime">
-          <div className="field evt-date">
-            <label htmlFor="f-date">날짜</label>
-            <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div className="field evt-time">
-            <label>진행 시간</label>
-            <div className="time-range">
-              <input type="time" step={1800} value={rehStart} onChange={(e) => setRehStart(e.target.value)} />
-              <span>–</span>
-              <input type="time" step={1800} value={rehEnd} onChange={(e) => setRehEnd(e.target.value)} />
-            </div>
-          </div>
-        </div>
-        {!timeValid && <p className="err small">종료 시간이 시작 시간보다 늦어야 해요.</p>}
 
         <div className="field">
           <label htmlFor="f-note">메모 (선택)</label>
