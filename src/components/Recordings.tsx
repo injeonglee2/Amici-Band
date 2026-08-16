@@ -30,7 +30,7 @@ export function recThumb(r: Recording): string | null {
   return dId ? driveThumb(dId) : null
 }
 
-/** 기록 탭 — 합주 녹음/영상 갤러리 (링크 기반). 지금은 관리자에게만 노출(다듬는 중) */
+/** 기록 탭 — 합주 녹음/영상 갤러리 (링크 기반). 전체 멤버 공개(보기·추가 가능, 삭제·수정은 올린 사람/관리자) */
 export default function RecordingsView({ toast }: { toast: ToastState }) {
   const [items, setItems] = useState<Recording[]>([])
   const [loadErr, setLoadErr] = useState('')
