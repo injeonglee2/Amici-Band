@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth'
-import { saveFcmToken, watchEvents, watchMembers, watchPlaces } from '../data'
+import { saveFcmToken, saveWebPushSubscription, watchEvents, watchMembers, watchPlaces } from '../data'
 import { TYPE_META, type BandEvent, type EventType, type Member, type Place } from '../types'
 import { dayDiff, ddayLabel, longWhen, parseDate } from '../time'
 import { copyValue, resolvePlace } from '../place'
-import { autoRegisterPush, startForegroundNotifications } from '../messaging'
+import {
+  autoRegisterPush,
+  isApplePwaNeedsInstall,
+  notificationPermission,
+  pushConfigured,
+  requestNotificationRegistrations,
+  startForegroundNotifications,
+} from '../messaging'
 import EventCard from './EventCard'
 import EventForm from './EventForm'
 import { TypeGlyph } from './TypeGlyph'
@@ -163,6 +170,8 @@ export default function Main() {
         </div>
       </header>
 
+      <NotifBanner />
+
       {nav === 'home' ? (
       <>
       <div className="segmented" role="tablist">
@@ -299,6 +308,57 @@ export default function Main() {
       )}
 
       <Toast state={toast} />
+    </div>
+  )
+}
+
+/**
+ * 알림이 꺼진 멤버에게 상단에 '알림 켜기' 배너를 노출(투표 요청 등 푸시를 받으려면 각자 켜야 함).
+ * 버튼(사용자 제스처)으로 권한을 요청하므로 자동 요청보다 확실히 팝업이 뜬다.
+ * 아이폰(미설치)은 홈 화면 추가 안내만 보여준다.
+ */
+function NotifBanner() {
+  const { user } = useAuth()
+  const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>(notificationPermission())
+  const [dismissed, setDismissed] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  if (!user || dismissed) return null
+  if (perm === 'granted' || perm === 'unsupported') return null
+  const iosInstall = isApplePwaNeedsInstall()
+  if (!iosInstall && !pushConfigured()) return null // 알림 자체가 불가한 환경
+
+  async function enable() {
+    if (busy || !user) return
+    setBusy(true)
+    try {
+      const { fcmToken, webPushSubscription } = await requestNotificationRegistrations()
+      await Promise.all([
+        fcmToken ? saveFcmToken(user.uid, fcmToken) : Promise.resolve(),
+        webPushSubscription ? saveWebPushSubscription(user.uid, webPushSubscription) : Promise.resolve(),
+      ])
+    } finally {
+      setPerm(notificationPermission())
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="notif-banner">
+      <span className="notif-banner-ico" aria-hidden="true">🔔</span>
+      <span className="notif-banner-text">
+        {iosInstall
+          ? '아이폰은 홈 화면에 추가한 뒤 알림을 켤 수 있어요 (공유 → 홈 화면에 추가).'
+          : perm === 'denied'
+            ? '알림이 차단돼 있어요. 기기·브라우저 설정에서 이 사이트 알림을 허용해 주세요.'
+            : '알림을 켜면 새 일정·투표 요청을 바로 받아요.'}
+      </span>
+      {!iosInstall && perm !== 'denied' && (
+        <button type="button" className="btn primary notif-banner-btn" onClick={() => void enable()} disabled={busy}>
+          {busy ? '켜는 중…' : '알림 켜기'}
+        </button>
+      )}
+      <button type="button" className="notif-banner-x" onClick={() => setDismissed(true)} aria-label="닫기">×</button>
     </div>
   )
 }

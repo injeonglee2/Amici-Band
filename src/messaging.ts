@@ -133,6 +133,17 @@ export function notificationPermission(): NotificationPermission | 'unsupported'
   return 'Notification' in window ? Notification.permission : 'unsupported'
 }
 
+/** 아이폰(애플 모바일)인데 홈 화면 PWA로 설치되지 않아, 먼저 설치해야 알림을 켤 수 있는 상태 */
+export function isApplePwaNeedsInstall(): boolean {
+  const nav = navigator as Navigator & { standalone?: boolean }
+  const isAppleMobile =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isHomeScreenApp =
+    nav.standalone === true || window.matchMedia('(display-mode: standalone)').matches
+  return isAppleMobile && !isHomeScreenApp
+}
+
 /**
  * 로그인 시 자동 등록(기본 켜기).
  * - 이미 허용됨: 프롬프트 없이 토큰만 갱신
