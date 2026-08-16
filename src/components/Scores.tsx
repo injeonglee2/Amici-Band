@@ -608,8 +608,9 @@ function AddScoreFlow({
 
         <div className="field">
           <label htmlFor="sc-files">파일 (PDF 1개 또는 이미지 여러 장)</label>
-          {/* image/* 와일드카드를 쓰면 안드로이드가 '카메라'를 우선 띄우므로, 구체 형식만 지정해 갤러리/내 파일로 열리게 한다 */}
-          <input id="sc-files" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={(e) => onPickFiles(e.target.files)} />
+          {/* accept 에 이미지 형식이 있으면 삼성 등에서 '카메라'가 붙은 작업 선택창이 뜬다.
+              accept 를 비워 일반 파일 선택(갤러리/내 파일)으로 열고, 형식(이미지/PDF)은 아래에서 검증한다. */}
+          <input id="sc-files" type="file" multiple onChange={(e) => onPickFiles(e.target.files)} />
           {files.length > 0 && (
             <ul className="score-files">
               {files.map((f, i) => (
