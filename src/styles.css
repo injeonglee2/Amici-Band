@@ -696,7 +696,8 @@ button { font-family: inherit; }
 .rec-head-actions button:hover { background: rgba(255, 255, 255, 0.11); color: var(--ink); }
 .rec-head-actions .del { color: var(--accent); }
 /* 연결된 일정 칩 — 기록 카드/보기에서 맥락 표시 */
-.rec-event { display: inline-flex; align-items: center; gap: 4px; margin: 4px 0 0; font-size: 11px; font-weight: 600; color: var(--ink-soft); }
+.rec-event { display: inline-flex; align-items: center; gap: 5px; margin: 4px 0 0; font-size: 11px; font-weight: 600; color: var(--ink-soft); }
+.rec-event svg { flex: none; width: 13px; height: 13px; }
 .rec-card .rec-event { color: var(--ink-faint); }
 .rec-noevent { margin: -2px 2px 2px; }
 

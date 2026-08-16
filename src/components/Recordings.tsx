@@ -434,8 +434,18 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
             )}
             <h2>{rec.title || '(제목 없음)'}</h2>
             <p>{fmtDate(rec.date)}</p>
-            {rec.eventTitle && <p className="rec-event">🗓 {rec.eventTitle}</p>}
-            {(rec.trackTitle || rec.playlistName) && <p className="rec-event">🎵 {rec.trackTitle || rec.playlistName}</p>}
+            {rec.eventTitle && (
+              <p className="rec-event">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+                {rec.eventTitle}
+              </p>
+            )}
+            {(rec.trackTitle || rec.playlistName) && (
+              <p className="rec-event">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+                {rec.trackTitle || rec.playlistName}
+              </p>
+            )}
           </div>
 
           {rec.videoId ? (
