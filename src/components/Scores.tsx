@@ -325,7 +325,14 @@ function PdfPages({ url }: { url: string }) {
 
   if (status === 'loading') return <p className="hint score-pdf-loading">PDF 불러오는 중…</p>
   if (status === 'error')
-    return <p className="err small">앱에서 PDF를 표시하지 못했어요. 아래 ‘새 탭에서 열기’로 확인해 주세요.</p>
+    return (
+      <div className="score-pdf-err">
+        <p className="err small">앱에서 PDF를 표시하지 못했어요.</p>
+        <button type="button" className="btn subtle" onClick={() => window.open(url, '_blank', 'noopener')}>
+          새 탭에서 열기 ↗
+        </button>
+      </div>
+    )
   return (
     <div className="score-gallery">
       {pages.map((p, i) => (
@@ -350,7 +357,7 @@ function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) 
 
   return (
     <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" ref={sheetRef}>
+      <div className="sheet score-viewer-sheet" ref={sheetRef}>
         <div className="grab-zone" {...grabHandlers}>
           <div className="grab" />
         </div>
@@ -359,25 +366,22 @@ function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) 
           <p>{score.songTitle} · {partLabel(score.part)}</p>
         </div>
 
-        {isPdf ? (
-          <PdfPages url={score.files[0]?.url ?? ''} />
-        ) : (
-          <div className="score-gallery">
-            {score.files.map((f, i) => (
-              <img key={i} src={f.url} alt={`${i + 1}페이지`} loading="lazy" />
-            ))}
-          </div>
-        )}
+        <div className="score-viewer-scroll">
+          {isPdf ? (
+            <PdfPages url={score.files[0]?.url ?? ''} />
+          ) : (
+            <div className="score-gallery">
+              {score.files.map((f, i) => (
+                <img key={i} src={f.url} alt={`${i + 1}페이지`} loading="lazy" />
+              ))}
+            </div>
+          )}
+        </div>
 
-        <div className="actions">
+        <div className="actions score-viewer-actions">
           <button type="button" className="btn primary" onClick={() => void download()}>
             다운로드
           </button>
-          {isPdf && (
-            <button type="button" className="btn subtle" onClick={() => window.open(score.files[0]?.url, '_blank', 'noopener')}>
-              새 탭 ↗
-            </button>
-          )}
           <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
         </div>
       </div>
