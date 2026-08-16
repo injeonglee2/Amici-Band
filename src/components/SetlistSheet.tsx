@@ -7,6 +7,7 @@ import {
   watchAttendance,
   watchEvents,
   watchPlaylists,
+  watchRecordings,
   watchSetlist,
   watchTracks,
 } from '../data'
@@ -18,6 +19,7 @@ import {
   type BandEvent,
   type Member,
   type Playlist,
+  type Recording,
   type SetlistSong,
   type Track,
 } from '../types'
@@ -27,6 +29,7 @@ import type { ResolvedPlace } from '../place'
 import ConfirmDialog from './ConfirmDialog'
 import ParticipationSheet from './ParticipationSheet'
 import PartTally from './PartTally'
+import { RecordingPlayer, recThumb } from './Recordings'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
@@ -147,6 +150,8 @@ export default function SetlistSheet({
   // 합주(practice) 일정에서만 동작한다. 가장 가까운 공연에 연결된 재생목록의 곡 중,
   // 그 곡의 보컬(파트=보컬)이 이번 합주에 오는 곡만 골라 보여 준다.
   const isPractice = ev.type === 'practice'
+  // 지난 일정(오늘 이전)에는 추천 합주곡·곡 추가를 감춘다 — 이미 끝난 합주라 새로 담을 일이 없음
+  const isPast = dayDiff(ev.date) < 0
   const [events, setEvents] = useState<BandEvent[]>([])
   const [recPlaylists, setRecPlaylists] = useState<Playlist[]>([])
   const [showTracks, setShowTracks] = useState<Track[]>([])
@@ -195,6 +200,15 @@ export default function SetlistSheet({
       return Object.keys(parts).some((u) => parts[u] === 'vocal' && attendingUids.has(u))
     })
   }, [isPractice, showPlaylistId, showTracks, attendingUids])
+
+  // 이 일정에 연결된 기록(녹음/영상) — 있으면 시트에서 바로 볼 수 있게 한다
+  const [allRecs, setAllRecs] = useState<Recording[]>([])
+  useEffect(() => watchRecordings(setAllRecs, () => {}), [])
+  const linkedRecs = useMemo(
+    () => allRecs.filter((r) => r.eventId === ev.id).sort((a, b) => b.createdAt - a.createdAt),
+    [allRecs, ev.id],
+  )
+  const [openRec, setOpenRec] = useState<Recording | null>(null)
 
   /* ----- 드래그로 합주 순서 바꾸기 (재생목록 곡 정렬과 같은 방식) ----- */
   function onDragStart(e: ReactPointerEvent, id: string) {
@@ -345,8 +359,9 @@ export default function SetlistSheet({
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
             </span>
             {songs.length === 0 ? '합주곡 없음' : `합주곡 ${songs.length}곡`}
-            {/* 수정(연필)/완료(체크) — 곡이 있을 때만(빈 목록은 편집할 게 없음) */}
+            {/* 수정(연필)/완료(체크) — 곡이 있을 때만, 지난 일정엔 감춤(편집할 일이 없음) */}
             {isAdmin &&
+              !isPast &&
               songs.length > 0 &&
               (editMode ? (
                 <button
@@ -476,8 +491,39 @@ export default function SetlistSheet({
             </>
           )}
 
-          {/* 추천 합주곡 — 다가오는 공연 셋리스트 중 '보컬 참석' 곡 */}
-          {isPractice && nearestShow && recommended.length > 0 && (
+          {/* 이 일정에 연결된 기록(녹음/영상) */}
+          {linkedRecs.length > 0 && (
+            <div className="setlist-recs">
+              <div className="setlist-recs-head">
+                <span aria-hidden="true">🎬</span> 이 합주의 기록 <b>{linkedRecs.length}</b>
+              </div>
+              <div className="setlist-recs-list">
+                {linkedRecs.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className="setlist-rec-card"
+                    onClick={() => setOpenRec(r)}
+                  >
+                    <span className="setlist-rec-thumb">
+                      {recThumb(r) ? (
+                        <img src={recThumb(r) ?? ''} alt="" loading="lazy" />
+                      ) : (
+                        <span className="rec-thumb-none" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                        </span>
+                      )}
+                    </span>
+                    <span className="setlist-rec-title2">{r.title || '(제목 없음)'}</span>
+                    <svg className="play-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 추천 합주곡 — 다가오는 공연 셋리스트 중 '보컬 참석' 곡 (지난 일정엔 감춤) */}
+          {!isPast && isPractice && nearestShow && recommended.length > 0 && (
             <div className="setlist-rec">
               <button
                 type="button"
@@ -581,7 +627,7 @@ export default function SetlistSheet({
           )}
 
           <div className="actions">
-            {isAdmin ? (
+            {isAdmin && !isPast ? (
               <>
                 <button type="button" className="btn primary" onClick={() => setPicking(true)}>
                   곡 추가
@@ -622,6 +668,10 @@ export default function SetlistSheet({
             />
           )
         })()}
+
+      {openRec && (
+        <RecordingPlayer rec={openRec} toast={toast} readOnly={isPast} onClose={() => setOpenRec(null)} />
+      )}
     </>
   )
 }

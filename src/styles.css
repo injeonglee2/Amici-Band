@@ -641,20 +641,6 @@ button { font-family: inherit; }
    삼성 인터넷/안드로이드 WebView 에서 높이 해석이 어긋나 iframe 이 박스보다 커지는 문제가 있음 */
 .rec-embed { width: 100%; margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; }
 .rec-embed iframe { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; border: 0; }
-/* 드라이브 영상 포스터 — 썸네일 + 우리가 만든 정중앙 재생버튼(탭하면 플레이어로 교체) */
-.rec-poster {
-  position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
-  margin-top: 8px; padding: 0; border: 0; border-radius: 12px; overflow: hidden;
-  background: #000; cursor: pointer;
-}
-.rec-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.rec-play {
-  position: absolute; inset: 0; margin: auto; width: 60px; height: 60px;
-  display: grid; place-items: center; color: #fff;
-  background: rgba(0, 0, 0, 0.55); border-radius: 16px; backdrop-filter: blur(2px);
-}
-.rec-play svg { width: 28px; height: 28px; margin-left: 2px; }
-.rec-poster:hover .rec-play { background: rgba(0, 0, 0, 0.72); }
 /* 기록 보기 — 삭제·수정·닫기 버튼을 1:1:2 비율로 (닫기가 가장 넓게) */
 .actions.rec-actions .btn { flex: 1 1 0; padding-left: 10px; padding-right: 10px; }
 .actions.rec-actions .rec-close { flex: 2 1 0; }
@@ -1032,6 +1018,22 @@ button { font-family: inherit; }
 .setlist-rec-head .track-open-chev { flex: none; transition: transform 0.18s ease; }
 .setlist-rec-head[aria-expanded='true'] .track-open-chev { transform: rotate(180deg); }
 .rec-list { margin-top: 10px; }
+
+/* 합주곡 시트 — 이 일정에 연결된 기록(녹음/영상) */
+.setlist-recs { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.setlist-recs-head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--ink-soft); }
+.setlist-recs-head b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.setlist-recs-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.setlist-rec-card {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; appearance: none; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+  padding: 8px; color: inherit; font: inherit;
+}
+.setlist-rec-thumb { flex: none; width: 64px; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: #000; display: grid; place-items: center; }
+.setlist-rec-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.setlist-rec-thumb .rec-thumb-none svg { width: 18px; height: 18px; color: var(--ink-faint); }
+.setlist-rec-title2 { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setlist-rec-card .play-ico { flex: none; width: 18px; height: 18px; color: var(--ink-soft); }
 /* 참여 보컬 이름 — 추천의 근거라 살짝 강조 */
 .rec-vocal { color: var(--ink-soft); font-weight: 600; }
 .rec-add { flex: none; align-self: center; padding: 6px 12px; font-size: 12.5px; }

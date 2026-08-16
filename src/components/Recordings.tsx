@@ -24,7 +24,7 @@ const drivePreview = (id: string) => `https://drive.google.com/file/d/${id}/prev
 const ytEmbed = (id: string) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1`
 
 /** 기록의 썸네일 URL (유튜브·드라이브 자동, 저장된 값 우선). 없으면 null */
-function recThumb(r: Recording): string | null {
+export function recThumb(r: Recording): string | null {
   if (r.thumbnail) return r.thumbnail
   if (r.videoId) return thumbnailUrl(r.videoId)
   const dId = parseDriveId(r.url)
@@ -215,6 +215,18 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         </div>
 
         <div className="field">
+          <label htmlFor="rec-url">링크 (유튜브·구글 드라이브 등)</label>
+          <input id="rec-url" type="url" inputMode="url" value={url} onChange={(e) => onUrlChange(e.target.value)} placeholder="https://youtu.be/… 또는 드라이브 링크" />
+          <p className="hint">유튜브는 제목 자동 채움, 유튜브·드라이브 영상은 앱에서 바로 재생돼요.</p>
+        </div>
+
+        {previewThumb && (
+          <div className="track-preview">
+            <img src={previewThumb} alt="" />
+          </div>
+        )}
+
+        <div className="field">
           <label htmlFor="rec-date">일자</label>
           <input id="rec-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
@@ -222,7 +234,7 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         {eventsOnDate.length > 0 ? (
           <div className="field">
             <label htmlFor="rec-event">일정 연결 (선택)</label>
-            <select id="rec-event" value={eventId} onChange={(e) => onPickEvent(e.target.value)}>
+            <select id="rec-event" className="place-select" value={eventId} onChange={(e) => onPickEvent(e.target.value)}>
               <option value="">연결 안 함</option>
               {eventsOnDate.map((ev) => (
                 <option key={ev.id} value={ev.id}>
@@ -235,18 +247,6 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
           </div>
         ) : (
           <p className="hint rec-noevent">이 날짜에 등록된 일정이 없어요 · 일자만 저장돼요.</p>
-        )}
-
-        <div className="field">
-          <label htmlFor="rec-url">링크 (유튜브·구글 드라이브 등)</label>
-          <input id="rec-url" type="url" inputMode="url" value={url} onChange={(e) => onUrlChange(e.target.value)} placeholder="https://youtu.be/… 또는 드라이브 링크" />
-          <p className="hint">유튜브는 제목 자동 채움, 유튜브·드라이브 영상은 앱에서 바로 재생돼요.</p>
-        </div>
-
-        {previewThumb && (
-          <div className="track-preview">
-            <img src={previewThumb} alt="" />
-          </div>
         )}
 
         <div className="field">
@@ -266,15 +266,13 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
 }
 
 /* ---------------- 기록 재생/보기 시트 ---------------- */
-function RecordingPlayer({ rec, toast, onEdit, onClose }: { rec: Recording; toast: ToastState; onEdit: () => void; onClose: () => void }) {
+export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec: Recording; toast: ToastState; onEdit?: () => void; onClose: () => void; readOnly?: boolean }) {
   const { user, member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
   const [confirmDel, setConfirmDel] = useState(false)
-  // 드라이브 영상은 처음엔 썸네일+정중앙 재생버튼(포스터)을 보이고, 탭하면 드라이브 플레이어로 바꾼다.
-  // (드라이브 프리뷰 플레이어는 재생버튼을 자체적으로 중앙보다 아래에 두어 어색해 보이므로)
-  const [playing, setPlaying] = useState(false)
-  const canManage = !!user && (rec.addedBy === user.uid || !!member?.admin)
+  // readOnly 이면(예: 지난 일정의 합주곡 시트에서 열람) 삭제·수정 없이 보기만 가능
+  const canManage = !readOnly && !!user && (rec.addedBy === user.uid || !!member?.admin)
   const driveId = rec.videoId ? null : parseDriveId(rec.url)
 
   async function doDelete() {
@@ -313,35 +311,14 @@ function RecordingPlayer({ rec, toast, onEdit, onClose }: { rec: Recording; toas
               />
             </div>
           ) : driveId ? (
-            playing ? (
-              <div className="rec-embed">
-                <iframe
-                  src={drivePreview(driveId)}
-                  title={rec.title || '기록'}
-                  allow="autoplay"
-                  allowFullScreen
-                />
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="rec-poster"
-                onClick={() => setPlaying(true)}
-                aria-label="영상 재생"
-              >
-                <img
-                  src={driveThumb(driveId)}
-                  alt=""
-                  loading="lazy"
-                  onError={(e) => {
-                    ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                  }}
-                />
-                <span className="rec-play" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                </span>
-              </button>
-            )
+            <div className="rec-embed">
+              <iframe
+                src={drivePreview(driveId)}
+                title={rec.title || '기록'}
+                allow="autoplay"
+                allowFullScreen
+              />
+            </div>
           ) : (
             <div className="rec-extlink">
               <p className="hint">앱에서 바로 재생할 수 없는 링크예요. 새 탭에서 열립니다.</p>
@@ -357,7 +334,7 @@ function RecordingPlayer({ rec, toast, onEdit, onClose }: { rec: Recording; toas
             {canManage ? (
               <>
                 <button type="button" className="btn danger" onClick={() => setConfirmDel(true)}>삭제</button>
-                <button type="button" className="btn subtle" onClick={onEdit}>수정</button>
+                {onEdit && <button type="button" className="btn subtle" onClick={onEdit}>수정</button>}
                 <button type="button" className="btn subtle rec-close" onClick={onClose}>닫기</button>
               </>
             ) : (
