@@ -474,14 +474,17 @@ export default function SetlistSheet({
                       {!editMode && open && (
                         <>
                           <PartGrid track={track} memberMap={memberMap} attendingUids={attendingUids} myUid={user?.uid} />
-                          <button
-                            type="button"
-                            className="btn subtle block song-join-btn"
-                            onClick={() => setParticipatingId(s.id)}
-                            disabled={!track}
-                          >
-                            {user && track?.participants?.[user.uid] ? '내 참여·파트 수정' : '이 곡에 참여'}
-                          </button>
+                          {/* 지난 일정엔 참여 수정 버튼 숨김 — 이미 끝난 합주라 참여를 바꿀 일이 없음 */}
+                          {!isPast && (
+                            <button
+                              type="button"
+                              className="btn subtle block song-join-btn"
+                              onClick={() => setParticipatingId(s.id)}
+                              disabled={!track}
+                            >
+                              {user && track?.participants?.[user.uid] ? '내 참여·파트 수정' : '이 곡에 참여'}
+                            </button>
+                          )}
                         </>
                       )}
                     </li>
