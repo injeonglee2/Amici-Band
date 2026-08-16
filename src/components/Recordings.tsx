@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
-import { deleteRecording, newId, saveRecording, watchEvents, watchRecordings, watchTracks } from '../data'
+import { deleteRecording, newId, saveRecording, watchEvents, watchPlaylists, watchRecordings, watchTracks } from '../data'
 import { TYPE_META, type BandEvent, type Recording, type Track } from '../types'
 import { fetchPlaylistItems, fetchYouTubeMeta, parsePlaylistId, parseVideoId, PlaylistImportError, thumbnailUrl } from '../youtube'
 import { parseDate, todayStr, weekday } from '../time'
@@ -19,6 +19,38 @@ function fmtDate(date: string): string {
 function shortDate(date: string): string {
   const p = date.split('-')
   return p.length === 3 ? `${p[0]}.${+p[1]}.${+p[2]}` : date
+}
+
+/** 제목 속 날짜 숫자(YYYYMMDD 또는 YYMMDD)를 YYYY-MM-DD 로. 없거나 이상하면 null */
+function dateFromTitle(title: string): string | null {
+  const m = title.match(/\d{8}|\d{6}/)
+  if (!m) return null
+  const s = m[0]
+  const y = s.length === 8 ? +s.slice(0, 4) : 2000 + +s.slice(0, 2)
+  const mo = +s.slice(s.length - 4, s.length - 2)
+  const d = +s.slice(s.length - 2)
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) return null
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+const normTitle = (s: string) => s.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '')
+
+type MatchTrack = { id: string; title: string; artist: string; playlistId: string; playlistName: string }
+
+/** 제목에 곡명이 들어있으면 그 곡을 찾아 반환(가장 긴 일치 우선). 번역/음차 제목은 못 잡음 */
+function musicFromTitle(title: string, tracks: MatchTrack[]): MatchTrack | null {
+  const t = normTitle(title.replace(/\d{8}|\d{6}/, ''))
+  if (t.length < 2) return null
+  let best: MatchTrack | null = null
+  let bestLen = 0
+  for (const tr of tracks) {
+    const tn = normTitle(tr.title)
+    if (tn.length >= 2 && t.includes(tn) && tn.length > bestLen) {
+      best = tr
+      bestLen = tn.length
+    }
+  }
+  return best
 }
 
 /** 구글 드라이브 파일 링크에서 파일 ID 추출 (…/file/d/{ID}/… 또는 ?id={ID}) */
@@ -398,6 +430,32 @@ function ImportPlaylistSheet({
   const [result, setResult] = useState('')
   const [err, setErr] = useState('')
 
+  // 제목→곡 매칭용: 모든 재생목록의 곡 목록을 로드
+  const [tracks, setTracks] = useState<MatchTrack[]>([])
+  useEffect(() => {
+    const trackUnsubs: (() => void)[] = []
+    const byPl = new Map<string, MatchTrack[]>()
+    const plUnsub = watchPlaylists((pls) => {
+      trackUnsubs.splice(0).forEach((u) => u())
+      byPl.clear()
+      pls.forEach((p) =>
+        trackUnsubs.push(
+          watchTracks(p.id, (list) => {
+            byPl.set(
+              p.id,
+              list.map((t) => ({ id: t.id, title: t.title, artist: t.artist, playlistId: p.id, playlistName: p.name })),
+            )
+            setTracks([...byPl.values()].flat())
+          }),
+        ),
+      )
+    })
+    return () => {
+      plUnsub()
+      trackUnsubs.forEach((u) => u())
+    }
+  }, [])
+
   async function run() {
     const pid = parsePlaylistId(url)
     if (!pid) {
@@ -419,13 +477,17 @@ function ImportPlaylistSheet({
       let added = 0
       for (const s of fresh) {
         setProgress(`추가 중 ${added + 1}/${fresh.length}`)
+        const m = musicFromTitle(s.title, tracks) // 제목에 곡명이 있으면 음악 연결
         const rec: Recording = {
           id: newId(),
           title: s.title || '(제목 없음)',
-          date: s.publishedAt || todayStr(),
+          date: dateFromTitle(s.title) || s.publishedAt || todayStr(), // 제목의 날짜 우선
           url: s.url,
           videoId: s.videoId,
           thumbnail: s.thumbnail,
+          ...(m
+            ? { playlistId: m.playlistId, playlistName: m.playlistName, trackId: m.id, trackTitle: m.title, trackArtist: m.artist || undefined }
+            : {}),
           addedBy: user.uid,
           addedByName: member?.name,
           createdAt: Date.now(),

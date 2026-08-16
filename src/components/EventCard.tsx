@@ -18,7 +18,7 @@ import {
 } from '../types'
 import { dayDiff, weekday, parseDate } from '../time'
 import { copyValue, type ResolvedPlace } from '../place'
-import { addToDeviceCalendar, calendarExportSupported } from '../calendar'
+import { addToDeviceCalendar, calendarExportSupported, isAndroidDevice, openGoogleCalendar, shareOrDownloadIcs } from '../calendar'
 import { TypeGlyph } from './TypeGlyph'
 import { CopyButton } from './CopyButton'
 import AttendanceModal from './AttendanceModal'
@@ -49,6 +49,7 @@ export default function EventCard({
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteOverflow, setNoteOverflow] = useState(false)
   const [showCalendarExport, setShowCalendarExport] = useState(false)
+  const [calMenu, setCalMenu] = useState(false)
   const [setlistOpen, setSetlistOpen] = useState(false)
   const noteRef = useRef<HTMLParagraphElement>(null)
   const t = TYPE_META[ev.type]
@@ -152,7 +153,7 @@ export default function EventCard({
                 {/* 아랫줄: 캘린더에 추가 + 참석 투표 (관리자·일반 공통) */}
                 <div className="ca-bottom">
                   {showCalendarExport && (
-                    <button className="edit-btn" onClick={() => void addToDeviceCalendar(ev, place)} aria-label="캘린더에 추가" title="캘린더에 추가">
+                    <button className="edit-btn" onClick={() => (isAndroidDevice() ? setCalMenu(true) : addToDeviceCalendar(ev, place))} aria-label="캘린더에 추가" title="캘린더에 추가">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
                     </button>
                   )}
@@ -257,6 +258,23 @@ export default function EventCard({
           onConfirm={doDelete}
           onCancel={() => setConfirmDelete(false)}
         />
+      )}
+
+      {calMenu && (
+        <div className="scrim confirm" onClick={(e) => e.target === e.currentTarget && setCalMenu(false)}>
+          <div className="confirm-card">
+            <p>캘린더에 추가</p>
+            <div className="cal-choose">
+              <button type="button" className="btn subtle block" onClick={() => { openGoogleCalendar(ev, place); setCalMenu(false) }}>
+                구글 캘린더
+              </button>
+              <button type="button" className="btn subtle block" onClick={() => { void shareOrDownloadIcs(ev, place); setCalMenu(false) }}>
+                다른 캘린더 앱 (.ics)
+              </button>
+              <button type="button" className="btn subtle block" onClick={() => setCalMenu(false)}>닫기</button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )

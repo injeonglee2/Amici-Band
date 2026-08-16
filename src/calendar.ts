@@ -78,6 +78,7 @@ function downloadIcs(ics: string, filename: string): void {
 }
 
 const isAndroid = (): boolean => /Android/i.test(navigator.userAgent)
+export const isAndroidDevice = (): boolean => isAndroid()
 
 /** 구글 캘린더 '이벤트 추가' 웹 링크 (파일 다운로드 없이 캘린더에 바로 추가). */
 function googleCalendarUrl(ev: BandEvent, place: ResolvedPlace | null): string {
@@ -91,29 +92,35 @@ function googleCalendarUrl(ev: BandEvent, place: ResolvedPlace | null): string {
   return u.toString()
 }
 
-/**
- * 일정을 캘린더로 내보낸다 — 파일 다운로드창이 뜨지 않게 한다.
- * - 안드로이드: Web Share 로 .ics 공유(앱 선택). 미지원(삼성 인터넷 등)이면 구글 캘린더 웹으로 바로 추가.
- * - iOS·데스크톱: .ics 열기 (iOS 는 '캘린더에 추가' 미리보기로 뜸)
- */
-export async function addToDeviceCalendar(ev: BandEvent, place: ResolvedPlace | null): Promise<void> {
-  if (isAndroid()) {
-    const ics = buildIcs(ev, place)
-    const file = new File([ics], icsFilename(ev), { type: 'text/calendar' })
-    if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: eventTitle(ev) })
-        return
-      } catch (e) {
-        if ((e as { name?: string })?.name === 'AbortError') return // 사용자가 닫음
-        // 그 외 오류면 구글 캘린더로 폴백
-      }
-    }
-    // Web Share 파일 공유 미지원 → 다운로드 대신 구글 캘린더 웹으로
-    window.open(googleCalendarUrl(ev, place), '_blank', 'noopener')
-    return
-  }
+/** 구글 캘린더 웹으로 이벤트 추가 (파일 없음). */
+export function openGoogleCalendar(ev: BandEvent, place: ResolvedPlace | null): void {
+  window.open(googleCalendarUrl(ev, place), '_blank', 'noopener')
+}
 
-  // iOS·데스크톱
+/**
+ * .ics 로 캘린더 앱에 추가 — Web Share(파일)를 지원하면 앱 선택창(공유 시트),
+ * 아니면 .ics 다운로드(열면 캘린더 앱 선택). 사용자가 앱을 고를 수 있다.
+ */
+export async function shareOrDownloadIcs(ev: BandEvent, place: ResolvedPlace | null): Promise<void> {
+  const ics = buildIcs(ev, place)
+  const filename = icsFilename(ev)
+  const file = new File([ics], filename, { type: 'text/calendar' })
+  if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: eventTitle(ev) })
+      return
+    } catch (e) {
+      if ((e as { name?: string })?.name === 'AbortError') return
+      // 그 외 오류면 아래 다운로드로 폴백
+    }
+  }
+  downloadIcs(ics, filename)
+}
+
+/**
+ * iOS·데스크톱용 기본 내보내기 — .ics 열기 (iOS 는 '캘린더에 추가' 미리보기).
+ * 안드로이드는 앱 선택을 위해 EventCard 에서 별도 메뉴(openGoogleCalendar / shareOrDownloadIcs)를 쓴다.
+ */
+export function addToDeviceCalendar(ev: BandEvent, place: ResolvedPlace | null): void {
   downloadIcs(buildIcs(ev, place), icsFilename(ev))
 }
