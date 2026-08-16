@@ -93,6 +93,10 @@ export interface Recording {
   note?: string // 메모 (선택)
   eventId?: string // 연결된 일정 id (선택) — 있으면 일자를 그 일정에서 가져온다
   eventTitle?: string // 연결된 일정 제목 스냅샷 (일정이 지워져도 맥락은 남기기 위함)
+  playlistId?: string // 연결된 음악 재생목록 id (선택)
+  playlistName?: string // 재생목록 이름 스냅샷
+  trackId?: string // 연결된 곡 id (선택, 재생목록 안의 특정 곡)
+  trackTitle?: string // 곡 제목 스냅샷
   addedBy: string
   addedByName?: string // 올린 사람 이름 스냅샷
   createdAt: number

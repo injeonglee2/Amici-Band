@@ -315,7 +315,7 @@ export default function Main() {
           className={'navitem' + (nav === 'scores' ? ' on' : '')}
           onClick={() => setNav('scores')}
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="12.5" textAnchor="middle" dominantBaseline="central" fontSize="18" fill="currentColor">𝄞</text></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="12.5" textAnchor="middle" dominantBaseline="central" fontSize="15" fill="currentColor">𝄞</text></svg>
           악보
         </button>
         <button

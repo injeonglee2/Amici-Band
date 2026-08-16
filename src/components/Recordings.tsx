@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
-import { deleteRecording, newId, saveRecording, watchEvents, watchRecordings } from '../data'
-import { TYPE_META, type BandEvent, type Recording } from '../types'
+import { deleteRecording, newId, saveRecording, watchEvents, watchPlaylists, watchRecordings, watchTracks } from '../data'
+import { TYPE_META, type BandEvent, type Playlist, type Recording, type Track } from '../types'
 import { fetchYouTubeMeta, parseVideoId, thumbnailUrl } from '../youtube'
 import { parseDate, todayStr, weekday } from '../time'
 import ConfirmDialog from './ConfirmDialog'
@@ -37,6 +37,9 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
   const [adding, setAdding] = useState(false)
   const [editingRec, setEditingRec] = useState<Recording | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  // 필터: 전체 / 합주(일정 연결) / 음악(음악 연결) · 정렬: 최신순 / 오래된순
+  const [filter, setFilter] = useState<'all' | 'event' | 'music'>('all')
+  const [sort, setSort] = useState<'new' | 'old'>('new')
 
   useEffect(
     () =>
@@ -53,6 +56,16 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
 
   const open = openId ? items.find((r) => r.id === openId) ?? null : null
 
+  const shown = useMemo(() => {
+    const list = items.filter((r) =>
+      filter === 'event' ? !!r.eventId : filter === 'music' ? !!r.playlistId : true,
+    )
+    return [...list].sort((a, b) => {
+      const d = a.date === b.date ? a.createdAt - b.createdAt : a.date.localeCompare(b.date)
+      return sort === 'new' ? -d : d
+    })
+  }, [items, filter, sort])
+
   return (
     <>
       <main className="scroll">
@@ -64,25 +77,55 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
             <p>기록이 없어요.<br />아래 <b>+ 기록 추가</b>로 유튜브·드라이브 링크를 올려보세요.</p>
           </div>
         ) : (
-          <div className="rec-grid">
-            {items.map((r) => (
-              <button key={r.id} type="button" className="rec-card" onClick={() => setOpenId(r.id)}>
-                <div className="rec-thumb">
-                  {recThumb(r) ? (
-                    <img src={recThumb(r) ?? ''} alt="" loading="lazy" />
-                  ) : (
-                    <span className="rec-thumb-none" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                    </span>
-                  )}
-                </div>
-                <div className="rec-meta">
-                  <h3>{r.title || '(제목 없음)'}</h3>
-                  <p>{fmtDate(r.date)}</p>
-                </div>
+          <>
+            <div className="rec-toolbar">
+              <div className="rec-filters">
+                {([['all', '전체'], ['event', '합주'], ['music', '음악']] as const).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={'chip' + (filter === k ? ' on' : '')}
+                    aria-pressed={filter === k}
+                    onClick={() => setFilter(k)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="rec-sort"
+                onClick={() => setSort((s) => (s === 'new' ? 'old' : 'new'))}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h11M3 12h8M3 18h5" /><path d="m17 6 4 4M17 6l-4 4M17 6v12" /></svg>
+                {sort === 'new' ? '최신순' : '오래된순'}
               </button>
-            ))}
-          </div>
+            </div>
+
+            {shown.length === 0 ? (
+              <p className="setlist-empty">이 조건의 기록이 없어요.</p>
+            ) : (
+              <div className="rec-grid">
+                {shown.map((r) => (
+                  <button key={r.id} type="button" className="rec-card" onClick={() => setOpenId(r.id)}>
+                    <div className="rec-thumb">
+                      {recThumb(r) ? (
+                        <img src={recThumb(r) ?? ''} alt="" loading="lazy" />
+                      ) : (
+                        <span className="rec-thumb-none" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                        </span>
+                      )}
+                    </div>
+                    <div className="rec-meta">
+                      <h3>{r.title || '(제목 없음)'}</h3>
+                      <p>{fmtDate(r.date)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
 
@@ -145,6 +188,22 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
     if (ev) setTitle((prev) => (prev.trim() ? prev : ev.title))
   }
 
+  // 음악 연결(선택) — 재생목록, 그리고 원하면 그 안의 특정 곡까지
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [playlistId, setPlaylistId] = useState(editing?.playlistId ?? '')
+  const [trackId, setTrackId] = useState(editing?.trackId ?? '')
+  const [plTracks, setPlTracks] = useState<Track[]>([])
+  useEffect(() => watchPlaylists(setPlaylists), [])
+  useEffect(() => {
+    if (!playlistId) {
+      setPlTracks([])
+      return
+    }
+    return watchTracks(playlistId, setPlTracks)
+  }, [playlistId])
+  const linkedPlaylist = playlistId ? playlists.find((p) => p.id === playlistId) ?? null : null
+  const linkedTrack = trackId ? plTracks.find((t) => t.id === trackId) ?? null : null
+
   const videoId = parseVideoId(url)
   const driveId = videoId ? null : parseDriveId(url)
   const previewThumb = videoId ? thumbnailUrl(videoId) : driveId ? driveThumb(driveId) : null
@@ -179,6 +238,10 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         note: note.trim() || undefined,
         eventId: eventId || undefined,
         eventTitle: eventId ? linkedEvent?.title ?? editing?.eventTitle : undefined,
+        playlistId: playlistId || undefined,
+        playlistName: playlistId ? linkedPlaylist?.name ?? editing?.playlistName : undefined,
+        trackId: playlistId && trackId ? trackId : undefined,
+        trackTitle: playlistId && trackId ? linkedTrack?.title ?? editing?.trackTitle : undefined,
         addedBy: editing?.addedBy ?? member?.uid ?? '',
         addedByName: editing?.addedByName ?? member?.name,
         createdAt: editing?.createdAt ?? now,
@@ -248,6 +311,40 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         )}
 
         <div className="field">
+          <label htmlFor="rec-pl">음악 연결 (선택)</label>
+          <select
+            id="rec-pl"
+            className="place-select"
+            value={playlistId}
+            onChange={(e) => {
+              setPlaylistId(e.target.value)
+              setTrackId('')
+            }}
+          >
+            <option value="">연결 안 함</option>
+            {playlists.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          {playlistId && (
+            <select
+              className="place-select"
+              style={{ marginTop: 8 }}
+              value={trackId}
+              onChange={(e) => setTrackId(e.target.value)}
+            >
+              <option value="">(재생목록 전체)</option>
+              {plTracks.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title}
+                  {t.artist ? ` · ${t.artist}` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div className="field">
           <label htmlFor="rec-note">메모 (선택)</label>
           <textarea id="rec-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} rows={3} />
         </div>
@@ -309,6 +406,7 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
             <h2>{rec.title || '(제목 없음)'}</h2>
             <p>{fmtDate(rec.date)}</p>
             {rec.eventTitle && <p className="rec-event">🗓 {rec.eventTitle}</p>}
+            {(rec.trackTitle || rec.playlistName) && <p className="rec-event">🎵 {rec.trackTitle || rec.playlistName}</p>}
           </div>
 
           {rec.videoId ? (
