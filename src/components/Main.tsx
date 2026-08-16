@@ -293,12 +293,12 @@ export default function Main() {
         </button>
         <button
           role="tab"
-          aria-selected={nav === 'recordings'}
-          className={'navitem' + (nav === 'recordings' ? ' on' : '')}
-          onClick={() => setNav('recordings')}
+          aria-selected={nav === 'scores'}
+          className={'navitem' + (nav === 'scores' ? ' on' : '')}
+          onClick={() => setNav('scores')}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
-          기록
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" /></svg>
+          악보
         </button>
         <button
           role="tab"
@@ -311,12 +311,12 @@ export default function Main() {
         </button>
         <button
           role="tab"
-          aria-selected={nav === 'scores'}
-          className={'navitem' + (nav === 'scores' ? ' on' : '')}
-          onClick={() => setNav('scores')}
+          aria-selected={nav === 'recordings'}
+          className={'navitem' + (nav === 'recordings' ? ' on' : '')}
+          onClick={() => setNav('recordings')}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" /></svg>
-          악보
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
+          기록
         </button>
         <button
           role="tab"

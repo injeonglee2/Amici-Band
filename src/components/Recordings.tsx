@@ -236,43 +236,68 @@ function RecFilterSheet({
   onClose: () => void
 }) {
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
-  useBackHandler(onClose)
+  // 1단계: 합주/음악 고르기 → 2단계: 그 안의 항목 고르기
+  const [cat, setCat] = useState<'event' | 'music' | null>(null)
+  useBackHandler(() => (cat ? setCat(null) : onClose()))
   const hasActive = !!(eventFilter || musicFilter)
+  const items = cat === 'event'
+    ? eventOpts.map((o) => ({ v: o.id, l: o.title }))
+    : cat === 'music'
+      ? musicOpts.map((o) => ({ v: o.key, l: o.label }))
+      : []
+  const activeVal = cat === 'event' ? eventFilter : musicFilter
+
   return (
     <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet" ref={sheetRef}>
         <div className="grab-zone" {...grabHandlers}>
           <div className="grab" />
         </div>
-        <h2>필터</h2>
 
-        {eventOpts.length > 0 && (
+        {!cat ? (
           <>
-            <div className="tsel-group">합주</div>
+            <h2>필터</h2>
             <ul className="tsel-list">
-              {eventOpts.map((o) => (
-                <li key={o.id}>
-                  <button type="button" className={'tsel-opt' + (eventFilter === o.id ? ' on' : '')} onClick={() => onPickEvent(o.id)}>
-                    <span className="tsel-opt-label">{o.title}</span>
-                    {eventFilter === o.id && (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                    )}
+              {eventOpts.length > 0 && (
+                <li>
+                  <button type="button" className="tsel-opt" onClick={() => setCat('event')}>
+                    <span className="tsel-opt-label">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+                      합주
+                    </span>
+                    <svg className="tsel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
                   </button>
                 </li>
-              ))}
+              )}
+              {musicOpts.length > 0 && (
+                <li>
+                  <button type="button" className="tsel-opt" onClick={() => setCat('music')}>
+                    <span className="tsel-opt-label">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+                      음악
+                    </span>
+                    <svg className="tsel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                  </button>
+                </li>
+              )}
             </ul>
           </>
-        )}
-
-        {musicOpts.length > 0 && (
+        ) : (
           <>
-            <div className="tsel-group">음악</div>
+            <div className="picker-bar">
+              <button type="button" className="btn subtle" onClick={() => setCat(null)}>← 뒤로</button>
+              <b>{cat === 'event' ? '합주' : '음악'}</b>
+            </div>
             <ul className="tsel-list">
-              {musicOpts.map((o) => (
-                <li key={o.key}>
-                  <button type="button" className={'tsel-opt' + (musicFilter === o.key ? ' on' : '')} onClick={() => onPickMusic(o.key)}>
-                    <span className="tsel-opt-label">{o.label}</span>
-                    {musicFilter === o.key && (
+              {items.map((o) => (
+                <li key={o.v}>
+                  <button
+                    type="button"
+                    className={'tsel-opt' + (activeVal === o.v ? ' on' : '')}
+                    onClick={() => (cat === 'event' ? onPickEvent(o.v) : onPickMusic(o.v))}
+                  >
+                    <span className="tsel-opt-label">{o.l}</span>
+                    {activeVal === o.v && (
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
                     )}
                   </button>
@@ -540,17 +565,21 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
             )}
             <h2>{rec.title || '(제목 없음)'}</h2>
             <p>{fmtDate(rec.date)}</p>
-            {rec.eventTitle && (
-              <p className="rec-event">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-                {rec.eventTitle}
-              </p>
-            )}
-            {(rec.trackTitle || rec.playlistName) && (
-              <p className="rec-event">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
-                {rec.trackTitle || rec.playlistName}
-              </p>
+            {(rec.eventTitle || rec.trackTitle || rec.playlistName) && (
+              <div className="rec-links">
+                {rec.eventTitle && (
+                  <span className="rec-event">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+                    {rec.eventTitle}
+                  </span>
+                )}
+                {(rec.trackTitle || rec.playlistName) && (
+                  <span className="rec-event">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+                    {rec.trackTitle || rec.playlistName}
+                  </span>
+                )}
+              </div>
             )}
           </div>
 

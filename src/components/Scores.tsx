@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
 import {
   deleteScore,
@@ -51,6 +51,9 @@ const partLabel = (p: TrackPart) => (isFixedPart(p) ? PART_META[p].label : p)
 // 다운로드 파일명용 — 파일명에 못 쓰는 문자만 정리(한글은 그대로 둔다)
 const cleanName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim()
 const extOf = (name: string) => name.match(/\.([a-zA-Z0-9]+)$/)?.[1].toLowerCase() ?? ''
+// 악보 제목 기본값 — 파트별 매칭
+const PART_TITLE: Record<string, string> = { drum: 'Drum', bass: 'Base', guitar: 'Guitar', keyboard: 'Piano', vocal: 'Vocal' }
+const defaultTitleFor = (p: string) => PART_TITLE[p] ?? ''
 
 type Song = { trackId: string; title: string; artist?: string; thumbnail?: string; scores: Score[] }
 
@@ -434,9 +437,19 @@ function AddScoreFlow({
   const [track, setTrack] = useState<Track | null>(presetTrack ?? null)
   const presetPl = presetPlaylistId ?? ''
 
-  const [partSel, setPartSel] = useState<string>(member?.part ?? 'vocal')
+  const initialPart = member?.part ?? 'vocal'
+  const [partSel, setPartSel] = useState<string>(initialPart)
   const [customPart, setCustomPart] = useState('')
-  const [title, setTitle] = useState(presetTrack ? '풀 스코어' : '')
+  const [title, setTitle] = useState(defaultTitleFor(initialPart))
+  const autoTitleRef = useRef(defaultTitleFor(initialPart))
+  // 파트를 바꾸면 제목이 (비었거나 이전 자동값 그대로면) 그 파트 기본값으로 따라간다
+  function onPart(v: string) {
+    setPartSel(v)
+    const next = v === 'custom' ? '' : defaultTitleFor(v)
+    const prevAuto = autoTitleRef.current // ref 를 갱신하기 전에 캡처(업데이터가 나중에 실행되므로)
+    setTitle((prev) => (prev.trim() === '' || prev === prevAuto ? next : prev))
+    autoTitleRef.current = next
+  }
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState('')
@@ -554,7 +567,7 @@ function AddScoreFlow({
               <div className="picker-list">
                 {tracks.length === 0 && <p className="setlist-empty">이 재생목록에 곡이 없어요.</p>}
                 {tracks.map((t) => (
-                  <button key={t.id} type="button" className="picker-row" onClick={() => { setTrack(t); if (!title) setTitle('풀 스코어') }}>
+                  <button key={t.id} type="button" className="picker-row" onClick={() => { setTrack(t); if (!title) setTitle(defaultTitleFor(partSel)) }}>
                     <span className="track-thumb sm">
                       {t.thumbnail || t.videoId ? <img src={t.thumbnail || thumbnailUrl(t.videoId ?? '')} alt="" loading="lazy" /> : null}
                     </span>
@@ -594,7 +607,7 @@ function AddScoreFlow({
           <ThemeSelect
             title="파트"
             value={partSel}
-            onChange={setPartSel}
+            onChange={onPart}
             options={[
               ...PART_ORDER.map((p) => ({ value: p as string, label: PART_META[p].label })),
               { value: 'custom', label: '직접 입력…' },
