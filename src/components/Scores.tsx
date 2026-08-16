@@ -572,7 +572,8 @@ function AddScoreFlow({ toast, onClose }: { toast: ToastState; onClose: () => vo
 
         <div className="field">
           <label htmlFor="sc-files">파일 (PDF 1개 또는 이미지 여러 장)</label>
-          <input id="sc-files" type="file" accept="image/*,application/pdf" multiple onChange={(e) => onPickFiles(e.target.files)} />
+          {/* image/* 와일드카드를 쓰면 안드로이드가 '카메라'를 우선 띄우므로, 구체 형식만 지정해 갤러리/내 파일로 열리게 한다 */}
+          <input id="sc-files" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={(e) => onPickFiles(e.target.files)} />
           {files.length > 0 && (
             <ul className="score-files">
               {files.map((f, i) => (
