@@ -198,10 +198,16 @@ async function sendStandardWebPush(memberDocs, { title, body, eventId }) {
 }
 
 async function sendAllPush(memberDocs, payload) {
-  const [fcmSent, webPushSent] = await Promise.all([
+  // 한 채널(FCM/웹푸시)이 실패해도 나머지는 발송되도록 allSettled 사용.
+  // (Promise.all 이면 한쪽 예외로 전체가 '발송 실패'가 됐다.) 실패 원인은 로그로 남긴다.
+  const [fcm, web] = await Promise.allSettled([
     sendPush(collectTokens(memberDocs), payload),
     sendStandardWebPush(memberDocs, payload),
   ])
+  if (fcm.status === 'rejected') console.error('FCM 발송 실패:', fcm.reason)
+  if (web.status === 'rejected') console.error('표준 웹푸시 발송 실패:', web.reason)
+  const fcmSent = fcm.status === 'fulfilled' ? fcm.value : 0
+  const webPushSent = web.status === 'fulfilled' ? web.value : 0
   return fcmSent + webPushSent
 }
 
