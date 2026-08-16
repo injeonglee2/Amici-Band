@@ -622,8 +622,13 @@ button { font-family: inherit; }
 .evt-title-date .evt-date input { width: auto; } /* 날짜는 자연 너비(다 보이게) */
 
 /* 기록 필터·정렬 바 */
-.rec-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
-.rec-filters { display: flex; gap: 6px; }
+.rec-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.rec-filters { display: flex; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.rec-fsel {
+  appearance: none; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; max-width: 42vw;
+}
+.rec-fsel option { background: var(--surface-solid); color: var(--ink); }
 .rec-sort {
   flex: none; appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
   font-size: 12.5px; font-weight: 700; color: var(--ink-soft);

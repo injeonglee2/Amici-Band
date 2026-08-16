@@ -37,8 +37,9 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
   const [adding, setAdding] = useState(false)
   const [editingRec, setEditingRec] = useState<Recording | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
-  // 필터: 전체 / 합주(일정 연결) / 음악(음악 연결) · 정렬: 최신순 / 오래된순
-  const [filter, setFilter] = useState<'all' | 'event' | 'music'>('all')
+  // 필터: 특정 합주(일정) 또는 특정 음악에 연결된 기록만. 둘은 상호배타. · 정렬: 최신순 / 오래된순
+  const [eventFilter, setEventFilter] = useState('')
+  const [musicFilter, setMusicFilter] = useState('')
   const [sort, setSort] = useState<'new' | 'old'>('new')
 
   useEffect(
@@ -56,15 +57,31 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
 
   const open = openId ? items.find((r) => r.id === openId) ?? null : null
 
+  // 필터 옵션은 실제 기록에 연결된 합주·음악만 모아서 만든다
+  const eventOpts = useMemo(() => {
+    const m = new Map<string, string>()
+    items.forEach((r) => {
+      if (r.eventId) m.set(r.eventId, r.eventTitle || '(제목 없음)')
+    })
+    return [...m].map(([id, title]) => ({ id, title }))
+  }, [items])
+  const musicOpts = useMemo(() => {
+    const m = new Map<string, string>()
+    items.forEach((r) => {
+      if (r.playlistId) m.set(r.trackId || r.playlistId, r.trackTitle || r.playlistName || '(음악)')
+    })
+    return [...m].map(([key, label]) => ({ key, label }))
+  }, [items])
+
   const shown = useMemo(() => {
-    const list = items.filter((r) =>
-      filter === 'event' ? !!r.eventId : filter === 'music' ? !!r.playlistId : true,
-    )
+    let list = items
+    if (eventFilter) list = list.filter((r) => r.eventId === eventFilter)
+    else if (musicFilter) list = list.filter((r) => (r.trackId || r.playlistId) === musicFilter)
     return [...list].sort((a, b) => {
       const d = a.date === b.date ? a.createdAt - b.createdAt : a.date.localeCompare(b.date)
       return sort === 'new' ? -d : d
     })
-  }, [items, filter, sort])
+  }, [items, eventFilter, musicFilter, sort])
 
   return (
     <>
@@ -80,17 +97,36 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
           <>
             <div className="rec-toolbar">
               <div className="rec-filters">
-                {([['all', '전체'], ['event', '합주'], ['music', '음악']] as const).map(([k, label]) => (
-                  <button
-                    key={k}
-                    type="button"
-                    className={'chip' + (filter === k ? ' on' : '')}
-                    aria-pressed={filter === k}
-                    onClick={() => setFilter(k)}
+                {eventOpts.length > 0 && (
+                  <select
+                    className="rec-fsel"
+                    value={eventFilter}
+                    onChange={(e) => {
+                      setEventFilter(e.target.value)
+                      setMusicFilter('')
+                    }}
                   >
-                    {label}
-                  </button>
-                ))}
+                    <option value="">합주 전체</option>
+                    {eventOpts.map((o) => (
+                      <option key={o.id} value={o.id}>🗓 {o.title}</option>
+                    ))}
+                  </select>
+                )}
+                {musicOpts.length > 0 && (
+                  <select
+                    className="rec-fsel"
+                    value={musicFilter}
+                    onChange={(e) => {
+                      setMusicFilter(e.target.value)
+                      setEventFilter('')
+                    }}
+                  >
+                    <option value="">음악 전체</option>
+                    {musicOpts.map((o) => (
+                      <option key={o.key} value={o.key}>🎵 {o.label}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <button
                 type="button"
