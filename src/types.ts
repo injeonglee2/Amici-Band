@@ -91,6 +91,8 @@ export interface Recording {
   videoId?: string // 유튜브면 임베드·썸네일용 영상 ID
   thumbnail?: string // 썸네일 URL (유튜브 자동)
   note?: string // 메모 (선택)
+  eventId?: string // 연결된 일정 id (선택) — 있으면 일자를 그 일정에서 가져온다
+  eventTitle?: string // 연결된 일정 제목 스냅샷 (일정이 지워져도 맥락은 남기기 위함)
   addedBy: string
   addedByName?: string // 올린 사람 이름 스냅샷
   createdAt: number

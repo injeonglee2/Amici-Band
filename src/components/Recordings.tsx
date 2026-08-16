@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth'
-import { deleteRecording, newId, saveRecording, watchRecordings } from '../data'
-import type { Recording, Track } from '../types'
+import { deleteRecording, newId, saveRecording, watchEvents, watchRecordings } from '../data'
+import { TYPE_META, type BandEvent, type Recording } from '../types'
 import { fetchYouTubeMeta, parseVideoId, thumbnailUrl } from '../youtube'
 import { parseDate, todayStr, weekday } from '../time'
-import SetlistPlayer from './SetlistPlayer'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
@@ -22,6 +21,7 @@ function parseDriveId(url: string): string | null {
 }
 const driveThumb = (id: string) => `https://drive.google.com/thumbnail?id=${id}&sz=w640`
 const drivePreview = (id: string) => `https://drive.google.com/file/d/${id}/preview`
+const ytEmbed = (id: string) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1`
 
 /** 기록의 썸네일 URL (유튜브·드라이브 자동, 저장된 값 우선). 없으면 null */
 function recThumb(r: Recording): string | null {
@@ -80,6 +80,7 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
                 <div className="rec-meta">
                   <h3>{r.title || '(제목 없음)'}</h3>
                   <p>{fmtDate(r.date)}</p>
+                  {r.eventTitle && <p className="rec-event">🗓 {r.eventTitle}</p>}
                 </div>
               </button>
             ))}
@@ -118,9 +119,26 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
   const [date, setDate] = useState(editing?.date ?? todayStr())
   const [url, setUrl] = useState(editing?.url ?? '')
   const [note, setNote] = useState(editing?.note ?? '')
+  const [eventId, setEventId] = useState(editing?.eventId ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const lastFetchedId = useRef<string | null>(null)
+
+  // 일정 연결(선택) — 최근 일정부터. 고르면 일자를 그 일정에서 자동으로 가져온다.
+  const [events, setEvents] = useState<BandEvent[]>([])
+  useEffect(() => watchEvents(setEvents, () => {}), [])
+  const eventOpts = [...events].sort((a, b) => b.date.localeCompare(a.date))
+  const linkedEvent = eventId ? events.find((e) => e.id === eventId) ?? null : null
+
+  // 일정을 고르면 일자를 그 일정으로 맞추고, 제목이 비어 있으면 일정 제목을 미리 채운다.
+  function onPickEvent(id: string) {
+    setEventId(id)
+    const ev = events.find((e) => e.id === id)
+    if (ev) {
+      setDate(ev.date)
+      setTitle((prev) => (prev.trim() ? prev : ev.title))
+    }
+  }
 
   const videoId = parseVideoId(url)
   const driveId = videoId ? null : parseDriveId(url)
@@ -154,6 +172,8 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         videoId: videoId ?? undefined,
         thumbnail: videoId ? thumbnailUrl(videoId) : driveId ? driveThumb(driveId) : undefined,
         note: note.trim() || undefined,
+        eventId: eventId || undefined,
+        eventTitle: eventId ? linkedEvent?.title ?? editing?.eventTitle : undefined,
         addedBy: editing?.addedBy ?? member?.uid ?? '',
         addedByName: editing?.addedByName ?? member?.name,
         createdAt: editing?.createdAt ?? now,
@@ -188,8 +208,27 @@ function RecordingForm({ editing, toast, onClose }: { editing: Recording | null;
         </div>
 
         <div className="field">
+          <label htmlFor="rec-event">일정 연결 (선택)</label>
+          <select id="rec-event" value={eventId} onChange={(e) => onPickEvent(e.target.value)}>
+            <option value="">연결 안 함 (일자 직접 입력)</option>
+            {eventOpts.map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.date.replaceAll('-', '.')} · [{TYPE_META[ev.type].label}] {ev.title}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
           <label htmlFor="rec-date">일자</label>
-          <input id="rec-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <input
+            id="rec-date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            disabled={!!linkedEvent}
+          />
+          {linkedEvent && <p className="hint">연결된 일정 ‘{linkedEvent.title}’의 일자예요.</p>}
         </div>
 
         <div className="field">
@@ -229,17 +268,6 @@ function RecordingPlayer({ rec, toast, onEdit, onClose }: { rec: Recording; toas
   const canManage = !!user && (rec.addedBy === user.uid || !!member?.admin)
   const driveId = rec.videoId ? null : parseDriveId(rec.url)
 
-  const track: Track = {
-    id: rec.id,
-    url: rec.url,
-    videoId: rec.videoId ?? '',
-    title: rec.title,
-    artist: '',
-    thumbnail: rec.thumbnail,
-    addedBy: rec.addedBy,
-    addedAt: rec.createdAt,
-  }
-
   async function doDelete() {
     setConfirmDel(false)
     try {
@@ -263,20 +291,18 @@ function RecordingPlayer({ rec, toast, onEdit, onClose }: { rec: Recording; toas
           <div className="setlist-head">
             <h2>{rec.title || '(제목 없음)'}</h2>
             <p>{fmtDate(rec.date)}</p>
+            {rec.eventTitle && <p className="rec-event">🗓 {rec.eventTitle}</p>}
           </div>
 
           {rec.videoId ? (
-            <SetlistPlayer
-              track={track}
-              index={0}
-              total={1}
-              hasPrev={false}
-              hasNext={false}
-              onPrev={() => {}}
-              onNext={() => {}}
-              onEnded={() => {}}
-              onClose={onClose}
-            />
+            <div className="rec-embed">
+              <iframe
+                src={ytEmbed(rec.videoId)}
+                title={rec.title || '기록'}
+                allow="autoplay; fullscreen"
+                allowFullScreen
+              />
+            </div>
           ) : driveId ? (
             <div className="rec-embed">
               <iframe
@@ -297,12 +323,12 @@ function RecordingPlayer({ rec, toast, onEdit, onClose }: { rec: Recording; toas
 
           {rec.note && <p className="rec-note">{rec.note}</p>}
 
-          <div className="actions">
+          <div className={'actions' + (canManage ? ' rec-actions' : '')}>
             {canManage ? (
               <>
                 <button type="button" className="btn danger" onClick={() => setConfirmDel(true)}>삭제</button>
                 <button type="button" className="btn subtle" onClick={onEdit}>수정</button>
-                <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
+                <button type="button" className="btn subtle rec-close" onClick={onClose}>닫기</button>
               </>
             ) : (
               <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
