@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { saveFcmToken, saveWebPushSubscription } from '../data'
 import { useAuth } from '../auth'
 import { notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
+import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
+import ThemeSelect from './ThemeSelect'
 import { versionLabel } from '../version'
 import { useBackHandler } from '../backnav'
 
@@ -24,9 +26,36 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
       <main className="scroll">
         <NotifCard />
+        <CalendarExportCard />
         {isAdmin && <FirebaseLimitsCard />}
         <p className="app-ver">{versionLabel()}</p>
       </main>
+    </div>
+  )
+}
+
+/** 캘린더 내보내기 방식 선택 — 네이티브 인텐트가 가능한 안드로이드에서만 노출 */
+function CalendarExportCard() {
+  const [mode, setMode] = useState<CalendarExportMode>(getCalendarExportMode())
+  if (!isAndroidDevice()) return null // iOS·데스크톱은 항상 .ics 라 선택이 무의미
+  return (
+    <div className="limits-card">
+      <div className="limits-head">
+        <h3>캘린더 내보내기</h3>
+      </div>
+      <ThemeSelect
+        title="캘린더 내보내기 방식"
+        value={mode}
+        onChange={(v) => {
+          const m = v as CalendarExportMode
+          setCalendarExportMode(m)
+          setMode(m)
+        }}
+        options={[
+          { value: 'auto', label: '앱에서 바로 추가 (삼성·구글 캘린더)' },
+          { value: 'ics', label: '파일(.ics)로 열기 (TimeTree 등 모든 앱)' },
+        ]}
+      />
     </div>
   )
 }

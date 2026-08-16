@@ -228,7 +228,7 @@ export default function ShowPlaylistSheet({
                 ) : (
                   <button type="button" className="btn primary" onClick={() => setPicking(true)}>재생목록 연결</button>
                 )}
-                <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
+                <button type="button" className="btn subtle grow" onClick={onClose}>닫기</button>
               </>
             ) : (
               <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>

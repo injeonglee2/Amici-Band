@@ -1,4 +1,5 @@
 import {
+  arrayRemove,
   arrayUnion,
   collection,
   deleteDoc,
@@ -306,6 +307,25 @@ export async function deleteScore(id: string, files: ScoreFile[]): Promise<void>
   if (DEMO) return
   await Promise.allSettled(files.map((f) => deleteObject(storageRef(storage, f.path))))
   await deleteDoc(doc(db, 'scores', id))
+}
+
+/* ---------------- 기록 자동 동기화 설정 (config/recImport) ---------------- */
+/** 주 1회 예약 함수가 확인할 재생목록 id 목록 */
+export async function getRecImportPlaylists(): Promise<string[]> {
+  if (DEMO) return []
+  const snap = await getDoc(doc(db, 'config', 'recImport'))
+  const ids = snap.exists() ? (snap.get('playlistIds') as unknown) : null
+  return Array.isArray(ids) ? (ids as string[]) : []
+}
+
+/** 재생목록의 매주 자동 동기화 켜기/끄기 */
+export async function setRecImportAuto(playlistId: string, on: boolean): Promise<void> {
+  if (DEMO) return
+  await setDoc(
+    doc(db, 'config', 'recImport'),
+    { playlistIds: on ? arrayUnion(playlistId) : arrayRemove(playlistId) },
+    { merge: true },
+  )
 }
 
 export async function deletePlaylist(id: string): Promise<void> {

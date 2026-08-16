@@ -180,6 +180,7 @@ export interface ImportedSong {
   thumbnail: string
   url: string
   publishedAt: string // 재생목록 추가 일자 (YYYY-MM-DD), 없으면 빈 문자열
+  description: string // 영상 설명(보컬·세션 크레딧 해석용), 없으면 빈 문자열
 }
 
 export interface YouTubeSearchResult {
@@ -241,6 +242,23 @@ export class PlaylistImportError extends Error {
  * 공개/일부공개 재생목록의 곡을 모두 추출. (비공개 재생목록은 API 키로 읽을 수 없음)
  * 삭제·비공개 항목은 건너뛴다. 최대 1000곡(안전장치).
  */
+/** 단일 영상의 설명글(크레딧 해석용 백필). 키 없음·오류 시 '' */
+export async function fetchVideoDescription(videoId: string): Promise<string> {
+  if (!YT_API_KEY || !videoId) return ''
+  try {
+    const u = new URL('https://www.googleapis.com/youtube/v3/videos')
+    u.searchParams.set('part', 'snippet')
+    u.searchParams.set('id', videoId)
+    u.searchParams.set('key', YT_API_KEY)
+    const res = await fetch(u)
+    if (!res.ok) return ''
+    const data = (await res.json()) as { items?: { snippet?: { description?: string } }[] }
+    return data.items?.[0]?.snippet?.description ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export async function fetchPlaylistItems(playlistId: string): Promise<ImportedSong[]> {
   if (!YT_API_KEY) throw new PlaylistImportError('NO_KEY')
   const out: ImportedSong[] = []
@@ -269,6 +287,7 @@ export async function fetchPlaylistItems(playlistId: string): Promise<ImportedSo
       items?: {
         snippet?: {
           title?: string
+          description?: string
           publishedAt?: string
           videoOwnerChannelTitle?: string
           resourceId?: { videoId?: string }
@@ -290,6 +309,7 @@ export async function fetchPlaylistItems(playlistId: string): Promise<ImportedSo
         thumbnail: thumbnailUrl(vid),
         url: watchUrl(vid),
         publishedAt: (sn?.publishedAt ?? '').slice(0, 10),
+        description: sn?.description ?? '',
       })
     }
     pageToken = data.nextPageToken ?? ''

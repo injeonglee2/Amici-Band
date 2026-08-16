@@ -15,4 +15,6 @@
 -->
 <paths>
     <files-path path="twa_splash/" name="twa_splash" />
+    <!-- 캘린더 내보내기용 .ics 파일 (다른 캘린더 앱이 열 수 있도록 공유) -->
+    <cache-path path="calendar/" name="calendar" />
 </paths>

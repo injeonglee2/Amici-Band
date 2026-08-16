@@ -98,6 +98,8 @@ export interface Recording {
   trackId?: string // 연결된 곡 id (선택, 재생목록 안의 특정 곡)
   trackTitle?: string // 곡 제목 스냅샷
   trackArtist?: string // 곡 아티스트 스냅샷
+  // 파트(악기/역할)별 참여 멤버 — 유튜브 설명글을 해석해 넣음. { 보컬: ['오남규'], 기타: ['박정환','서진석'], … }
+  credits?: Record<string, string[]>
   addedBy: string
   addedByName?: string // 올린 사람 이름 스냅샷
   createdAt: number

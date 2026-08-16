@@ -463,9 +463,15 @@ button { font-family: inherit; }
 .sheet h2 { margin: 8px 2px 18px; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
 .app-ver { margin: 18px 0 0; text-align: center; font-size: 11px; color: var(--ink-faint); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 .field { margin-bottom: 14px; }
-.field-row { display: flex; gap: 12px; }
+.field-row { display: flex; gap: 12px; align-items: flex-start; }
 .field-row .field { flex: 1; min-width: 0; }
 .field-row .field input, .field-row .place-select { width: 100%; }
+.field-row .theme-select { width: 100%; }
+/* 기록 폼: 일자는 날짜 폭에 딱 맞게 좁게, 일정 연결은 남는 폭을 전부(길어서 안 잘리게) */
+/* .field-row .field(우선순위 0,2,0)를 이기려면 같은/더 높은 우선순위로 지정해야 한다 */
+.field-row .rec-date-field { flex: 0 0 140px; }
+.field-row .rec-date-field input { width: 100%; }
+.field-row .rec-event-field { flex: 1 1 auto; }
 .field label { display: block; font-size: 12px; font-weight: 700; color: var(--ink-soft); margin-bottom: 6px; }
 .field input, .field textarea {
   /* iOS: 16px 미만이면 포커스 시 화면이 확대됨 → 16px 유지 */
@@ -528,6 +534,8 @@ button { font-family: inherit; }
 }
 .theme-select.pill .theme-select-chev { width: 15px; height: 15px; }
 .tsel-sheet h2 { margin-bottom: 6px; }
+.tsel-group { margin: 16px 0 0; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.tsel-group:first-of-type { margin-top: 6px; }
 .tsel-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; }
 .tsel-list li + li { border-top: 1px solid var(--line); }
 .tsel-opt {
@@ -613,6 +621,8 @@ button { font-family: inherit; }
 .btn.danger { background: transparent; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); flex: 0 0 auto; padding: 14px 18px; }
 .btn.danger:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .btn.block { width: 100%; }
+/* 남는 가로 공간을 채우도록 늘어나는 버튼(예: 시트 하단 '닫기') */
+.btn.grow { flex: 1 1 auto; }
 .btn.text { flex: none; background: transparent; color: var(--ink-soft); border: none; font-weight: 600; font-size: 14px; }
 .btn.text.small { align-self: flex-start; padding: 4px 0; font-size: 13px; }
 /* 알림 켜기 배너 */
@@ -682,6 +692,12 @@ button { font-family: inherit; }
 /* 기록 폼 — 선택된 음악 표시 + 변경/해제 */
 .rec-music-sel { display: flex; align-items: center; gap: 8px; }
 .rec-music-label { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-music-artist { margin-left: 8px; font-weight: 500; color: var(--ink-faint); }
+/* 기록 상세 크레딧(파트별 멤버) */
+.rec-credits { list-style: none; margin: 12px 0 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); border-radius: var(--radius-sm); }
+.rec-credits li { display: flex; gap: 10px; font-size: 13.5px; }
+.rec-credit-part { flex: none; min-width: 52px; font-weight: 700; color: var(--ink-soft); }
+.rec-credit-names { flex: 1; min-width: 0; color: var(--ink); }
 .rec-music-sel .btn { flex: none; padding: 8px 12px; font-size: 12.5px; }
 .rec-sort {
   flex: none; appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
@@ -691,6 +707,8 @@ button { font-family: inherit; }
 .rec-sort svg { width: 15px; height: 15px; }
 .rec-sort:hover { color: var(--ink); border-color: var(--line-strong); }
 .rec-toolbar-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.imp-auto { display: flex; align-items: center; gap: 8px; margin: 4px 2px 2px; font-size: 13px; font-weight: 600; color: var(--ink-soft); cursor: pointer; }
+.imp-auto input { width: 17px; height: 17px; accent-color: var(--accent); }
 
 /* 기록(녹음/영상) 갤러리 */
 .rec-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
@@ -703,6 +721,9 @@ button { font-family: inherit; }
 .rec-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .rec-thumb-none { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-faint); }
 .rec-thumb-none svg { width: 30px; height: 30px; }
+/* 일정별 폴더: 썸네일 위 우상단에 기록 개수 뱃지 */
+.rec-folder-badge { position: absolute; top: 6px; right: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 999px; background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 12px; font-weight: 700; }
+.rec-folder-badge svg { width: 13px; height: 13px; }
 .rec-meta { padding: 9px 11px 11px; min-width: 0; }
 .rec-meta h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rec-meta p { margin: 3px 0 0; font-size: 11.5px; color: var(--ink-faint); }
@@ -954,6 +975,8 @@ button { font-family: inherit; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .detail-bar .edit-btn { flex: none; }
+/* 기록 폴더 헤더: 음악 탭처럼 상·좌·우 끝에 붙인다(.scroll 패딩 상쇄) */
+.rec-folder-bar { margin: -6px -20px 12px; }
 
 /* ---------- 음악: 곡 목록 ---------- */
 .track-list { margin-top: 12px; gap: 8px; }
@@ -1205,7 +1228,7 @@ button { font-family: inherit; }
 .setlist-rec-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .setlist-rec-thumb .rec-thumb-none svg { width: 18px; height: 18px; color: var(--ink-faint); }
 .setlist-rec-title2 { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.setlist-rec-card .play-ico { flex: none; width: 18px; height: 18px; color: var(--ink-soft); }
+.setlist-rec-card .play-ico { flex: none; width: 18px; height: 18px; margin-right: 6px; color: var(--ink-soft); }
 /* 참여 보컬 이름 — 추천의 근거라 살짝 강조 */
 .rec-vocal { color: var(--ink-soft); font-weight: 600; }
 .rec-add { flex: none; align-self: center; padding: 6px 12px; font-size: 12.5px; }

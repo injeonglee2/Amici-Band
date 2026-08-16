@@ -7,6 +7,7 @@
  */
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { setGlobalOptions } = require('firebase-functions/v2')
 const { defineSecret } = require('firebase-functions/params')
 const admin = require('firebase-admin')
@@ -18,6 +19,7 @@ const messaging = admin.messaging()
 const webPushPublicKey = defineSecret('WEB_PUSH_PUBLIC_KEY')
 const webPushPrivateKey = defineSecret('WEB_PUSH_PRIVATE_KEY')
 const webPushSecrets = [webPushPublicKey, webPushPrivateKey]
+const youtubeApiKey = defineSecret('YOUTUBE_API_KEY')
 
 // Firestore(서울)와 같은 리전
 setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 })
@@ -288,3 +290,186 @@ exports.remindUndecided = onCall({ secrets: webPushSecrets }, async (req) => {
   })
   return { sent }
 })
+
+/* ---------------- 유튜브 재생목록 → 기록 자동 동기화 (주 1회) ---------------- */
+function normTitle(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]+/g, '')
+}
+function dateFromTitle(title) {
+  const m = String(title || '').match(/\d{8}|\d{6}/)
+  if (!m) return null
+  const s = m[0]
+  const y = s.length === 8 ? +s.slice(0, 4) : 2000 + +s.slice(0, 2)
+  const mo = +s.slice(s.length - 4, s.length - 2)
+  const d = +s.slice(s.length - 2)
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) return null
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+function musicFromTitle(title, tracks) {
+  const t = normTitle(String(title || '').replace(/\d{8}|\d{6}/, ''))
+  if (t.length < 2) return null
+  let best = null
+  let bestLen = 0
+  for (const tr of tracks) {
+    const tn = normTitle(tr.title)
+    if (tn.length >= 2 && t.includes(tn) && tn.length > bestLen) {
+      best = tr
+      bestLen = tn.length
+    }
+  }
+  return best
+}
+// 구글 번역 API v2 — 실패 시 '' (키가 YouTube 전용이면 여기서 조용히 실패해도 앱은 정상)
+async function translateText(text, target, apiKey) {
+  const q = String(text || '').trim()
+  if (!q || !apiKey) return ''
+  try {
+    const res = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q, target, format: 'text' }),
+    })
+    if (!res.ok) return ''
+    const j = await res.json()
+    return (j && j.data && j.data.translations && j.data.translations[0] && j.data.translations[0].translatedText) || ''
+  } catch (e) {
+    console.error('번역 실패', e)
+    return ''
+  }
+}
+// 문자열로 못 찾으면 제목을 en·ko 로 번역해 다시 매칭(언어가 달라도 유추)
+async function musicFromTitleSmart(title, tracks, apiKey) {
+  const direct = musicFromTitle(title, tracks)
+  if (direct) return direct
+  const base = String(title || '').replace(/\d{8}|\d{6}/, '').trim()
+  if (base.length < 2 || tracks.length === 0) return null
+  const [en, ko] = await Promise.all([translateText(base, 'en', apiKey), translateText(base, 'ko', apiKey)])
+  for (const v of [en, ko]) {
+    if (!v) continue
+    const m = musicFromTitle(v, tracks)
+    if (m) return m
+  }
+  return null
+}
+async function fetchPlaylistVideos(playlistId, apiKey) {
+  const out = []
+  let pageToken = ''
+  for (let page = 0; page < 20; page++) {
+    const u = new URL('https://www.googleapis.com/youtube/v3/playlistItems')
+    u.searchParams.set('part', 'snippet')
+    u.searchParams.set('maxResults', '50')
+    u.searchParams.set('playlistId', playlistId)
+    u.searchParams.set('key', apiKey)
+    if (pageToken) u.searchParams.set('pageToken', pageToken)
+    const res = await fetch(u)
+    if (!res.ok) {
+      console.error('playlistItems 실패', playlistId, res.status)
+      break
+    }
+    const data = await res.json()
+    for (const it of data.items || []) {
+      const sn = it.snippet || {}
+      const vid = sn.resourceId && sn.resourceId.videoId
+      const title = sn.title || ''
+      if (!vid || !title || title === 'Private video' || title === 'Deleted video') continue
+      out.push({ videoId: vid, title, publishedAt: (sn.publishedAt || '').slice(0, 10), description: sn.description || '' })
+    }
+    pageToken = data.nextPageToken || ''
+    if (!pageToken) break
+  }
+  return out
+}
+async function loadAllTracks() {
+  const pls = await db.collection('playlists').get()
+  const tracks = []
+  for (const p of pls.docs) {
+    const ts = await p.ref.collection('tracks').get()
+    ts.forEach((t) =>
+      tracks.push({
+        id: t.id,
+        title: t.get('title') || '',
+        artist: t.get('artist') || '',
+        playlistId: p.id,
+        playlistName: p.get('name') || '',
+      }),
+    )
+  }
+  return tracks
+}
+// 날짜별 일정 목록 — 그 날짜에 일정이 하나면 기록에 자동 연결하기 위함
+async function loadEventsByDate() {
+  const snap = await db.collection('events').get()
+  const byDate = new Map()
+  snap.forEach((d) => {
+    const date = d.get('date')
+    if (!date) return
+    const arr = byDate.get(date) || []
+    arr.push({ id: d.id, title: d.get('title') || '' })
+    byDate.set(date, arr)
+  })
+  return byDate
+}
+
+// 매주 일요일 18:00(서울)에 config/recImport.playlistIds 의 재생목록을 확인해 새 영상을 기록에 추가
+exports.syncRecordingsFromPlaylist = onSchedule(
+  { schedule: 'every sunday 18:00', timeZone: 'Asia/Seoul', secrets: [youtubeApiKey] },
+  async () => {
+    const apiKey = youtubeApiKey.value()
+    if (!apiKey) {
+      console.error('YOUTUBE_API_KEY 시크릿이 없어요.')
+      return
+    }
+    const cfg = await db.doc('config/recImport').get()
+    const playlistIds = cfg.exists && Array.isArray(cfg.get('playlistIds')) ? cfg.get('playlistIds') : []
+    if (!playlistIds.length) {
+      console.info('자동 동기화할 재생목록이 없어요.')
+      return
+    }
+
+    const recSnap = await db.collection('recordings').get()
+    const existing = new Set()
+    recSnap.forEach((d) => {
+      const v = d.get('videoId')
+      if (v) existing.add(v)
+    })
+    const tracks = await loadAllTracks()
+    const eventsByDate = await loadEventsByDate()
+
+    let added = 0
+    for (const pid of playlistIds) {
+      const vids = await fetchPlaylistVideos(pid, apiKey)
+      for (const v of vids) {
+        if (existing.has(v.videoId)) continue
+        existing.add(v.videoId)
+        const m = await musicFromTitleSmart(v.title, tracks, apiKey)
+        const recDate = dateFromTitle(v.title) || v.publishedAt || new Date().toISOString().slice(0, 10)
+        const rec = {
+          title: v.title,
+          date: recDate,
+          url: `https://www.youtube.com/watch?v=${v.videoId}`,
+          videoId: v.videoId,
+          thumbnail: `https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg`,
+          addedBy: 'system',
+          addedByName: '자동 가져오기',
+          createdAt: Date.now(),
+        }
+        const evs = eventsByDate.get(recDate) || []
+        if (evs.length === 1) {
+          rec.eventId = evs[0].id
+          rec.eventTitle = evs[0].title
+        }
+        if (m) {
+          rec.playlistId = m.playlistId
+          rec.playlistName = m.playlistName
+          rec.trackId = m.id
+          rec.trackTitle = m.title
+          if (m.artist) rec.trackArtist = m.artist
+        }
+        // 크레딧(파트별 멤버)은 클라이언트 Firebase AI Logic 로 채운다(기록을 열 때 백필). 서버는 생략.
+        await db.collection('recordings').doc().set(rec)
+        added++
+      }
+    }
+    console.info('recordings auto-sync 완료', { playlists: playlistIds.length, added })
+  },
+)
