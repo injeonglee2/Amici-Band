@@ -1047,6 +1047,7 @@ function TrackForm({
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runSearch() } }}
               placeholder="곡 제목·가수로 검색"
               maxLength={80}
+              autoFocus
             />
             <button type="button" className="btn primary yt-search-btn" onClick={() => void runSearch()} disabled={!query.trim() || searching}>
               {searching ? '…' : '검색'}
@@ -1084,7 +1085,6 @@ function TrackForm({
             value={url}
             onChange={(e) => onUrlChange(e.target.value)}
             placeholder="https://youtu.be/… 또는 https://www.youtube.com/watch?v=…"
-            autoFocus
           />
           <p className="hint">
             링크를 넣으면 제목·가수를 자동으로 채워줘요. 재생목록(플레이리스트) 링크를 넣으면 곡을 한 번에 가져올 수 있어요.

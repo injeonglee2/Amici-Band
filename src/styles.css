@@ -550,11 +550,12 @@ button { font-family: inherit; }
 .place-picked span { flex: 1; min-width: 0; font-size: 13.5px; color: var(--ink); word-break: break-all; }
 .place-picked .btn.text.small { flex: none; color: var(--accent); }
 
-.type-pick { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.type-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .type-pick button {
-  appearance: none; cursor: pointer; font-size: 13.5px; font-weight: 650; padding: 11px 10px;
-  border-radius: 12px; text-align: left; border: 1.5px solid var(--line-strong); background: rgba(255, 255, 255, 0.04);
-  color: var(--ink-soft); display: flex; align-items: center; gap: 9px; transition: all 0.14s;
+  appearance: none; cursor: pointer; font-size: 12.5px; font-weight: 650; padding: 10px 4px;
+  border-radius: 12px; text-align: center; border: 1.5px solid var(--line-strong); background: rgba(255, 255, 255, 0.04);
+  color: var(--ink-soft); display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.14s;
+  min-width: 0; white-space: nowrap;
 }
 .type-pick button .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--k); box-shadow: 0 0 8px var(--k); flex: none; }
 .type-pick button[aria-pressed='true'] {
@@ -957,7 +958,8 @@ button { font-family: inherit; }
 
 /* 순서 편집: 드래그 손잡이 + 끌리는 행 */
 .drag-handle {
-  flex: none; align-self: stretch; display: grid; place-items: center; width: 40px; margin: -8px -8px -8px 0;
+  /* 오른손 오조작 방지 — 곡 옮기기 손잡이를 행 왼쪽 끝으로 (order -1) */
+  order: -1; flex: none; align-self: stretch; display: grid; place-items: center; width: 40px; margin: -8px 0 -8px -8px;
   color: var(--ink-faint); cursor: grab; touch-action: none;
 }
 .drag-handle:active { cursor: grabbing; }

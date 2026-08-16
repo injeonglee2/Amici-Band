@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useAuth } from '../auth'
 import { deleteEvent, newId, saveEvent } from '../data'
 import {
@@ -35,32 +35,6 @@ export default function EventForm({
   const [note, setNote] = useState(editing?.note ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-
-  // 타임테이블 도우미: 시작은 자동(합주 시작 → 이후엔 직전 종료로 이어짐), 사용자는 종료만 선택
-  const [chainStart, setChainStart] = useState('') // '' = 아직 시작 전, 합주 시작 시각을 따름
-  const [schEnd, setSchEnd] = useState('')
-  const [schText, setSchText] = useState('')
-  const startFixed = chainStart || rehStart
-  // 종료 후보: 고정된 시작 이후 ~ 진행 종료(rehEnd)까지, 30분 단위
-  const endSlots = useMemo(() => {
-    const from = toMin(startFixed)
-    const to = toMin(rehEnd)
-    const out: string[] = []
-    for (let h = 0; h < 24; h++) for (const m of [0, 30]) {
-      const mm = h * 60 + m
-      if (mm > from && mm <= to) out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
-    }
-    return out
-  }, [startFixed, rehEnd])
-
-  function addScheduleLine() {
-    const text = schText.trim()
-    if (!text || !schEnd) return
-    setNote((n) => (n ? `${n}\n${startFixed} ~ ${schEnd} ${text}` : `${startFixed} ~ ${schEnd} ${text}`))
-    setChainStart(schEnd) // 다음 항목 시작 = 이번 종료
-    setSchEnd('')
-    setSchText('')
-  }
 
   // 레거시(직접 입력) 장소: placeId 없이 loc 텍스트만 있던 기존 일정
   const legacyLoc = editing && !editing.placeId ? (editing.loc ?? '') : ''
@@ -143,7 +117,7 @@ export default function EventForm({
 
         <div className="field">
           <label htmlFor="f-title">제목</label>
-          <input id="f-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예) 8월 정기 모임" maxLength={60} autoFocus />
+          <input id="f-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} autoFocus />
         </div>
 
         <div className="field-row">
@@ -166,11 +140,6 @@ export default function EventForm({
             <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
         </div>
-        {places.length === 0 ? (
-          <p className="hint">등록된 장소가 없어요. 하단 '장소' 탭에서 먼저 추가하세요.</p>
-        ) : (
-          <p className="hint">장소는 하단 '장소' 탭에서 추가·수정해요.</p>
-        )}
 
         <div className="field">
           <label>진행 시간</label>
@@ -180,33 +149,11 @@ export default function EventForm({
             <input type="time" step={1800} value={rehEnd} onChange={(e) => setRehEnd(e.target.value)} />
           </div>
           {!timeValid && <p className="err small">종료 시간이 시작 시간보다 늦어야 해요.</p>}
-          <p className="hint">기본 18:00–22:00. 늦참·조퇴 시각은 이 범위 안에서만 선택됩니다.</p>
         </div>
 
         <div className="field">
-          <label htmlFor="f-note">메모 · 타임테이블 (선택)</label>
-          <div className="sched-builder">
-            <span className="sched-fixed" title="시작 시각(자동)">{startFixed}</span>
-            <span className="sched-tilde">~</span>
-            <select className="sched-end" value={schEnd} onChange={(e) => setSchEnd(e.target.value)} aria-label="종료 시각" disabled={endSlots.length === 0}>
-              <option value="">종료</option>
-              {endSlots.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-            <input
-              className="sched-input"
-              type="text"
-              value={schText}
-              onChange={(e) => setSchText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addScheduleLine() } }}
-              placeholder="내용"
-              maxLength={120}
-            />
-            <button type="button" className="btn primary sched-add" onClick={addScheduleLine} disabled={!schText.trim() || !schEnd} aria-label="타임테이블에 추가">+</button>
-          </div>
-          <textarea id="f-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="준비물, 곡 목록 등 (위에서 한 줄씩 추가하거나 직접 입력)" maxLength={400} rows={5} />
-          <p className="hint">시작은 자동(합주 시작 → 이후엔 직전 종료)으로 이어져요. 종료만 고르고 내용을 적어 <b>+</b>. 아래 칸에서 직접 수정·삭제도 됩니다.</p>
+          <label htmlFor="f-note">메모 (선택)</label>
+          <textarea id="f-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={400} rows={5} />
         </div>
 
         {err && <p className="err small">{err}</p>}
