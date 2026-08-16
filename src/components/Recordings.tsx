@@ -319,7 +319,9 @@ function RecFilterSheet({
         ) : (
           <>
             <div className="picker-bar">
-              <button type="button" className="btn subtle" onClick={() => setCat(null)}>← 뒤로</button>
+              <button type="button" className="detail-back" onClick={() => setCat(null)} aria-label="뒤로">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+              </button>
               <b>{cat === 'event' ? '합주' : '음악'}</b>
             </div>
             <ul className="tsel-list">
@@ -339,9 +341,15 @@ function RecFilterSheet({
           </>
         )}
 
-        <div className="actions">
-          {hasActive && <button type="button" className="btn subtle" onClick={onClear}>필터 해제</button>}
-          <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
+        <div className={'actions' + (hasActive ? ' rec-filter-actions' : '')}>
+          {hasActive ? (
+            <>
+              <button type="button" className="btn danger" onClick={onClear}>필터 해제</button>
+              <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
+            </>
+          ) : (
+            <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
+          )}
         </div>
       </div>
     </div>

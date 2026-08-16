@@ -64,7 +64,9 @@ export default function MusicPicker({
         ) : (
           <>
             <div className="picker-bar">
-              <button type="button" className="btn subtle" onClick={() => setOpen(null)}>← 재생목록</button>
+              <button type="button" className="detail-back" onClick={() => setOpen(null)} aria-label="재생목록으로">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+              </button>
               <b>{open.name}</b>
             </div>
             <div className="picker-list">

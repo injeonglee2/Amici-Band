@@ -672,6 +672,8 @@ button { font-family: inherit; }
   background: rgba(255, 255, 255, 0.08); border: 0; border-radius: 50%; color: var(--ink-soft);
 }
 .rec-filter-badge button svg { display: block; width: 12px; height: 12px; }
+/* 필터 시트 하단 버튼(필터 해제 + 닫기) — 둘이 나눠 채워 가로 넘침 방지 */
+.actions.rec-filter-actions .btn { flex: 1 1 0; padding-left: 10px; padding-right: 10px; }
 /* 필터 시트 그룹 제목 */
 .tsel-group { font-size: 12px; font-weight: 800; color: var(--ink-faint); margin: 14px 2px 2px; }
 .tsel-group:first-of-type { margin-top: 6px; }
