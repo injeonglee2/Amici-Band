@@ -444,16 +444,18 @@ export function newId(): string {
 }
 
 /* ---------------- feedback (버그 제보·개선 의견) ---------------- */
-/** 제보 첨부 사진 업로드 → { url, path }. feedbackId 는 제출 전에 newId() 로 미리 만들어 넘긴다. */
+/** 제보 첨부 사진 업로드 → { url, path }. feedbackId 는 제출 전에 newId() 로 미리 만들어 넘긴다.
+ *  blob 은 압축된 이미지(image.ts), name 은 저장용 파일명. */
 export async function uploadFeedbackImage(
   feedbackId: string,
-  file: File,
+  blob: Blob,
   index: number,
+  name: string,
 ): Promise<{ url: string; path: string }> {
-  const safe = file.name.replace(/[^\w.-]+/g, '_').slice(-40)
+  const safe = (name || 'image.jpg').replace(/[^\w.-]+/g, '_').slice(-40)
   const path = `feedback/${feedbackId}/${index}-${safe}`
   const r = storageRef(storage, path)
-  await uploadBytes(r, file, { contentType: file.type || undefined })
+  await uploadBytes(r, blob, { contentType: blob.type || 'image/jpeg' })
   const url = await getDownloadURL(r)
   return { url, path }
 }

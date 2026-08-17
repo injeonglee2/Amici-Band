@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth'
 import { newId, submitFeedback, uploadFeedbackImage } from '../data'
+import { compressImage } from '../image'
 import { APP_VERSION, BUILD_TIME } from '../version'
 import Sheet from './Sheet'
 import { useBackHandler } from '../backnav'
@@ -56,7 +57,9 @@ export default function FeedbackSheet({ toast, onClose }: { toast: ToastState; o
       const images: { url: string; path: string }[] = []
       for (let i = 0; i < pics.length; i++) {
         setProgress(`사진 올리는 중 ${i + 1}/${pics.length}`)
-        images.push(await uploadFeedbackImage(id, pics[i].file, i))
+        const blob = await compressImage(pics[i].file) // 업로드 전 리사이즈·압축(1600px·0.7)
+        const name = pics[i].file.name.replace(/\.[^.]+$/, '') + '.jpg'
+        images.push(await uploadFeedbackImage(id, blob, i, name))
       }
       setProgress('보내는 중…')
       await submitFeedback({
