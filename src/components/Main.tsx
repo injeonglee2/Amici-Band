@@ -15,6 +15,7 @@ import {
   startForegroundNotifications,
 } from '../messaging'
 import EventCard from './EventCard'
+import CalendarView from './CalendarView'
 import EventForm from './EventForm'
 import { TypeGlyph } from './TypeGlyph'
 import Settings from './Settings'
@@ -37,6 +38,7 @@ export default function Main() {
   const [members, setMembers] = useState<Member[]>([])
   const [filter, setFilter] = useState<Filter>('all')
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
+  const [view, setView] = useState<'list' | 'calendar'>('list')
   const [nav, setNav] = useState<'home' | 'places' | 'music' | 'recordings' | 'scores'>('home')
   const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
@@ -92,6 +94,7 @@ export default function Main() {
   // 열린 다이얼로그·시트·상세는 각 컴포넌트가 useBackHandler 로 자기 닫기를 등록한다
   // (등록 시점 = 화면 열림에 히스토리 항목이 쌓인다). 사용자 메뉴·탭(음악/장소)→홈도 같은 방식.
   useBackHandler(() => setMenuOpen(false), menuOpen)
+  useBackHandler(() => setView('list'), view === 'calendar')
   useBackHandler(() => setNav('home'), nav !== 'home')
   useAndroidBack(() => toast.show('한 번 더 누르면 종료됩니다'))
 
@@ -107,6 +110,11 @@ export default function Main() {
   const next = upcoming[0]
   const base = tab === 'upcoming' ? upcoming : past
   const list = base.filter((e) => filter === 'all' || e.type === filter)
+  // 캘린더 뷰: 지난/다가오는 구분 없이 유형 필터만 적용한 전체 일정
+  const calEvents = useMemo(
+    () => sorted.filter((e) => filter === 'all' || e.type === filter),
+    [sorted, filter],
+  )
 
   const groups = useMemo(() => {
     const g: { key: string; items: BandEvent[] }[] = []
@@ -178,13 +186,27 @@ export default function Main() {
 
       {nav === 'home' ? (
       <>
-      <div className="segmented" role="tablist">
-        <button role="tab" aria-selected={tab === 'upcoming'} className={tab === 'upcoming' ? 'on' : ''} onClick={() => setTab('upcoming')}>
-          다가오는
-        </button>
-        <button role="tab" aria-selected={tab === 'past'} className={tab === 'past' ? 'on' : ''} onClick={() => setTab('past')}>
-          지난 일정{past.length > 0 && <span className="seg-count">{past.length}</span>}
-        </button>
+      <div className="home-topbar">
+        {view === 'list' ? (
+          <div className="segmented" role="tablist">
+            <button role="tab" aria-selected={tab === 'upcoming'} className={tab === 'upcoming' ? 'on' : ''} onClick={() => setTab('upcoming')}>
+              다가오는
+            </button>
+            <button role="tab" aria-selected={tab === 'past'} className={tab === 'past' ? 'on' : ''} onClick={() => setTab('past')}>
+              지난 일정{past.length > 0 && <span className="seg-count">{past.length}</span>}
+            </button>
+          </div>
+        ) : (
+          <div className="topbar-spacer" />
+        )}
+        <div className="view-toggle" role="tablist" aria-label="보기 방식">
+          <button role="tab" aria-selected={view === 'list'} className={view === 'list' ? 'on' : ''} onClick={() => setView('list')} aria-label="목록 보기" title="목록">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
+          </button>
+          <button role="tab" aria-selected={view === 'calendar'} className={view === 'calendar' ? 'on' : ''} onClick={() => setView('calendar')} aria-label="캘린더 보기" title="캘린더">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+          </button>
+        </div>
       </div>
 
       <div className="filters">
@@ -204,6 +226,10 @@ export default function Main() {
 
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
+        {view === 'calendar' ? (
+          <CalendarView events={calEvents} placesMap={placesMap} members={members} toast={toast} onEdit={openEdit} />
+        ) : (
+        <>
         {tab === 'upcoming' && (next ? (
           <div className="hero" style={{ ['--k' as string]: TYPE_META[next.type].color }}>
             <TypeGlyph type={next.type} className="wm" />
@@ -261,6 +287,8 @@ export default function Main() {
               </div>
             </div>
           ))
+        )}
+        </>
         )}
       </main>
 
