@@ -166,12 +166,12 @@ button { font-family: inherit; }
 .home-topbar .segmented { margin: 0; flex: 1; }
 .topbar-spacer { flex: 1; }
 .view-toggle {
-  display: flex; gap: 4px; padding: 4px; flex: none;
+  display: flex; gap: 4px; padding: 4px; flex: none; align-self: center;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
 }
 .view-toggle button {
   appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink-soft);
-  padding: 0 11px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+  padding: 7px 11px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
   transition: background 0.14s, color 0.14s;
 }
 .view-toggle button svg { width: 18px; height: 18px; }
