@@ -68,8 +68,8 @@ android {
         applicationId "app.web.amicicalender.twa"
         minSdkVersion 23
         targetSdkVersion 35
-        versionCode 4
-        versionName "0.9.2"
+        versionCode 5
+        versionName "0.9.3"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name
