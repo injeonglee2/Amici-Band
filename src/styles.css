@@ -1225,6 +1225,14 @@ button { font-family: inherit; }
   padding: 0 2px 0 8px; background: none; border: 0; color: var(--ink-soft); cursor: pointer;
 }
 .setlist-joined { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* 펼친 곡: 드롭다운 왼쪽의 작은 '참여' 필 버튼 */
+.song-join-mini {
+  flex: none; align-self: center; appearance: none; cursor: pointer; margin-right: 2px;
+  padding: 5px 12px; border-radius: 999px; font: inherit; font-size: 12.5px; font-weight: 700;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.song-join-mini:disabled { opacity: 0.5; cursor: default; }
 .setlist-toggle .track-open-chev { transition: transform 0.18s ease; }
 .setlist-toggle .track-open-chev.open { transform: rotate(180deg); }
 /* 펼친 곡 참여자 — 상단 '파트별 참석'과 같은 5칸이되 박스 없이 세로 구분선으로만 나눈다 */

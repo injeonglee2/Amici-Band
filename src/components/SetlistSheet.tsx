@@ -454,45 +454,45 @@ export default function SetlistSheet({
                             </div>
                           </>
                         ) : (
-                          <button
-                            type="button"
-                            className="setlist-toggle"
-                            onClick={() => setOpenId(open ? null : s.id)}
-                            aria-expanded={open}
-                            aria-label={`${s.title} 참여자 ${open ? '접기' : '펼치기'}`}
-                          >
-                            <span className="setlist-joined">{joined}</span>
-                            <svg
-                              className={'track-open-chev' + (open ? ' open' : '')}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
+                          <>
+                            {/* 펼쳤을 때 드롭다운 바로 왼쪽에 작은 '참여' 버튼 (지난 일정엔 숨김) */}
+                            {open && !isPast && (
+                              <button
+                                type="button"
+                                className="song-join-mini"
+                                onClick={() => setParticipatingId(s.id)}
+                                disabled={!track}
+                              >
+                                참여
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="setlist-toggle"
+                              onClick={() => setOpenId(open ? null : s.id)}
+                              aria-expanded={open}
+                              aria-label={`${s.title} 참여자 ${open ? '접기' : '펼치기'}`}
                             >
-                              <path d="m6 9 6 6 6-6" />
-                            </svg>
-                          </button>
+                              <span className="setlist-joined">{joined}</span>
+                              <svg
+                                className={'track-open-chev' + (open ? ' open' : '')}
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="m6 9 6 6 6-6" />
+                              </svg>
+                            </button>
+                          </>
                         )}
                       </div>
                       {/* 편집 중에는 접어 둔다 — 드래그 위치 계산이 고른 행 높이에 기댄다 */}
                       {!editMode && open && (
-                        <>
-                          <PartGrid track={track} memberMap={memberMap} attendingUids={attendingUids} myUid={user?.uid} />
-                          {/* 지난 일정엔 참여 수정 버튼 숨김 — 이미 끝난 합주라 참여를 바꿀 일이 없음 */}
-                          {!isPast && (
-                            <button
-                              type="button"
-                              className="btn subtle block song-join-btn"
-                              onClick={() => setParticipatingId(s.id)}
-                              disabled={!track}
-                            >
-                              {user && track?.participants?.[user.uid] ? '내 참여·파트 수정' : '이 곡에 참여'}
-                            </button>
-                          )}
-                        </>
+                        <PartGrid track={track} memberMap={memberMap} attendingUids={attendingUids} myUid={user?.uid} />
                       )}
                     </li>
                   )
