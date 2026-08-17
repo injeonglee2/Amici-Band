@@ -1225,12 +1225,16 @@ button { font-family: inherit; }
   padding: 0 2px 0 8px; background: none; border: 0; color: var(--ink-soft); cursor: pointer;
 }
 .setlist-joined { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
-/* 펼친 곡: 드롭다운 왼쪽의 작은 '참여' 필 버튼 */
+/* 펼친 곡: 드롭다운 왼쪽의 작은 '참여' 필 버튼.
+   기본(참여 전) = 무채색, .on(내가 참여 중) = 강조색 */
 .song-join-mini {
   flex: none; align-self: center; appearance: none; cursor: pointer; margin-right: 2px;
   padding: 5px 12px; border-radius: 999px; font: inherit; font-size: 12.5px; font-weight: 700;
+  color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line-strong);
+}
+.song-join-mini.on {
   color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 .song-join-mini:disabled { opacity: 0.5; cursor: default; }
 .setlist-toggle .track-open-chev { transition: transform 0.18s ease; }

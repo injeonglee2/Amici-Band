@@ -459,7 +459,7 @@ export default function SetlistSheet({
                             {open && !isPast && (
                               <button
                                 type="button"
-                                className="song-join-mini"
+                                className={'song-join-mini' + (user && track?.participants?.[user.uid] ? ' on' : '')}
                                 onClick={() => setParticipatingId(s.id)}
                                 disabled={!track}
                               >
