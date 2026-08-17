@@ -11,5 +11,14 @@ service firebase.storage {
             || request.resource.contentType == 'application/pdf');
       allow delete: if request.auth != null;
     }
+
+    // 버그 제보 첨부 사진 — 로그인한 멤버만. 업로드는 10MB 이하 이미지만.
+    match /feedback/{feedbackId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
   }
 }

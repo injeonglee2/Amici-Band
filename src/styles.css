@@ -553,6 +553,26 @@ button { font-family: inherit; }
   font: inherit; font-size: 14px; font-weight: 700;
 }
 .fb-type.on { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--accent); color: var(--ink); }
+/* 의견 제출: 사진 첨부(썸네일 + 추가 버튼) */
+.fb-pics { display: flex; flex-wrap: wrap; gap: 8px; }
+.fb-pic, .fb-pic-add { width: 68px; height: 68px; border-radius: 12px; flex: none; }
+.fb-pic { position: relative; overflow: hidden; }
+.fb-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fb-pic-x {
+  position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 999px;
+  display: grid; place-items: center; appearance: none; cursor: pointer; border: none;
+  background: rgba(0, 0, 0, 0.6); color: #fff;
+}
+.fb-pic-x svg { width: 12px; height: 12px; }
+.fb-pic-add {
+  display: grid; place-items: center; appearance: none; cursor: pointer;
+  background: var(--surface-2); border: 1px dashed var(--line-strong); color: var(--ink-faint);
+}
+.fb-pic-add svg { width: 24px; height: 24px; }
+/* 관리자 목록: 첨부 사진 썸네일 */
+.fb-thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fb-thumb { width: 56px; height: 56px; border-radius: 8px; overflow: hidden; flex: none; }
+.fb-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* 관리자 제보 목록 */
 .fb-newbadge { color: var(--accent); }
 .fb-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }

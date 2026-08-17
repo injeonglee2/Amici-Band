@@ -444,9 +444,24 @@ export function newId(): string {
 }
 
 /* ---------------- feedback (버그 제보·개선 의견) ---------------- */
-export async function submitFeedback(f: Omit<Feedback, 'id'>): Promise<void> {
+/** 제보 첨부 사진 업로드 → { url, path }. feedbackId 는 제출 전에 newId() 로 미리 만들어 넘긴다. */
+export async function uploadFeedbackImage(
+  feedbackId: string,
+  file: File,
+  index: number,
+): Promise<{ url: string; path: string }> {
+  const safe = file.name.replace(/[^\w.-]+/g, '_').slice(-40)
+  const path = `feedback/${feedbackId}/${index}-${safe}`
+  const r = storageRef(storage, path)
+  await uploadBytes(r, file, { contentType: file.type || undefined })
+  const url = await getDownloadURL(r)
+  return { url, path }
+}
+
+export async function submitFeedback(f: Feedback): Promise<void> {
   if (DEMO) return
-  await setDoc(doc(db, 'feedback', newId()), f)
+  const { id, ...rest } = f
+  await setDoc(doc(db, 'feedback', id), rest)
 }
 
 export function watchFeedback(
@@ -476,7 +491,10 @@ export async function setFeedbackStatus(id: string, status: Feedback['status']):
   await updateDoc(doc(db, 'feedback', id), { status })
 }
 
-export async function deleteFeedback(id: string): Promise<void> {
+export async function deleteFeedback(id: string, images?: { path: string }[]): Promise<void> {
   if (DEMO) return
+  if (images?.length) {
+    await Promise.allSettled(images.map((im) => deleteObject(storageRef(storage, im.path))))
+  }
   await deleteDoc(doc(db, 'feedback', id))
 }

@@ -64,7 +64,7 @@ function AdminFeedbackCard({ toast }: { toast: ReturnType<typeof useToast> }) {
   }
   async function remove(f: Feedback) {
     try {
-      await deleteFeedback(f.id)
+      await deleteFeedback(f.id, f.images)
     } catch {
       toast.show('삭제에 실패했어요.')
     }
@@ -92,6 +92,15 @@ function AdminFeedbackCard({ toast }: { toast: ReturnType<typeof useToast> }) {
                 <span className="fb-meta">{f.createdByName ?? '멤버'} · {when(f.createdAt)}</span>
               </div>
               <p className="fb-text">{f.text}</p>
+              {f.images && f.images.length > 0 && (
+                <div className="fb-thumbs">
+                  {f.images.map((im, i) => (
+                    <a key={i} href={im.url} target="_blank" rel="noopener noreferrer" className="fb-thumb">
+                      <img src={im.url} alt="" loading="lazy" />
+                    </a>
+                  ))}
+                </div>
+              )}
               {(f.appVersion || f.userAgent) && (
                 <p className="fb-ctx">v{f.appVersion} · {shortUA(f.userAgent)}</p>
               )}

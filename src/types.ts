@@ -111,6 +111,7 @@ export interface Feedback {
   type: 'bug' | 'idea' | 'etc' // 버그 / 개선 제안 / 기타
   text: string
   status: 'new' | 'done' // 새 제보 / 처리됨
+  images?: { url: string; path: string }[] // 첨부 사진(선택, 여러 장) — url=표시용, path=삭제용
   appVersion?: string // 자동 첨부(버그 재현용)
   buildTime?: string
   userAgent?: string
