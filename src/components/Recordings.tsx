@@ -8,6 +8,7 @@ import { translateText } from '../translate'
 import { parseCredits } from '../gemini'
 import ConfirmDialog from './ConfirmDialog'
 import MusicPicker from './MusicPicker'
+import Sheet from './Sheet'
 import ThemeSelect from './ThemeSelect'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
@@ -16,6 +17,12 @@ import { useBackHandler } from '../backnav'
 function fmtDate(date: string): string {
   const d = parseDate(date)
   return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} (${weekday(date)})`
+}
+// 크레딧(파트) 표시 순서. 목록에 없는 파트는 뒤에 원래 순서로 붙는다.
+const CREDIT_PART_ORDER = ['드럼', '베이스', '기타', '키보드', '보컬']
+const creditRank = (part: string) => {
+  const i = CREDIT_PART_ORDER.indexOf(part)
+  return i === -1 ? CREDIT_PART_ORDER.length : i
 }
 
 /** 제목 속 날짜 숫자(YYYYMMDD 또는 YYMMDD)를 YYYY-MM-DD 로. 없거나 이상하면 null */
@@ -416,68 +423,80 @@ function RecFilterSheet({
   onClear: () => void
   onClose: () => void
 }) {
-  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
-  useBackHandler(onClose)
+  // 1단계: 음악/멤버 카테고리 고르기 → 2단계: 그 안의 항목 고르기 (예전 포맷)
+  const [cat, setCat] = useState<'music' | 'member' | null>(null)
+  useBackHandler(() => (cat ? setCat(null) : onClose()))
   const hasActive = !!(musicFilter || memberFilter)
+  const items = cat === 'music' ? musicOpts : cat === 'member' ? memberOpts : []
+  const activeVal = cat === 'music' ? musicFilter : memberFilter
+  const onPick = cat === 'music' ? onPickMusic : onPickMember
 
   return (
-    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" ref={sheetRef}>
-        <div className="grab-zone" {...grabHandlers}>
-          <div className="grab" />
-        </div>
-        <h2>거르기</h2>
-        {musicOpts.length > 0 && (
-          <>
-            <p className="tsel-group">음악</p>
-            <ul className="tsel-list">
-              {musicOpts.map((o) => (
-                <li key={o.key}>
-                  <button
-                    type="button"
-                    className={'tsel-opt' + (musicFilter === o.key ? ' on' : '')}
-                    onClick={() => onPickMusic(o.key)}
-                  >
-                    <span className="tsel-opt-label">{o.label}</span>
-                    {o.sub && <span className="tsel-opt-sub">{o.sub}</span>}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-        {memberOpts.length > 0 && (
-          <>
-            <p className="tsel-group">멤버</p>
-            <ul className="tsel-list">
-              {memberOpts.map((o) => (
-                <li key={o.key}>
-                  <button
-                    type="button"
-                    className={'tsel-opt' + (memberFilter === o.key ? ' on' : '')}
-                    onClick={() => onPickMember(o.key)}
-                  >
-                    <span className="tsel-opt-label">{o.label}</span>
-                    {o.sub && <span className="tsel-opt-sub">{o.sub}</span>}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+    <Sheet onClose={onClose}>
+      {!cat ? (
+        <>
+          <h2>필터</h2>
+          <ul className="tsel-list">
+            {musicOpts.length > 0 && (
+              <li>
+                <button type="button" className="tsel-opt" onClick={() => setCat('music')}>
+                  <span className="tsel-opt-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+                    음악
+                  </span>
+                  <svg className="tsel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                </button>
+              </li>
+            )}
+            {memberOpts.length > 0 && (
+              <li>
+                <button type="button" className="tsel-opt" onClick={() => setCat('member')}>
+                  <span className="tsel-opt-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                    멤버
+                  </span>
+                  <svg className="tsel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                </button>
+              </li>
+            )}
+          </ul>
+        </>
+      ) : (
+        <>
+          <div className="picker-bar">
+            <button type="button" className="detail-back" onClick={() => setCat(null)} aria-label="뒤로">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <b>{cat === 'music' ? '음악' : '멤버'}</b>
+          </div>
+          <ul className="tsel-list">
+            {items.map((o) => (
+              <li key={o.key}>
+                <button
+                  type="button"
+                  className={'tsel-opt' + (activeVal === o.key ? ' on' : '')}
+                  onClick={() => onPick(o.key)}
+                >
+                  <span className="tsel-opt-label">{o.label}</span>
+                  {o.sub && <span className="tsel-opt-sub">{o.sub}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
-        <div className={'actions' + (hasActive ? ' rec-filter-actions' : '')}>
-          {hasActive ? (
-            <>
-              <button type="button" className="btn danger" onClick={onClear}>필터 해제</button>
-              <button type="button" className="btn subtle grow" onClick={onClose}>닫기</button>
-            </>
-          ) : (
-            <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
-          )}
-        </div>
+      <div className={'actions' + (hasActive ? ' rec-filter-actions' : '')}>
+        {hasActive ? (
+          <>
+            <button type="button" className="btn danger" onClick={onClear}>필터 해제</button>
+            <button type="button" className="btn subtle grow" onClick={onClose}>닫기</button>
+          </>
+        ) : (
+          <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
+        )}
       </div>
-    </div>
+    </Sheet>
   )
 }
 
@@ -920,7 +939,9 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rec.id])
 
-  const creditEntries = rec.credits ? Object.entries(rec.credits) : []
+  const creditEntries = rec.credits
+    ? Object.entries(rec.credits).sort((a, b) => creditRank(a[0]) - creditRank(b[0]))
+    : []
 
   async function doDelete() {
     setConfirmDel(false)
