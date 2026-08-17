@@ -300,8 +300,11 @@ exports.remindUndecided = onCall({ secrets: webPushSecrets }, async (req) => {
     db.collection('members').get(),
     db.collection(`events/${eventId}/attendance`).get(),
   ])
-  const voted = new Set(attSnap.docs.map((d) => d.id))
-  const undecided = membersSnap.docs.filter((d) => !voted.has(d.id))
+  // 미정 = 아직 투표 안 함 + 명시적으로 '미정' 선택한 멤버
+  const statusById = new Map(attSnap.docs.map((d) => [d.id, d.data().status]))
+  const undecided = membersSnap.docs.filter(
+    (d) => !statusById.has(d.id) || statusById.get(d.id) === 'undecided',
+  )
   const sent = await sendAllPush(undecided, {
     title: `투표 요청: ${ev.title || '일정'}`,
     body: '아직 참석 투표를 안 하셨어요. 참석 여부를 알려주세요!',

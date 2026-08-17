@@ -89,7 +89,9 @@ export default function EventCard({
   const mine = useMemo(() => att.find((a) => a.uid === user?.uid), [att, user])
   const undecidedCount = useMemo(() => {
     const voted = new Set(att.map((a) => a.uid))
-    return members.filter((m) => !voted.has(m.uid)).length
+    const notVoted = members.filter((m) => !voted.has(m.uid)).length
+    const explicit = att.filter((a) => a.status === 'undecided').length
+    return notVoted + explicit
   }, [att, members])
 
   async function doDelete() {
@@ -215,7 +217,7 @@ export default function EventCard({
               </span>
             )
           })}
-          <span className="asum" style={{ ['--k' as string]: 'var(--undecided)' }}>
+          <span className={'asum' + (mine?.status === 'undecided' ? ' mine' : '')} style={{ ['--k' as string]: 'var(--undecided)' }}>
             <span className="dot" />
             미정
             <b>{undecidedCount}</b>

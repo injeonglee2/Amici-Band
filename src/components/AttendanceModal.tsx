@@ -102,10 +102,18 @@ export default function AttendanceModal({
 
   const byStatus = (s: AttendStatus) => list.filter((a) => a.status === s)
   const votedUids = new Set(list.map((a) => a.uid))
-  const undecided = members.filter((m) => !votedUids.has(m.uid))
   // 투표자 이름은 현재 멤버 프로필(라이브)을 우선, 없으면 투표 당시 스냅샷
   const memberMap = useMemo(() => new Map(members.map((m) => [m.uid, m])), [members])
   const nameOf = (uid: string, snapshot: string) => memberMap.get(uid)?.name ?? snapshot
+  // 미정 = 명시적으로 '미정' 선택(사유를 남길 수 있음) + 아직 투표 안 한 멤버
+  const undecided = [
+    ...list
+      .filter((a) => a.status === 'undecided')
+      .map((a) => ({ uid: a.uid, name: nameOf(a.uid, a.name), note: a.note })),
+    ...members
+      .filter((m) => !votedUids.has(m.uid))
+      .map((m) => ({ uid: m.uid, name: m.name, note: undefined as string | undefined })),
+  ]
   const d = parseDate(ev.date)
 
   // 리마인더: 합주·공연 일정에서, 관리자에게만, 미정이 있을 때만
@@ -159,6 +167,14 @@ export default function AttendanceModal({
                   </button>
                 ))}
               </div>
+              <button
+                className={'vote-btn vote-undecided' + (mine?.status === 'undecided' ? ' on' : '')}
+                style={{ ['--k' as string]: STATUS_META.undecided.color }}
+                onClick={() => choose('undecided')}
+                disabled={saving}
+              >
+                미정
+              </button>
 
               {mine?.status === 'late' && (
                 <div className="time-pick">
@@ -238,7 +254,10 @@ export default function AttendanceModal({
                     </div>
                     <ul>
                       {undecided.map((m) => (
-                        <li key={m.uid}>{m.name}</li>
+                        <li key={m.uid} className={m.note ? 'has-note' : undefined}>
+                          {m.name}
+                          {m.note && <span className="u-note"> · {m.note}</span>}
+                        </li>
                       ))}
                     </ul>
                   </div>

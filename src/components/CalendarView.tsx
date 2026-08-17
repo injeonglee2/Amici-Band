@@ -93,20 +93,23 @@ export default function CalendarView({
           if (!c) return <div key={`e${i}`} className="cal-cell empty" />
           const dow = i % 7
           const evs = byDate.get(c.date)
-          const types = evs ? [...new Set(evs.map((e) => e.type))] : []
           const cls =
             'cal-cell' +
+            (evs?.length ? ' has' : '') +
             (c.date === today ? ' today' : '') +
             (c.date === selected ? ' sel' : '') +
             (dow === 0 ? ' sun' : dow === 6 ? ' sat' : '')
           return (
             <button key={c.date} className={cls} onClick={() => setSelected(c.date)}>
               <span className="cal-day">{c.day}</span>
-              {types.length > 0 && (
-                <span className="cal-dots">
-                  {types.map((t) => (
-                    <span key={t} className="cal-dot" style={{ background: TYPE_META[t].color }} />
+              {evs && evs.length > 0 && (
+                <span className="cal-evs">
+                  {evs.slice(0, 3).map((e) => (
+                    <span key={e.id} className="cal-ev" style={{ ['--k' as string]: TYPE_META[e.type].color }}>
+                      {e.title}
+                    </span>
                   ))}
+                  {evs.length > 3 && <span className="cal-more">+{evs.length - 3}</span>}
                 </span>
               )}
             </button>

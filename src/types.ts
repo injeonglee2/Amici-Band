@@ -147,13 +147,14 @@ export interface Score {
   createdAt: number
 }
 
-export type AttendStatus = 'present' | 'late' | 'leave' | 'absent'
+export type AttendStatus = 'present' | 'late' | 'leave' | 'absent' | 'undecided'
 
 export const STATUS_META: Record<AttendStatus, { label: string; color: string }> = {
   present: { label: '참석', color: 'var(--ok)' },
   late: { label: '늦참', color: 'var(--warn)' },
   leave: { label: '조퇴', color: 'var(--info)' },
   absent: { label: '불참', color: 'var(--no)' },
+  undecided: { label: '미정', color: 'var(--undecided)' },
 }
 
 export interface Attendance {
