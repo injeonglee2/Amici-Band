@@ -53,7 +53,7 @@ function CalendarExportCard() {
         }}
         options={[
           { value: 'auto', label: '앱에서 바로 추가 (삼성·구글 캘린더)' },
-          { value: 'ics', label: '파일(.ics)로 열기 (TimeTree 등 모든 앱)' },
+          { value: 'ics', label: '파일(.ics)로 열기 (아이폰 등)' },
         ]}
       />
     </div>
