@@ -1,8 +1,11 @@
 // 유튜브 설명글을 해석해 '파트→멤버' 크레딧을 뽑아내는 Gemini 호출.
 // 조직 정책상 API 키로는 Gemini 를 못 쓰므로 Firebase AI Logic(앱 인증, 키 불필요)을 쓴다.
 // 형식을 고정하지 않고 LLM 이 해석하므로 표기·순서·구분자가 바뀌어도 대응된다. 실패 시 null.
-import { getAI, getGenerativeModel, GoogleAIBackend, type GenerativeModel } from 'firebase/ai'
+import { getAI, getGenerativeModel, VertexAIBackend, type GenerativeModel } from 'firebase/ai'
 import { fbApp } from './firebase'
+
+// Vertex AI(현 Agent Platform) 백엔드 리전. 필요 시 'global' 등으로 조정.
+const AI_LOCATION = 'us-central1'
 
 const PROMPT =
   '다음은 밴드 합주/공연 영상 설명이다. 파트(악기·역할)별 참여 멤버 이름을 뽑아 JSON 객체 하나로만 답하라. ' +
@@ -16,7 +19,7 @@ function getModel(): GenerativeModel | null {
   if (model !== undefined) return model
   try {
     model = fbApp
-      ? getGenerativeModel(getAI(fbApp, { backend: new GoogleAIBackend() }), {
+      ? getGenerativeModel(getAI(fbApp, { backend: new VertexAIBackend(AI_LOCATION) }), {
           // 'latest' 별칭 — 구버전(2.0/2.5)은 만료됨. flash-lite 는 이 단순 추출에 충분하고 가장 저렴.
           model: 'gemini-flash-lite-latest',
           generationConfig: { responseMimeType: 'application/json', temperature: 0 },
