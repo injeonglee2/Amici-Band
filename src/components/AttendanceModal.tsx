@@ -12,7 +12,6 @@ import {
 import { lateOptions, leaveOptions, parseDate, weekday } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import ConfirmDialog from './ConfirmDialog'
-import PartTally from './PartTally'
 import ThemeSelect from './ThemeSelect'
 import Sheet from './Sheet'
 import { useBackHandler } from '../backnav'
@@ -263,9 +262,6 @@ export default function AttendanceModal({
                   </div>
                 )}
               </div>
-
-              {/* 파트별 참석 (참석·늦참·조퇴 기준) — 합주곡 시트와 같은 컴포넌트 */}
-              <PartTally members={members} att={list} />
 
               {canRemind && (
                 <button type="button" className="btn primary block remind-btn" onClick={sendReminder} disabled={reminding}>
