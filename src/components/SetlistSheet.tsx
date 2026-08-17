@@ -193,12 +193,18 @@ export default function SetlistSheet({
     [recPlaylists, showPlaylistId, nearestShow],
   )
 
-  // 보컬이 이번 합주에 오는(참석·늦참·조퇴) 곡만 추천
+  // 추천 합주곡 2단계 필터:
+  //  1) 보컬이 이번 합주에 오는(참석·늦참·조퇴) 곡만 추리고
+  //  2) 그중 '보컬을 제외한' 이 곡 참여자가 이번 합주에 2명 이상 오는 곡만
   const recommended = useMemo(() => {
     if (!isPractice || !showPlaylistId) return []
     return showTracks.filter((t) => {
       const parts = t.participants ?? {}
-      return Object.keys(parts).some((u) => parts[u] === 'vocal' && attendingUids.has(u))
+      const uids = Object.keys(parts)
+      const vocalHere = uids.some((u) => parts[u] === 'vocal' && attendingUids.has(u))
+      if (!vocalHere) return false
+      const nonVocalHere = uids.filter((u) => parts[u] !== 'vocal' && attendingUids.has(u)).length
+      return nonVocalHere >= 2
     })
   }, [isPractice, showPlaylistId, showTracks, attendingUids])
 
