@@ -20,8 +20,8 @@ function getModel(): GenerativeModel | null {
   try {
     model = fbApp
       ? getGenerativeModel(getAI(fbApp, { backend: new VertexAIBackend(AI_LOCATION) }), {
-          // 'latest' 별칭 — 구버전(2.0/2.5)은 만료됨. flash-lite 는 이 단순 추출에 충분하고 가장 저렴.
-          model: 'gemini-flash-lite-latest',
+          // Vertex(us-central1)에서 동작 확인된 모델. (flash-lite/‘latest’ 별칭은 Vertex 미지원)
+          model: 'gemini-2.5-flash',
           generationConfig: { responseMimeType: 'application/json', temperature: 0 },
         })
       : null
