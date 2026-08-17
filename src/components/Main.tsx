@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth'
 import { saveFcmToken, saveWebPushSubscription, watchEvents, watchMembers, watchPlaces } from '../data'
 import { TYPE_META, type BandEvent, type EventType, type Member, type Place } from '../types'
-import { dayDiff, ddayLabel, longWhen, parseDate } from '../time'
+import { dayDiff, ddayLabel, longWhen, parseDate, todayStr } from '../time'
 import { copyValue, resolvePlace } from '../place'
 import {
   autoRegisterPush,
@@ -39,6 +39,12 @@ export default function Main() {
   const [filter, setFilter] = useState<Filter>('all')
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
   const [view, setView] = useState<'list' | 'calendar'>('list')
+  // 캘린더 월 이동/선택 상태 (월 이동 컨트롤은 상단 바에 둔다)
+  const [calCursor, setCalCursor] = useState(() => {
+    const t = new Date()
+    return { y: t.getFullYear(), m: t.getMonth() }
+  })
+  const [calSelected, setCalSelected] = useState(() => todayStr())
   const [nav, setNav] = useState<'home' | 'places' | 'music' | 'recordings' | 'scores'>('home')
   const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
@@ -128,6 +134,16 @@ export default function Main() {
     return g
   }, [list])
 
+  function calShift(delta: number) {
+    const d = new Date(calCursor.y, calCursor.m + delta, 1)
+    setCalCursor({ y: d.getFullYear(), m: d.getMonth() })
+  }
+  function calToday() {
+    const t = new Date()
+    setCalCursor({ y: t.getFullYear(), m: t.getMonth() })
+    setCalSelected(todayStr())
+  }
+
   function openAdd() {
     setEditing(null)
     setFormOpen(true)
@@ -197,7 +213,15 @@ export default function Main() {
             </button>
           </div>
         ) : (
-          <div className="topbar-spacer" />
+          <div className="cal-navbar">
+            <button className="cal-nav" onClick={() => calShift(-1)} aria-label="이전 달">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <button className="cal-title" onClick={calToday}>{calCursor.y}년 {calCursor.m + 1}월</button>
+            <button className="cal-nav" onClick={() => calShift(1)} aria-label="다음 달">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+          </div>
         )}
         <div className="view-toggle" role="tablist" aria-label="보기 방식">
           <button role="tab" aria-selected={view === 'list'} className={view === 'list' ? 'on' : ''} onClick={() => setView('list')} aria-label="목록 보기" title="목록">
@@ -227,7 +251,7 @@ export default function Main() {
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
         {view === 'calendar' ? (
-          <CalendarView events={calEvents} placesMap={placesMap} members={members} toast={toast} onEdit={openEdit} />
+          <CalendarView events={calEvents} placesMap={placesMap} members={members} toast={toast} onEdit={openEdit} cursor={calCursor} selected={calSelected} onSelect={setCalSelected} />
         ) : (
         <>
         {tab === 'upcoming' && (next ? (

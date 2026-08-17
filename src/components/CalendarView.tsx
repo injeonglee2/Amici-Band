@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { TYPE_META, type BandEvent, type Member, type Place } from '../types'
 import { parseDate, todayStr, weekday } from '../time'
 import { resolvePlace } from '../place'
@@ -11,7 +11,8 @@ type Cell = { day: number; date: string } | null
 
 /**
  * 월 달력 뷰. 넘겨받는 events 는 이미 유형 필터가 적용된 목록.
- * 날짜 셀에는 그 날 있는 유형별 색 점을 찍고, 날짜를 누르면 아래에 그 날 일정(EventCard)을 펼친다.
+ * 월 이동(cursor)은 상단 바에서 제어하므로 props 로 받고, 날짜 선택만 내부에서 처리.
+ * 날짜 셀에는 그 날 일정을 유형 색 칩으로 보여주고, 날짜를 누르면 아래에 그 날 일정(EventCard)을 펼친다.
  */
 export default function CalendarView({
   events,
@@ -19,17 +20,20 @@ export default function CalendarView({
   members,
   toast,
   onEdit,
+  cursor,
+  selected,
+  onSelect,
 }: {
   events: BandEvent[]
   placesMap: Map<string, Place>
   members: Member[]
   toast: ToastState
   onEdit: (ev: BandEvent) => void
+  cursor: { y: number; m: number } // m: 0-based
+  selected: string
+  onSelect: (date: string) => void
 }) {
   const today = todayStr()
-  const td = parseDate(today)
-  const [cursor, setCursor] = useState({ y: td.getFullYear(), m: td.getMonth() }) // m: 0-based
-  const [selected, setSelected] = useState(today)
 
   // 날짜별 일정 (각 날은 시작시간 순 정렬)
   const byDate = useMemo(() => {
@@ -56,32 +60,11 @@ export default function CalendarView({
     return arr
   }, [cursor])
 
-  function shift(delta: number) {
-    const d = new Date(cursor.y, cursor.m + delta, 1)
-    setCursor({ y: d.getFullYear(), m: d.getMonth() })
-  }
-  function goToday() {
-    setCursor({ y: td.getFullYear(), m: td.getMonth() })
-    setSelected(today)
-  }
-
   const dayEvents = byDate.get(selected) ?? []
   const sd = parseDate(selected)
 
   return (
     <div className="cal">
-      <div className="cal-head">
-        <button className="cal-nav" onClick={() => shift(-1)} aria-label="이전 달">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-        </button>
-        <button className="cal-title" onClick={goToday}>
-          {cursor.y}년 {cursor.m + 1}월
-        </button>
-        <button className="cal-nav" onClick={() => shift(1)} aria-label="다음 달">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-        </button>
-      </div>
-
       <div className="cal-grid cal-wdrow">
         {WD.map((w, i) => (
           <div key={w} className={'cal-wd' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '')}>{w}</div>
@@ -100,7 +83,7 @@ export default function CalendarView({
             (c.date === selected ? ' sel' : '') +
             (dow === 0 ? ' sun' : dow === 6 ? ' sat' : '')
           return (
-            <button key={c.date} className={cls} onClick={() => setSelected(c.date)}>
+            <button key={c.date} className={cls} onClick={() => onSelect(c.date)}>
               <span className="cal-day">{c.day}</span>
               {evs && evs.length > 0 && (
                 <span className="cal-evs">
