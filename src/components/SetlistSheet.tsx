@@ -198,14 +198,18 @@ export default function SetlistSheet({
   //  2) 그중 '보컬을 제외한' 이 곡 참여자가 이번 합주에 2명 이상 오는 곡만
   const recommended = useMemo(() => {
     if (!isPractice || !showPlaylistId) return []
-    return showTracks.filter((t) => {
-      const parts = t.participants ?? {}
-      const uids = Object.keys(parts)
-      const vocalHere = uids.some((u) => parts[u] === 'vocal' && attendingUids.has(u))
-      if (!vocalHere) return false
-      const nonVocalHere = uids.filter((u) => parts[u] !== 'vocal' && attendingUids.has(u)).length
-      return nonVocalHere >= 2
-    })
+    return showTracks
+      .map((t) => {
+        const parts = t.participants ?? {}
+        const uids = Object.keys(parts)
+        const vocalHere = uids.some((u) => parts[u] === 'vocal' && attendingUids.has(u))
+        const nonVocalHere = uids.filter((u) => parts[u] !== 'vocal' && attendingUids.has(u)).length
+        return { t, vocalHere, nonVocalHere }
+      })
+      .filter((x) => x.vocalHere && x.nonVocalHere >= 2)
+      // 보컬 제외 참여자가 많은 곡(3명 이상)을 위로, 2명인 곡은 아래로
+      .sort((a, b) => b.nonVocalHere - a.nonVocalHere)
+      .map((x) => x.t)
   }, [isPractice, showPlaylistId, showTracks, attendingUids])
 
   // 이 일정에 연결된 기록(녹음/영상) — 있으면 시트에서 바로 볼 수 있게 한다
