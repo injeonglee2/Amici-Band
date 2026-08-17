@@ -47,6 +47,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 버그 제보·개선 의견: 로그인 멤버는 제출(create)만, 열람·상태변경·삭제는 관리자만
+    match /feedback/{fbId} {
+      allow read: if isAdmin();
+      allow create: if signedIn()
+                    && request.resource.data.createdBy == request.auth.uid
+                    && request.resource.data.status == 'new';
+      allow update, delete: if isAdmin();
+    }
+
     // 음악 재생목록: 로그인한 멤버는 읽기/쓰기 가능 (공동 관리)
     match /playlists/{playlistId} {
       allow read, write: if signedIn();

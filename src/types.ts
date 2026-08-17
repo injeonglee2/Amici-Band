@@ -105,6 +105,20 @@ export interface Recording {
   createdAt: number
 }
 
+/** 버그 제보·개선 의견 — feedback/{id}. 작성은 로그인 멤버, 열람·관리는 관리자만 */
+export interface Feedback {
+  id: string
+  type: 'bug' | 'idea' | 'etc' // 버그 / 개선 제안 / 기타
+  text: string
+  status: 'new' | 'done' // 새 제보 / 처리됨
+  appVersion?: string // 자동 첨부(버그 재현용)
+  buildTime?: string
+  userAgent?: string
+  createdBy: string
+  createdByName?: string
+  createdAt: number
+}
+
 /** 악보 파일 하나 (Storage 업로드 결과) */
 export interface ScoreFile {
   url: string // 다운로드 URL

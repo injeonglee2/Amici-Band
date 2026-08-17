@@ -258,6 +258,25 @@ exports.notifyOnEventUpdate = onDocumentUpdated(
   },
 )
 
+// 버그 제보·의견이 올라오면 관리자에게만 푸시
+exports.notifyOnFeedbackCreate = onDocumentCreated(
+  { document: 'feedback/{fbId}', secrets: webPushSecrets },
+  async (event) => {
+    const data = event.data && event.data.data()
+    if (!data) return
+    const adminsSnap = await db.collection('members').where('admin', '==', true).get()
+    if (adminsSnap.empty) return
+    const typeLabel = data.type === 'bug' ? '버그' : data.type === 'idea' ? '개선' : '의견'
+    const who = data.createdByName || '멤버'
+    const text = String(data.text || '')
+    const sent = await sendAllPush(adminsSnap.docs, {
+      title: `새 ${typeLabel} 제보 · ${who}`,
+      body: text.length > 60 ? text.slice(0, 60) + '…' : text,
+    })
+    console.info('feedback-create push complete', { fbId: event.params.fbId, sent })
+  },
+)
+
 exports.remindUndecided = onCall({ secrets: webPushSecrets }, async (req) => {
   if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
 

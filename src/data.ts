@@ -14,7 +14,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions'
 import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
 import { db, fbApp, storage } from './firebase'
 import { DEMO, demoDb } from './demo'
-import type { Attendance, BandEvent, Member, Place, Playlist, Recording, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Attendance, BandEvent, Feedback, Member, Place, Playlist, Recording, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -441,4 +441,42 @@ export async function removeSetlistSong(eventId: string, songId: string): Promis
 
 export function newId(): string {
   return 'e' + Math.random().toString(36).slice(2, 10)
+}
+
+/* ---------------- feedback (버그 제보·개선 의견) ---------------- */
+export async function submitFeedback(f: Omit<Feedback, 'id'>): Promise<void> {
+  if (DEMO) return
+  await setDoc(doc(db, 'feedback', newId()), f)
+}
+
+export function watchFeedback(
+  cb: (list: Feedback[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) {
+    cb([])
+    return () => {}
+  }
+  return onSnapshot(
+    collection(db, 'feedback'),
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Feedback, 'id'>) }))
+      list.sort((a, b) => b.createdAt - a.createdAt) // 최근 제보 먼저
+      cb(list)
+    },
+    (err) => {
+      console.error('watchFeedback', err)
+      onError?.(err)
+    },
+  )
+}
+
+export async function setFeedbackStatus(id: string, status: Feedback['status']): Promise<void> {
+  if (DEMO) return
+  await updateDoc(doc(db, 'feedback', id), { status })
+}
+
+export async function deleteFeedback(id: string): Promise<void> {
+  if (DEMO) return
+  await deleteDoc(doc(db, 'feedback', id))
 }

@@ -1,16 +1,21 @@
-import { useState } from 'react'
-import { saveFcmToken, saveWebPushSubscription } from '../data'
+import { useEffect, useState } from 'react'
+import { deleteFeedback, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, watchFeedback } from '../data'
 import { useAuth } from '../auth'
 import { notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
 import ThemeSelect from './ThemeSelect'
+import FeedbackSheet from './FeedbackSheet'
+import Toast, { useToast } from './Toast'
 import { versionLabel } from '../version'
 import { useBackHandler } from '../backnav'
+import type { Feedback } from '../types'
 
 export default function Settings({ onClose }: { onClose: () => void }) {
   const { member } = useAuth()
   const isAdmin = !!member?.admin
-  useBackHandler(onClose) // 뒤로가기로 설정 화면 닫기
+  const toast = useToast()
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  useBackHandler(() => (feedbackOpen ? setFeedbackOpen(false) : onClose()))
   return (
     <div className="app">
       <header className="top">
@@ -27,11 +32,89 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       <main className="scroll">
         <NotifCard />
         <CalendarExportCard />
+        <button type="button" className="set-entry" onClick={() => setFeedbackOpen(true)}>
+          <span>의견 보내기 · 버그 제보</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+        </button>
+        {isAdmin && <AdminFeedbackCard toast={toast} />}
         {isAdmin && <FirebaseLimitsCard />}
         <p className="app-ver">{versionLabel()}</p>
       </main>
+
+      {feedbackOpen && <FeedbackSheet toast={toast} onClose={() => setFeedbackOpen(false)} />}
+      <Toast state={toast} />
     </div>
   )
+}
+
+const FB_TYPE_LABEL: Record<Feedback['type'], string> = { bug: '버그', idea: '개선', etc: '기타' }
+
+/** 관리자 전용: 받은 의견·버그 제보 목록 + 처리 상태 토글 */
+function AdminFeedbackCard({ toast }: { toast: ReturnType<typeof useToast> }) {
+  const [list, setList] = useState<Feedback[]>([])
+  useEffect(() => watchFeedback(setList, () => {}), [])
+  const newCount = list.filter((f) => f.status === 'new').length
+
+  async function toggle(f: Feedback) {
+    try {
+      await setFeedbackStatus(f.id, f.status === 'new' ? 'done' : 'new')
+    } catch {
+      toast.show('상태 변경에 실패했어요.')
+    }
+  }
+  async function remove(f: Feedback) {
+    try {
+      await deleteFeedback(f.id)
+    } catch {
+      toast.show('삭제에 실패했어요.')
+    }
+  }
+  const when = (ms: number) => {
+    const d = new Date(ms)
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  }
+
+  return (
+    <div className="limits-card">
+      <div className="limits-head">
+        <h3>받은 의견{newCount > 0 && <b className="fb-newbadge"> {newCount}</b>}</h3>
+        <span className="guide-badge">관리자</span>
+      </div>
+      {list.length === 0 ? (
+        <p className="app-ver" style={{ textAlign: 'left', margin: 0 }}>아직 받은 의견이 없어요.</p>
+      ) : (
+        <ul className="fb-list">
+          {list.map((f) => (
+            <li key={f.id} className={'fb-item' + (f.status === 'done' ? ' done' : '')}>
+              <div className="fb-item-head">
+                <span className={'fb-badge fb-' + f.type}>{FB_TYPE_LABEL[f.type]}</span>
+                <span className="fb-meta">{f.createdByName ?? '멤버'} · {when(f.createdAt)}</span>
+              </div>
+              <p className="fb-text">{f.text}</p>
+              {(f.appVersion || f.userAgent) && (
+                <p className="fb-ctx">v{f.appVersion} · {shortUA(f.userAgent)}</p>
+              )}
+              <div className="fb-item-actions">
+                <button type="button" className="btn subtle" onClick={() => void toggle(f)}>
+                  {f.status === 'done' ? '다시 열기' : '처리됨'}
+                </button>
+                <button type="button" className="btn danger" onClick={() => void remove(f)}>삭제</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/** userAgent 에서 기기·브라우저만 짧게 */
+function shortUA(ua?: string): string {
+  if (!ua) return ''
+  const os = /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : '기타'
+  const br = /CriOS|Chrome/.test(ua) ? 'Chrome' : /Firefox/.test(ua) ? 'Firefox' : /Safari/.test(ua) ? 'Safari' : ''
+  return [os, br].filter(Boolean).join('·')
 }
 
 /** 캘린더 내보내기 방식 선택 — 네이티브 인텐트가 가능한 안드로이드에서만 노출 */
