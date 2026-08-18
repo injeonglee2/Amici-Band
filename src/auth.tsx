@@ -15,11 +15,13 @@ import {
 import { auth, googleProvider } from './firebase'
 import { getMember, saveMember } from './data'
 import { DEMO, DEMO_MEMBER } from './demo'
+import { isDeveloperEmail } from './roles'
 import type { Member, Part } from './types'
 
 interface AuthState {
   user: User | null
   member: Member | null // 실명이 등록된 프로필 (없으면 최초 로그인 → 이름 설정 필요)
+  isDeveloper: boolean // 앱 개발자(최상위 권한). 밴드 관리자(member.admin)와 별개
   loading: boolean
   signIn: () => Promise<void>
   signOutUser: () => Promise<void>
@@ -56,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? ({ uid: DEMO_MEMBER.uid, email: DEMO_MEMBER.email, displayName: DEMO_MEMBER.name } as unknown as User)
         : user,
       member: DEMO ? DEMO_MEMBER : member,
+      isDeveloper: isDeveloperEmail(DEMO ? DEMO_MEMBER.email : (member?.email ?? user?.email)),
       loading: DEMO ? false : loading,
       signIn: async () => {
         if (DEMO) return

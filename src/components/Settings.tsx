@@ -11,8 +11,7 @@ import { useBackHandler } from '../backnav'
 import type { Feedback } from '../types'
 
 export default function Settings({ onClose }: { onClose: () => void }) {
-  const { member } = useAuth()
-  const isAdmin = !!member?.admin
+  const { isDeveloper } = useAuth()
   const toast = useToast()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   useBackHandler(() => (feedbackOpen ? setFeedbackOpen(false) : onClose()))
@@ -36,8 +35,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           <span>의견 보내기 · 버그 제보</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
         </button>
-        {isAdmin && <AdminFeedbackCard toast={toast} />}
-        {isAdmin && <FirebaseLimitsCard />}
+        {isDeveloper && <AdminFeedbackCard toast={toast} />}
+        {isDeveloper && <FirebaseLimitsCard />}
         <p className="app-ver">{versionLabel()}</p>
       </main>
 
@@ -49,7 +48,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
 const FB_TYPE_LABEL: Record<Feedback['type'], string> = { bug: '버그', idea: '개선', etc: '기타' }
 
-/** 관리자 전용: 받은 의견·버그 제보 목록 + 처리 상태 토글 */
+/** 개발자 전용: 받은 의견·버그 제보 목록 + 처리 상태 토글 */
 function AdminFeedbackCard({ toast }: { toast: ReturnType<typeof useToast> }) {
   const [list, setList] = useState<Feedback[]>([])
   useEffect(() => watchFeedback(setList, () => {}), [])
@@ -79,7 +78,7 @@ function AdminFeedbackCard({ toast }: { toast: ReturnType<typeof useToast> }) {
     <div className="limits-card">
       <div className="limits-head">
         <h3>받은 의견{newCount > 0 && <b className="fb-newbadge"> {newCount}</b>}</h3>
-        <span className="guide-badge">관리자</span>
+        <span className="guide-badge dev">개발자</span>
       </div>
       {list.length === 0 ? (
         <p className="app-ver" style={{ textAlign: 'left', margin: 0 }}>아직 받은 의견이 없어요.</p>
@@ -154,7 +153,7 @@ function CalendarExportCard() {
 
 const PROJECT_ID = 'amicicalender'
 
-/** 관리자 전용: Firebase 무료 한도 수치 + 실시간 사용량(콘솔) 바로가기 */
+/** 개발자 전용: Firebase 무료 한도 수치 + 실시간 사용량(콘솔) 바로가기 */
 function FirebaseLimitsCard() {
   const limits: { name: string; quota: string }[] = [
     { name: 'Firestore', quota: '읽기 5만/일 · 쓰기 2만/일 · 저장 1GB' },
@@ -167,7 +166,7 @@ function FirebaseLimitsCard() {
     <div className="limits-card">
       <div className="limits-head">
         <h3>Firebase 무료 한도</h3>
-        <span className="guide-badge">관리자</span>
+        <span className="guide-badge dev">개발자</span>
       </div>
       <ul className="limits-list">
         {limits.map((l) => (

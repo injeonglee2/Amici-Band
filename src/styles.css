@@ -458,6 +458,8 @@ button { font-family: inherit; }
   flex: none; font-size: 10.5px; font-weight: 700; color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent); padding: 2px 7px; border-radius: 999px;
 }
+/* 개발자(최상위 권한) 뱃지 — 관리자와 구분되는 금색 */
+.guide-badge.dev { color: #ffd24d; background: color-mix(in srgb, #ffd24d 15%, transparent); }
 .limits-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .limits-list li { display: flex; align-items: baseline; gap: 10px; }
 .limits-name { flex: none; width: 70px; font-size: 12px; font-weight: 800; color: var(--ink); }

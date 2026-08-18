@@ -258,13 +258,14 @@ exports.notifyOnEventUpdate = onDocumentUpdated(
   },
 )
 
-// 버그 제보·의견이 올라오면 관리자에게만 푸시
+// 버그 제보·의견이 올라오면 개발자에게만 푸시 (앱 최상위 권한자)
+const DEVELOPER_EMAIL = 'kkd00055@gmail.com'
 exports.notifyOnFeedbackCreate = onDocumentCreated(
   { document: 'feedback/{fbId}', secrets: webPushSecrets },
   async (event) => {
     const data = event.data && event.data.data()
     if (!data) return
-    const adminsSnap = await db.collection('members').where('admin', '==', true).get()
+    const adminsSnap = await db.collection('members').where('email', '==', DEVELOPER_EMAIL).get()
     if (adminsSnap.empty) return
     const typeLabel = data.type === 'bug' ? '버그' : data.type === 'idea' ? '개선' : '의견'
     const who = data.createdByName || '멤버'

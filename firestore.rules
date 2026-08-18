@@ -2,6 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    // 앱 개발자(최상위 권한): 지정 이메일만. 밴드 관리자(admin)와 별개 — 받은 의견 열람 등 개발자 전용.
+    function isDeveloper() {
+      return signedIn() && request.auth.token.email == 'kkd00055@gmail.com';
+    }
     // 관리자 여부: 본인 멤버 문서의 admin 필드가 true (콘솔에서만 부여)
     function isAdmin() {
       return signedIn()
@@ -47,13 +51,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // 버그 제보·개선 의견: 로그인 멤버는 제출(create)만, 열람·상태변경·삭제는 관리자만
+    // 버그 제보·개선 의견: 로그인 멤버는 제출(create)만, 열람·상태변경·삭제는 개발자만
     match /feedback/{fbId} {
-      allow read: if isAdmin();
+      allow read: if isDeveloper();
       allow create: if signedIn()
                     && request.resource.data.createdBy == request.auth.uid
                     && request.resource.data.status == 'new';
-      allow update, delete: if isAdmin();
+      allow update, delete: if isDeveloper();
     }
 
     // 음악 재생목록: 로그인한 멤버는 읽기/쓰기 가능 (공동 관리)
