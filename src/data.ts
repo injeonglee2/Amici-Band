@@ -118,6 +118,22 @@ export async function rotateInviteCode(bandId: string): Promise<{ code: string }
   return res.data
 }
 
+/** 밴드 문서 조회 (소유자·인원 등) */
+export async function getBand(bandId: string): Promise<Band | null> {
+  const snap = await getDoc(doc(db, 'bands', bandId))
+  return snap.exists() ? ({ id: snap.id, ...(snap.data() as Omit<Band, 'id'>) }) : null
+}
+
+/** 멤버 강퇴 (밴드 관리자만) */
+export async function kickMember(bandId: string, uid: string): Promise<void> {
+  await httpsCallable<{ bandId: string; uid: string }, { ok: boolean }>(requireFunctions(), 'kickMember')({ bandId, uid })
+}
+
+/** 관리자 지정/해제 (밴드 관리자만) */
+export async function setMemberAdmin(bandId: string, uid: string, admin: boolean): Promise<void> {
+  await httpsCallable<{ bandId: string; uid: string; admin: boolean }, { ok: boolean }>(requireFunctions(), 'setMemberAdmin')({ bandId, uid, admin })
+}
+
 /** 이 밴드의 현재 활성 초대 코드 (없으면 null) */
 export async function getActiveInviteCode(bandId: string): Promise<string | null> {
   const snap = await getDocs(

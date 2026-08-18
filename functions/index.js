@@ -429,6 +429,46 @@ exports.rotateInviteCode = onCall(async (req) => {
   return { code }
 })
 
+// 멤버 강퇴 — 그 밴드 관리자만. 소유자·본인은 대상 불가.
+exports.kickMember = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
+  const bandId = String((req.data && req.data.bandId) || '')
+  const uid = String((req.data && req.data.uid) || '')
+  if (!bandId || !uid) throw new HttpsError('invalid-argument', 'bandId·uid 가 필요해요.')
+  const me = await bandRef(bandId).collection('members').doc(req.auth.uid).get()
+  if (!me.exists || me.get('admin') !== true) throw new HttpsError('permission-denied', '관리자만 내보낼 수 있어요.')
+  if (uid === req.auth.uid) throw new HttpsError('failed-precondition', '본인은 여기서 내보낼 수 없어요.')
+  const band = await bandRef(bandId).get()
+  if (band.get('ownerUid') === uid) throw new HttpsError('failed-precondition', '소유자는 내보낼 수 없어요.')
+  await db.runTransaction(async (tx) => {
+    const mref = bandRef(bandId).collection('members').doc(uid)
+    const m = await tx.get(mref)
+    if (!m.exists) return
+    const count = band.get('memberCount') || 1
+    tx.delete(mref)
+    tx.update(bandRef(bandId), { memberCount: Math.max(0, count - 1) })
+    tx.delete(db.collection('users').doc(uid))
+  })
+  return { ok: true }
+})
+
+// 관리자 지정/해제 — 그 밴드 관리자만. 소유자의 관리자 권한은 해제 불가.
+exports.setMemberAdmin = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
+  const bandId = String((req.data && req.data.bandId) || '')
+  const uid = String((req.data && req.data.uid) || '')
+  const makeAdmin = (req.data && req.data.admin) === true
+  if (!bandId || !uid) throw new HttpsError('invalid-argument', 'bandId·uid 가 필요해요.')
+  const me = await bandRef(bandId).collection('members').doc(req.auth.uid).get()
+  if (!me.exists || me.get('admin') !== true) throw new HttpsError('permission-denied', '관리자만 변경할 수 있어요.')
+  const band = await bandRef(bandId).get()
+  if (band.get('ownerUid') === uid && !makeAdmin) {
+    throw new HttpsError('failed-precondition', '소유자의 관리자 권한은 해제할 수 없어요.')
+  }
+  await bandRef(bandId).collection('members').doc(uid).update({ admin: makeAdmin })
+  return { ok: true }
+})
+
 /* ---------------- 유튜브 재생목록 → 기록 자동 동기화 (주 1회, 전 밴드) ---------------- */
 function normTitle(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]+/g, '')

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
-import { deleteFeedback, getActiveInviteCode, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, watchAllBands, watchFeedback } from '../data'
+import { deleteFeedback, getActiveInviteCode, getBand, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers } from '../data'
 import { useAuth } from '../auth'
 import { notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
 import ThemeSelect from './ThemeSelect'
 import FeedbackSheet from './FeedbackSheet'
+import ConfirmDialog from './ConfirmDialog'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
 import { useBackHandler } from '../backnav'
-import type { Band, Feedback } from '../types'
+import { PART_META, type Band, type Feedback, type Member, type Part } from '../types'
 
 const fmtDay = (ms?: number) => {
   if (!ms) return '-'
@@ -19,7 +20,7 @@ const fmtDay = (ms?: number) => {
 }
 
 export default function Settings({ onClose }: { onClose: () => void }) {
-  const { member, bandId, isDeveloper } = useAuth()
+  const { user, member, bandId, isDeveloper } = useAuth()
   const isAdmin = !!member?.admin
   const toast = useToast()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -55,6 +56,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
             </button>
             {isAdmin && bandId && <InviteCodeCard bandId={bandId} toast={toast} />}
+            {isAdmin && bandId && <MemberManageCard bandId={bandId} myUid={user?.uid ?? ''} toast={toast} />}
           </>
         )}
 
@@ -116,6 +118,90 @@ function InviteCodeCard({ bandId, toast }: { bandId: string; toast: ReturnType<t
       <button type="button" className="btn subtle block" onClick={() => void rotate()} disabled={busy}>
         {busy ? '발급 중…' : code ? '코드 재발급' : '코드 발급'}
       </button>
+    </div>
+  )
+}
+
+/** 관리자 전용: 멤버 관리 — 관리자 지정/해제, 강퇴 */
+function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: string; toast: ReturnType<typeof useToast> }) {
+  const [members, setMembers] = useState<Member[]>([])
+  const [ownerUid, setOwnerUid] = useState<string | null>(null)
+  const [confirmKick, setConfirmKick] = useState<Member | null>(null)
+  const [busy, setBusy] = useState('')
+  useEffect(() => watchMembers(setMembers), [])
+  useEffect(() => {
+    getBand(bandId).then((b) => setOwnerUid(b?.ownerUid ?? null)).catch(() => {})
+  }, [bandId])
+  const sorted = [...members].sort(
+    (a, b) => (b.admin ? 1 : 0) - (a.admin ? 1 : 0) || (a.name ?? '').localeCompare(b.name ?? '', 'ko'),
+  )
+  async function toggleAdmin(m: Member) {
+    setBusy(m.uid)
+    try {
+      await setMemberAdmin(bandId, m.uid, !m.admin)
+      toast.show(m.admin ? '관리자를 해제했어요' : '관리자로 지정했어요')
+    } catch {
+      toast.show('변경에 실패했어요')
+    } finally {
+      setBusy('')
+    }
+  }
+  async function doKick() {
+    const m = confirmKick
+    if (!m) return
+    setConfirmKick(null)
+    setBusy(m.uid)
+    try {
+      await kickMember(bandId, m.uid)
+      toast.show(`${m.name ?? '멤버'} 님을 내보냈어요`)
+    } catch {
+      toast.show('내보내기에 실패했어요')
+    } finally {
+      setBusy('')
+    }
+  }
+  return (
+    <div className="limits-card">
+      <div className="limits-head">
+        <h3>멤버 관리{members.length > 0 && <b className="fb-newbadge"> {members.length}</b>}</h3>
+        <span className="guide-badge">관리자</span>
+      </div>
+      <ul className="mm-list">
+        {sorted.map((m) => {
+          const isOwner = m.uid === ownerUid
+          const self = m.uid === myUid
+          return (
+            <li key={m.uid}>
+              <div className="mm-info">
+                <span className="mm-name">
+                  {m.name || '(이름 설정 전)'}
+                  {isOwner && <em className="mm-tag owner">소유자</em>}
+                  {m.admin && !isOwner && <em className="mm-tag admin">관리자</em>}
+                </span>
+                <span className="mm-part">{PART_META[m.part as Part]?.label ?? ''}</span>
+              </div>
+              {!self && !isOwner && (
+                <div className="mm-actions">
+                  <button type="button" className="btn subtle sm" disabled={busy === m.uid} onClick={() => void toggleAdmin(m)}>
+                    {m.admin ? '관리자 해제' : '관리자 지정'}
+                  </button>
+                  <button type="button" className="btn danger sm" disabled={busy === m.uid} onClick={() => setConfirmKick(m)}>내보내기</button>
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {confirmKick && (
+        <ConfirmDialog
+          message={`${confirmKick.name ?? '이 멤버'} 님을 밴드에서 내보낼까요?`}
+          confirmLabel="내보내기"
+          cancelLabel="닫기"
+          danger
+          onConfirm={() => void doKick()}
+          onCancel={() => setConfirmKick(null)}
+        />
+      )}
     </div>
   )
 }
