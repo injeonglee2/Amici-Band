@@ -160,6 +160,8 @@ button { font-family: inherit; }
   background: rgba(255, 255, 255, 0.08); border-radius: 999px; padding: 2px 6px;
 }
 .segmented button.on .seg-count { color: var(--accent); background: rgba(255, 93, 162, 0.16); }
+/* 설정 화면 안의 세그먼트(일반/개발자) — scroll 패딩에 맞춰 좌우 마진 제거 */
+.segmented.set-seg { margin: 4px 0 14px; }
 
 /* 상단바: 좌측 세그먼트(목록 모드) + 우측 목록/캘린더 토글 */
 .home-topbar { display: flex; gap: 10px; align-items: stretch; margin: 10px 20px 0; }

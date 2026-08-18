@@ -23,6 +23,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const isAdmin = !!member?.admin
   const toast = useToast()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [tab, setTab] = useState<'general' | 'dev'>('general')
   useBackHandler(() => (feedbackOpen ? setFeedbackOpen(false) : onClose()))
   return (
     <div className="app">
@@ -38,16 +39,33 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       </header>
 
       <main className="scroll">
-        <NotifCard />
-        <CalendarExportCard />
-        <button type="button" className="set-entry" onClick={() => setFeedbackOpen(true)}>
-          <span>의견 보내기 · 버그 제보</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-        </button>
-        {isAdmin && bandId && <InviteCodeCard bandId={bandId} toast={toast} />}
-        {isDeveloper && <BandsStatusCard />}
-        {isDeveloper && <AdminFeedbackCard toast={toast} />}
-        {isDeveloper && <FirebaseLimitsCard />}
+        {isDeveloper && (
+          <div className="segmented set-seg" role="tablist">
+            <button role="tab" aria-selected={tab === 'general'} className={tab === 'general' ? 'on' : ''} onClick={() => setTab('general')}>일반</button>
+            <button role="tab" aria-selected={tab === 'dev'} className={tab === 'dev' ? 'on' : ''} onClick={() => setTab('dev')}>개발자</button>
+          </div>
+        )}
+
+        {(!isDeveloper || tab === 'general') && (
+          <>
+            <NotifCard />
+            <CalendarExportCard />
+            <button type="button" className="set-entry" onClick={() => setFeedbackOpen(true)}>
+              <span>의견 보내기 · 버그 제보</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+            {isAdmin && bandId && <InviteCodeCard bandId={bandId} toast={toast} />}
+          </>
+        )}
+
+        {isDeveloper && tab === 'dev' && (
+          <>
+            <BandsStatusCard />
+            <AdminFeedbackCard toast={toast} />
+            <FirebaseLimitsCard />
+          </>
+        )}
+
         <p className="app-ver">{versionLabel()}</p>
       </main>
 
