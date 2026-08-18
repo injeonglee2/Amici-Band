@@ -436,19 +436,34 @@ function NotifBanner() {
               ? '알림이 차단돼 있어요. 아래 안내대로 허용해 주세요.'
               : '알림을 켜면 새 일정·투표 요청을 바로 받아요.'}
         </span>
-        {!iosInstall && (
-          <button type="button" className="btn primary notif-banner-btn" onClick={() => void enable()} disabled={busy}>
-            {busy ? '켜는 중…' : '알림 켜기'}
-          </button>
-        )}
+        {!iosInstall &&
+          (denied ? (
+            // 차단 상태: 브라우저가 권한 팝업 재요청을 막으므로 '알림 켜기'는 눌러도 안 켜진다.
+            // 헷갈리지 않게 설정 방법을 펼치는 버튼으로 바꾼다.
+            <button
+              type="button"
+              className="btn primary notif-banner-btn"
+              onClick={() => setHelpOpen((o) => !o)}
+              aria-expanded={helpOpen}
+            >
+              {helpOpen ? '접기' : '켜는 법'}
+            </button>
+          ) : (
+            // 미결정 상태: 버튼(사용자 제스처) 한 번으로 네이티브 권한 팝업이 바로 뜬다.
+            <button
+              type="button"
+              className="btn primary notif-banner-btn"
+              onClick={() => void enable()}
+              disabled={busy}
+            >
+              {busy ? '켜는 중…' : '알림 켜기'}
+            </button>
+          ))}
         <button type="button" className="notif-banner-x" onClick={() => setDismissed(true)} aria-label="닫기">×</button>
       </div>
-      {!iosInstall && denied && (
+      {!iosInstall && denied && helpOpen && (
         <div className="notif-banner-help">
-          <button type="button" className="notif-help-toggle" onClick={() => setHelpOpen((o) => !o)} aria-expanded={helpOpen}>
-            {helpOpen ? '설정 방법 접기' : '설정 방법 보기'}
-          </button>
-          {helpOpen && <NotifHelpSteps />}
+          <NotifHelpSteps />
         </div>
       )}
     </div>
@@ -478,7 +493,7 @@ function NotifHelpSteps() {
   return (
     <ul className="notif-help-steps">
       <li>{first}</li>
-      <li>허용한 뒤 위 <b>‘알림 켜기’</b>를 다시 눌러주세요.</li>
+      <li>허용한 뒤 이 화면을 <b>새로고침</b>하면 알림이 켜져요.</li>
     </ul>
   )
 }
