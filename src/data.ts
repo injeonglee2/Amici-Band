@@ -13,19 +13,20 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
 import { db, fbApp, storage } from './firebase'
+import { BAND_ID, bandCol, bandDoc, bandStoragePath } from './band'
 import { DEMO, demoDb } from './demo'
 import type { Attendance, BandEvent, Feedback, Member, Place, Playlist, Recording, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
-/* ---------------- members ---------------- */
+/* ---------------- members (bands/{band}/members/{uid}) ---------------- */
 export async function getMember(uid: string): Promise<Member | null> {
-  const snap = await getDoc(doc(db, 'members', uid))
+  const snap = await getDoc(bandDoc('members', uid))
   return snap.exists() ? (snap.data() as Member) : null
 }
 
 export async function saveMember(m: Member): Promise<void> {
-  await setDoc(doc(db, 'members', m.uid), m, { merge: true })
+  await setDoc(bandDoc('members', m.uid), m, { merge: true })
 }
 
 /** 전체 멤버 명단 구독 (미정 계산용) */
@@ -35,7 +36,7 @@ export function watchMembers(
 ): () => void {
   if (DEMO) return demoDb.watchMembers(cb)
   return onSnapshot(
-    collection(db, 'members'),
+    bandCol('members'),
     (snap) => cb(snap.docs.map((d) => d.data() as Member)),
     (err) => {
       console.error('watchMembers', err)
@@ -47,14 +48,14 @@ export function watchMembers(
 /** 이 기기의 푸시 토큰을 내 멤버 문서에 누적 저장 */
 export async function saveFcmToken(uid: string, token: string): Promise<void> {
   if (DEMO) return
-  await setDoc(doc(db, 'members', uid), { fcmTokens: arrayUnion(token) }, { merge: true })
+  await setDoc(bandDoc('members', uid), { fcmTokens: arrayUnion(token) }, { merge: true })
 }
 
 /** iPhone 홈 화면 PWA 등 표준 Web Push 구독을 멤버 문서에 저장 */
 export async function saveWebPushSubscription(uid: string, subscription: WebPushSubscription): Promise<void> {
   if (DEMO) return
   await setDoc(
-    doc(db, 'members', uid),
+    bandDoc('members', uid),
     { webPushSubscriptions: arrayUnion(subscription) },
     { merge: true },
   )
@@ -63,15 +64,15 @@ export async function saveWebPushSubscription(uid: string, subscription: WebPush
 /** 아직 투표 안 한(미정) 멤버에게 투표 요청 푸시 — Cloud Function 호출. 발송 건수 반환 */
 export async function remindUndecided(eventId: string): Promise<number> {
   if (DEMO || !fbApp) return 0
-  const call = httpsCallable<{ eventId: string }, { sent: number }>(
+  const call = httpsCallable<{ eventId: string; bandId: string }, { sent: number }>(
     getFunctions(fbApp, FUNCTIONS_REGION),
     'remindUndecided',
   )
-  const res = await call({ eventId })
+  const res = await call({ eventId, bandId: BAND_ID })
   return res.data.sent
 }
 
-/* ---------------- events ---------------- */
+/* ---------------- events (bands/{band}/events) ---------------- */
 export function watchEvents(
   cb: (events: BandEvent[]) => void,
   onError?: (e: Error) => void,
@@ -79,7 +80,7 @@ export function watchEvents(
   if (DEMO) return demoDb.watchEvents(cb)
   // 정렬은 클라이언트(Main)에서 하므로 Firestore orderBy 없이 단순 조회 → 복합 색인 불필요
   return onSnapshot(
-    collection(db, 'events'),
+    bandCol('events'),
     (snap) => {
       cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<BandEvent, 'id'>) })))
     },
@@ -98,32 +99,32 @@ export async function saveEvent(ev: BandEvent): Promise<void> {
     Object.entries(rest).filter(([, v]) => v !== undefined),
   )
   // 전체 덮어쓰기(merge 아님) — 장소를 비우는 등 필드 제거가 반영되도록. 폼이 모든 필드를 제공함.
-  await setDoc(doc(db, 'events', id), data)
+  await setDoc(bandDoc('events', id), data)
 }
 
 export async function deleteEvent(id: string): Promise<void> {
   if (DEMO) return demoDb.deleteEvent(id)
-  await deleteDoc(doc(db, 'events', id))
+  await deleteDoc(bandDoc('events', id))
 }
 
 /** (공연) 연결 재생목록만 갱신 — playlistId 만 merge, null 이면 연결 해제 */
 export async function setEventPlaylist(ev: BandEvent, playlistId: string | null): Promise<void> {
   if (DEMO) return demoDb.saveEvent({ ...ev, playlistId: playlistId ?? undefined })
   await setDoc(
-    doc(db, 'events', ev.id),
+    bandDoc('events', ev.id),
     { playlistId: playlistId ?? deleteField() },
     { merge: true },
   )
 }
 
-/* ---------------- places ---------------- */
+/* ---------------- places (bands/{band}/places) ---------------- */
 export function watchPlaces(
   cb: (places: Place[]) => void,
   onError?: (e: Error) => void,
 ): () => void {
   if (DEMO) return demoDb.watchPlaces(cb)
   return onSnapshot(
-    collection(db, 'places'),
+    bandCol('places'),
     (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Place, 'id'>) }))
       list.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
@@ -139,15 +140,15 @@ export function watchPlaces(
 export async function savePlace(p: Place): Promise<void> {
   if (DEMO) return demoDb.savePlace(p)
   const { id, ...data } = p
-  await setDoc(doc(db, 'places', id), data, { merge: true })
+  await setDoc(bandDoc('places', id), data, { merge: true })
 }
 
 export async function deletePlace(id: string): Promise<void> {
   if (DEMO) return demoDb.deletePlace(id)
-  await deleteDoc(doc(db, 'places', id))
+  await deleteDoc(bandDoc('places', id))
 }
 
-/* ---------------- attendance (events/{id}/attendance/{uid}) ---------------- */
+/* ---------------- attendance (bands/{band}/events/{id}/attendance/{uid}) ---------------- */
 export function watchAttendance(
   eventId: string,
   cb: (list: Attendance[]) => void,
@@ -155,7 +156,7 @@ export function watchAttendance(
 ): () => void {
   if (DEMO) return demoDb.watchAttendance(eventId, cb)
   return onSnapshot(
-    collection(db, 'events', eventId, 'attendance'),
+    bandCol('events', eventId, 'attendance'),
     (snap) => {
       cb(snap.docs.map((d) => d.data() as Attendance))
     },
@@ -173,22 +174,22 @@ export async function setAttendance(eventId: string, att: Attendance): Promise<v
   if (clean.status !== 'late') delete clean.arriveTime
   if (clean.status !== 'leave') delete clean.leaveTime
   if (!clean.note) delete clean.note
-  await setDoc(doc(db, 'events', eventId, 'attendance', att.uid), clean)
+  await setDoc(bandDoc('events', eventId, 'attendance', att.uid), clean)
 }
 
 export async function clearAttendance(eventId: string, uid: string): Promise<void> {
   if (DEMO) return demoDb.clearAttendance(eventId, uid)
-  await deleteDoc(doc(db, 'events', eventId, 'attendance', uid))
+  await deleteDoc(bandDoc('events', eventId, 'attendance', uid))
 }
 
-/* ---------------- playlists (음악 재생목록) ---------------- */
+/* ---------------- playlists (bands/{band}/playlists) ---------------- */
 export function watchPlaylists(
   cb: (playlists: Playlist[]) => void,
   onError?: (e: Error) => void,
 ): () => void {
   if (DEMO) return demoDb.watchPlaylists(cb)
   return onSnapshot(
-    collection(db, 'playlists'),
+    bandCol('playlists'),
     (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Playlist, 'id'>) }))
       // 최근에 만든 재생목록이 위로
@@ -205,10 +206,10 @@ export function watchPlaylists(
 export async function savePlaylist(p: Playlist): Promise<void> {
   if (DEMO) return demoDb.savePlaylist(p)
   const { id, ...data } = p
-  await setDoc(doc(db, 'playlists', id), data, { merge: true })
+  await setDoc(bandDoc('playlists', id), data, { merge: true })
 }
 
-/* ---------------- recordings (합주 녹음/영상 기록 — 링크 기반) ---------------- */
+/* ---------------- recordings (bands/{band}/recordings — 링크 기반) ---------------- */
 export function watchRecordings(
   cb: (recordings: Recording[]) => void,
   onError?: (e: Error) => void,
@@ -218,7 +219,7 @@ export function watchRecordings(
     return () => {}
   }
   return onSnapshot(
-    collection(db, 'recordings'),
+    bandCol('recordings'),
     (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Recording, 'id'>) }))
       // 최근 일자 우선, 같은 날짜면 최근 등록 순
@@ -240,15 +241,15 @@ export async function saveRecording(r: Recording): Promise<void> {
   const data = Object.fromEntries(
     Object.entries(rest).map(([k, v]) => [k, v === undefined ? deleteField() : v]),
   )
-  await setDoc(doc(db, 'recordings', id), data, { merge: true })
+  await setDoc(bandDoc('recordings', id), data, { merge: true })
 }
 
 export async function deleteRecording(id: string): Promise<void> {
   if (DEMO) return
-  await deleteDoc(doc(db, 'recordings', id))
+  await deleteDoc(bandDoc('recordings', id))
 }
 
-/* ---------------- scores (악보 — 파트별 PDF·이미지, Firebase Storage) ---------------- */
+/* ---------------- scores (bands/{band}/scores — 파트별 PDF·이미지, Storage) ---------------- */
 export function watchScores(
   cb: (scores: Score[]) => void,
   onError?: (e: Error) => void,
@@ -258,7 +259,7 @@ export function watchScores(
     return () => {}
   }
   return onSnapshot(
-    collection(db, 'scores'),
+    bandCol('scores'),
     (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Score, 'id'>) }))
       list.sort((a, b) => b.createdAt - a.createdAt)
@@ -272,7 +273,8 @@ export function watchScores(
 }
 
 /**
- * 악보 파일 하나를 Storage 에 올리고 {url, path, name} 반환. path = scores/{scoreId}/{i}-{안전한이름}
+ * 악보 파일 하나를 Storage 에 올리고 {url, path, name} 반환.
+ * path = bands/{band}/scores/{scoreId}/{i}-{안전한이름}
  * downloadName 을 주면 저장 시 그 이름으로 받아지도록 contentDisposition 을 붙이고, name 에도 담는다.
  */
 export async function uploadScoreFile(
@@ -282,7 +284,7 @@ export async function uploadScoreFile(
   downloadName?: string,
 ): Promise<ScoreFile> {
   const safe = file.name.replace(/[^\w.-]+/g, '_').slice(-60)
-  const path = `scores/${scoreId}/${index}-${safe}`
+  const path = bandStoragePath('scores', scoreId, `${index}-${safe}`)
   const r = storageRef(storage, path)
   const metadata: { contentType?: string; contentDisposition?: string } = {
     contentType: file.type || undefined,
@@ -299,21 +301,21 @@ export async function saveScore(s: Score): Promise<void> {
   const data = Object.fromEntries(
     Object.entries(rest).map(([k, v]) => [k, v === undefined ? deleteField() : v]),
   )
-  await setDoc(doc(db, 'scores', id), data, { merge: true })
+  await setDoc(bandDoc('scores', id), data, { merge: true })
 }
 
 /** 악보 문서 + Storage 파일들을 함께 삭제 (파일 삭제 실패는 무시하고 문서는 지운다) */
 export async function deleteScore(id: string, files: ScoreFile[]): Promise<void> {
   if (DEMO) return
   await Promise.allSettled(files.map((f) => deleteObject(storageRef(storage, f.path))))
-  await deleteDoc(doc(db, 'scores', id))
+  await deleteDoc(bandDoc('scores', id))
 }
 
-/* ---------------- 기록 자동 동기화 설정 (config/recImport) ---------------- */
+/* ---------------- 기록 자동 동기화 설정 (bands/{band}/config/recImport) ---------------- */
 /** 주 1회 예약 함수가 확인할 재생목록 id 목록 */
 export async function getRecImportPlaylists(): Promise<string[]> {
   if (DEMO) return []
-  const snap = await getDoc(doc(db, 'config', 'recImport'))
+  const snap = await getDoc(bandDoc('config', 'recImport'))
   const ids = snap.exists() ? (snap.get('playlistIds') as unknown) : null
   return Array.isArray(ids) ? (ids as string[]) : []
 }
@@ -322,7 +324,7 @@ export async function getRecImportPlaylists(): Promise<string[]> {
 export async function setRecImportAuto(playlistId: string, on: boolean): Promise<void> {
   if (DEMO) return
   await setDoc(
-    doc(db, 'config', 'recImport'),
+    bandDoc('config', 'recImport'),
     { playlistIds: on ? arrayUnion(playlistId) : arrayRemove(playlistId) },
     { merge: true },
   )
@@ -332,10 +334,10 @@ export async function deletePlaylist(id: string): Promise<void> {
   if (DEMO) return demoDb.deletePlaylist(id)
   // 주의: 하위 tracks 문서는 클라이언트에서 개별 삭제해야 완전히 제거됨.
   // 재생목록 문서만 지워도 목록에서는 사라지므로 우선 문서만 삭제.
-  await deleteDoc(doc(db, 'playlists', id))
+  await deleteDoc(bandDoc('playlists', id))
 }
 
-/* ---------------- tracks (playlists/{id}/tracks/{trackId}) ---------------- */
+/* ---------------- tracks (bands/{band}/playlists/{id}/tracks/{trackId}) ---------------- */
 export function watchTracks(
   playlistId: string,
   cb: (tracks: Track[]) => void,
@@ -343,7 +345,7 @@ export function watchTracks(
 ): () => void {
   if (DEMO) return demoDb.watchTracks(playlistId, cb)
   return onSnapshot(
-    collection(db, 'playlists', playlistId, 'tracks'),
+    bandCol('playlists', playlistId, 'tracks'),
     (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Track, 'id'>) }))
       // 사용자가 정한 순서(order)대로. order 없으면 담은 시각으로 대체
@@ -361,12 +363,12 @@ export async function saveTrack(playlistId: string, t: Track): Promise<void> {
   if (DEMO) return demoDb.saveTrack(playlistId, t)
   const { id, ...rest } = t
   const data = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
-  await setDoc(doc(db, 'playlists', playlistId, 'tracks', id), data)
+  await setDoc(bandDoc('playlists', playlistId, 'tracks', id), data)
 }
 
 export async function deleteTrack(playlistId: string, trackId: string): Promise<void> {
   if (DEMO) return demoDb.deleteTrack(playlistId, trackId)
-  await deleteDoc(doc(db, 'playlists', playlistId, 'tracks', trackId))
+  await deleteDoc(bandDoc('playlists', playlistId, 'tracks', trackId))
 }
 
 /**
@@ -381,7 +383,7 @@ export async function setTrackParticipation(
   part: TrackPart,
 ): Promise<void> {
   if (DEMO) return demoDb.setTrackParticipation(playlistId, trackId, uid, part)
-  await updateDoc(doc(db, 'playlists', playlistId, 'tracks', trackId), {
+  await updateDoc(bandDoc('playlists', playlistId, 'tracks', trackId), {
     [`participants.${uid}`]: part,
   })
 }
@@ -393,12 +395,12 @@ export async function clearTrackParticipation(
   uid: string,
 ): Promise<void> {
   if (DEMO) return demoDb.clearTrackParticipation(playlistId, trackId, uid)
-  await updateDoc(doc(db, 'playlists', playlistId, 'tracks', trackId), {
+  await updateDoc(bandDoc('playlists', playlistId, 'tracks', trackId), {
     [`participants.${uid}`]: deleteField(),
   })
 }
 
-/* ---------------- 합주곡 셋리스트 (events/{eventId}/setlist/{songId}) ---------------- */
+/* ---------------- 합주곡 셋리스트 (bands/{band}/events/{eventId}/setlist/{songId}) ---------------- */
 /** 일정에 등록된 합주곡 구독 (합주 순서대로) */
 export function watchSetlist(
   eventId: string,
@@ -407,7 +409,7 @@ export function watchSetlist(
 ): () => void {
   if (DEMO) return demoDb.watchSetlist(eventId, cb)
   return onSnapshot(
-    collection(db, 'events', eventId, 'setlist'),
+    bandCol('events', eventId, 'setlist'),
     (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SetlistSong, 'id'>) }))
       list.sort((a, b) => (a.order ?? a.addedAt) - (b.order ?? b.addedAt))
@@ -425,7 +427,7 @@ export async function addSetlistSong(eventId: string, song: SetlistSong): Promis
   if (DEMO) return demoDb.addSetlistSong(eventId, song)
   const { id, ...rest } = song
   const data = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
-  await setDoc(doc(db, 'events', eventId, 'setlist', id), data)
+  await setDoc(bandDoc('events', eventId, 'setlist', id), data)
 }
 
 /**
@@ -436,14 +438,14 @@ export const saveSetlistSong = addSetlistSong
 
 export async function removeSetlistSong(eventId: string, songId: string): Promise<void> {
   if (DEMO) return demoDb.removeSetlistSong(eventId, songId)
-  await deleteDoc(doc(db, 'events', eventId, 'setlist', songId))
+  await deleteDoc(bandDoc('events', eventId, 'setlist', songId))
 }
 
 export function newId(): string {
   return 'e' + Math.random().toString(36).slice(2, 10)
 }
 
-/* ---------------- feedback (버그 제보·개선 의견) ---------------- */
+/* ---------------- feedback (전역 — 밴드가 아니라 앱 개발자에게 가는 채널) ---------------- */
 /** 제보 첨부 사진 업로드 → { url, path }. feedbackId 는 제출 전에 newId() 로 미리 만들어 넘긴다.
  *  blob 은 압축된 이미지(image.ts), name 은 저장용 파일명. */
 export async function uploadFeedbackImage(

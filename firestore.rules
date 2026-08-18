@@ -13,6 +13,17 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.get('admin', false) == true;
     }
 
+    // ── 밴드 스코프 (bands/{bandId}) : 멀티밴드 기반 ──
+    // 밴드 멤버 = 그 밴드에 내 멤버 문서가 있는 사람. 밴드 admin = 그 문서의 admin==true.
+    function isBandMember(bandId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid));
+    }
+    function isBandAdmin(bandId) {
+      return isBandMember(bandId)
+        && get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.get('admin', false) == true;
+    }
+
     // 멤버 프로필: 로그인하면 읽기 가능, 본인 문서만 쓰기
     // 단, admin(관리자) 필드는 스스로 켤 수 없음 — 콘솔에서만 부여
     match /members/{uid} {
@@ -86,6 +97,73 @@ service cloud.firestore {
       match /setlist/{songId} {
         allow read: if signedIn();
         allow write: if isAdmin();
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 밴드별 데이터 (bands/{bandId}/...) — 멀티밴드. 위 전역 규칙은 전환기 호환용으로 유지.
+    // 읽기/쓰기는 그 밴드 멤버만, 일부는 그 밴드 admin만. (feedback 은 전역·개발자 전용으로 별도)
+    // ─────────────────────────────────────────────────────────────
+    match /bands/{bandId} {
+      allow read: if isBandMember(bandId);
+      // 밴드 생성: 생성자가 소유자(ownerUid)여야 함 (초대코드·가입인원 캡은 Phase 2에서)
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isBandAdmin(bandId);
+
+      match /members/{uid} {
+        allow read: if isBandMember(bandId);
+        // 본인 문서만 생성/수정, admin 은 스스로 켤 수 없음
+        allow create: if signedIn() && request.auth.uid == uid
+                      && request.resource.data.get('admin', false) == false;
+        allow update: if signedIn() && request.auth.uid == uid
+                      && request.resource.data.get('admin', false) == resource.data.get('admin', false);
+        // 강퇴(밴드 admin) 또는 본인 탈퇴
+        allow delete: if isBandAdmin(bandId) || (signedIn() && request.auth.uid == uid);
+      }
+
+      match /places/{placeId} {
+        allow read: if isBandMember(bandId);
+        allow create: if isBandAdmin(bandId);
+        allow update, delete: if isBandMember(bandId);
+      }
+
+      match /recordings/{recId} {
+        allow read: if isBandMember(bandId);
+        allow create: if isBandMember(bandId);
+        allow update, delete: if isBandAdmin(bandId) || (isBandMember(bandId) && resource.data.addedBy == request.auth.uid);
+      }
+
+      match /scores/{scoreId} {
+        allow read: if isBandMember(bandId);
+        allow create: if isBandMember(bandId);
+        allow update, delete: if isBandAdmin(bandId) || (isBandMember(bandId) && resource.data.addedBy == request.auth.uid);
+      }
+
+      match /config/{docId} {
+        allow read: if isBandMember(bandId);
+        allow write: if isBandAdmin(bandId);
+      }
+
+      match /playlists/{playlistId} {
+        allow read, write: if isBandMember(bandId);
+        match /tracks/{trackId} {
+          allow read, write: if isBandMember(bandId);
+        }
+      }
+
+      match /events/{eventId} {
+        allow read: if isBandMember(bandId);
+        allow create, update: if isBandAdmin(bandId);
+        allow delete: if isBandAdmin(bandId) || (isBandMember(bandId) && resource.data.createdBy == request.auth.uid);
+
+        match /attendance/{uid} {
+          allow read: if isBandMember(bandId);
+          allow write: if isBandMember(bandId) && request.auth.uid == uid;
+        }
+        match /setlist/{songId} {
+          allow read: if isBandMember(bandId);
+          allow write: if isBandAdmin(bandId);
+        }
       }
     }
   }

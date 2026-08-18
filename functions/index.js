@@ -1,7 +1,10 @@
 /**
- * Amici Band 푸시 알림 (FCM)
- * - notifyOnEventCreate: 일정 생성 시 전체 멤버에게 "새 일정 · 투표 요청"
- * - remindUndecided: (합주·공연 일정 한정) 아직 투표 안 한 미정 멤버에게 리마인더 — 앱에서 호출
+ * Amici Band 푸시 알림 (FCM) — 멀티밴드(bands/{bandId}/...) 스코프
+ * - notifyOnEventCreate: 밴드 일정 생성 시 그 밴드 멤버에게 "새 일정 · 투표 요청"
+ * - notifyOnEventUpdate: 밴드 일정(합주·공연) 변경 시 그 밴드 멤버에게 변경 요약
+ * - notifyOnFeedbackCreate: 의견 제출 시 개발자에게만 (전역 feedback)
+ * - remindUndecided: (합주·공연) 미정 멤버에게 리마인더 — 앱에서 밴드 admin 이 호출
+ * - syncRecordingsFromPlaylist: 주 1회, 모든 밴드의 재생목록을 확인해 기록 자동 추가
  *
  * 배포: firebase deploy --only functions   (Blaze 요금제 필요)
  */
@@ -23,6 +26,9 @@ const youtubeApiKey = defineSecret('YOUTUBE_API_KEY')
 
 // Firestore(서울)와 같은 리전
 setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 })
+
+/** 밴드 문서 참조 */
+const bandRef = (bandId) => db.collection('bands').doc(bandId)
 
 // 리마인더 허용 유형
 const REMINDABLE_TYPES = ['practice', 'show']
@@ -55,13 +61,13 @@ function displayValue(value, fallback = '미정') {
   return text || fallback
 }
 
-async function eventPlaceName(data) {
+async function eventPlaceName(data, bandId) {
   if (!data.placeId) return displayValue(data.loc)
-  const place = await db.doc(`places/${data.placeId}`).get()
+  const place = await bandRef(bandId).collection('places').doc(data.placeId).get()
   return place.exists ? displayValue(place.get('name')) : '등록된 장소'
 }
 
-async function buildEventChangeSummary(before, after) {
+async function buildEventChangeSummary(before, after, bandId) {
   const changes = []
   if (valueChanged(before, after, 'date')) {
     changes.push(`날짜: ${displayValue(before.date)} → ${displayValue(after.date)}`)
@@ -79,8 +85,8 @@ async function buildEventChangeSummary(before, after) {
     valueChanged(before, after, 'location')
   ) {
     const [beforePlace, afterPlace] = await Promise.all([
-      eventPlaceName(before),
-      eventPlaceName(after),
+      eventPlaceName(before, bandId),
+      eventPlaceName(after, bandId),
     ])
     changes.push(`장소: ${beforePlace} → ${afterPlace}`)
   }
@@ -122,7 +128,7 @@ function collectWebPushSubscriptions(memberDocs) {
   return subscriptions
 }
 
-/** 멀티캐스트 발송 + 무효 토큰 정리 */
+/** 멀티캐스트 발송 + 무효 토큰 정리 (토큰은 어느 밴드 멤버 문서에나 있을 수 있어 collectionGroup 로 정리) */
 async function sendPush(tokens, { title, body, eventId }) {
   if (!tokens.length) return 0
   const res = await messaging.sendEachForMulticast({
@@ -143,7 +149,7 @@ async function sendPush(tokens, { title, body, eventId }) {
     }
   })
   if (invalid.length) {
-    const members = await db.collection('members').where('fcmTokens', 'array-contains-any', invalid.slice(0, 10)).get()
+    const members = await db.collectionGroup('members').where('fcmTokens', 'array-contains-any', invalid.slice(0, 10)).get()
     const batch = db.batch()
     members.forEach((m) => {
       batch.update(m.ref, { fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalid) })
@@ -214,11 +220,12 @@ async function sendAllPush(memberDocs, payload) {
 }
 
 exports.notifyOnEventCreate = onDocumentCreated(
-  { document: 'events/{eventId}', secrets: webPushSecrets },
+  { document: 'bands/{bandId}/events/{eventId}', secrets: webPushSecrets },
   async (event) => {
   const data = event.data && event.data.data()
   if (!data) return
-  const membersSnap = await db.collection('members').get()
+  const { bandId, eventId } = event.params
+  const membersSnap = await bandRef(bandId).collection('members').get()
   const isPractice = data.type === 'practice'
   const sent = await sendAllPush(membersSnap.docs, {
     title: isPractice
@@ -227,30 +234,32 @@ exports.notifyOnEventCreate = onDocumentCreated(
     body: isPractice
       ? `${data.date || ''} 합주 일정이 추가됐어요. 참석 여부를 투표해 주세요.`
       : `${data.date || ''} 새 일정이 추가됐어요. 확인해 주세요.`,
-    eventId: event.params.eventId,
+    eventId,
   })
-  console.info('event-create push complete', { eventId: event.params.eventId, sent })
+  console.info('event-create push complete', { bandId, eventId, sent })
   },
 )
 
 exports.notifyOnEventUpdate = onDocumentUpdated(
-  { document: 'events/{eventId}', secrets: webPushSecrets },
+  { document: 'bands/{bandId}/events/{eventId}', secrets: webPushSecrets },
   async (event) => {
     const before = event.data && event.data.before.data()
     const after = event.data && event.data.after.data()
     if (!before || !after || !eventScheduleChanged(before, after)) return
     if (!REMINDABLE_TYPES.includes(before.type) && !REMINDABLE_TYPES.includes(after.type)) return
 
-    const changeSummary = await buildEventChangeSummary(before, after)
-    const membersSnap = await db.collection('members').get()
+    const { bandId, eventId } = event.params
+    const changeSummary = await buildEventChangeSummary(before, after, bandId)
+    const membersSnap = await bandRef(bandId).collection('members').get()
     const isShow = after.type === 'show'
     const sent = await sendAllPush(membersSnap.docs, {
       title: `${isShow ? '공연' : '합주'} 일정 변경: ${after.title || '일정'}`,
       body: changeSummary,
-      eventId: event.params.eventId,
+      eventId,
     })
     console.info('event-update push complete', {
-      eventId: event.params.eventId,
+      bandId,
+      eventId,
       eventType: after.type,
       changeSummary,
       sent,
@@ -258,19 +267,20 @@ exports.notifyOnEventUpdate = onDocumentUpdated(
   },
 )
 
-// 버그 제보·의견이 올라오면 개발자에게만 푸시 (앱 최상위 권한자)
+// 버그 제보·의견이 올라오면 개발자에게만 푸시 (앱 최상위 권한자, 전역 feedback)
 const DEVELOPER_EMAIL = 'kkd00055@gmail.com'
 exports.notifyOnFeedbackCreate = onDocumentCreated(
   { document: 'feedback/{fbId}', secrets: webPushSecrets },
   async (event) => {
     const data = event.data && event.data.data()
     if (!data) return
-    const adminsSnap = await db.collection('members').where('email', '==', DEVELOPER_EMAIL).get()
-    if (adminsSnap.empty) return
+    // 개발자의 멤버 문서는 어느 밴드에나 있을 수 있어 collectionGroup 로 찾는다
+    const devSnap = await db.collectionGroup('members').where('email', '==', DEVELOPER_EMAIL).get()
+    if (devSnap.empty) return
     const typeLabel = data.type === 'bug' ? '버그' : data.type === 'idea' ? '개선' : '의견'
     const who = data.createdByName || '멤버'
     const text = String(data.text || '')
-    const sent = await sendAllPush(adminsSnap.docs, {
+    const sent = await sendAllPush(devSnap.docs, {
       title: `새 ${typeLabel} 제보 · ${who}`,
       body: text.length > 60 ? text.slice(0, 60) + '…' : text,
     })
@@ -281,16 +291,18 @@ exports.notifyOnFeedbackCreate = onDocumentCreated(
 exports.remindUndecided = onCall({ secrets: webPushSecrets }, async (req) => {
   if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
 
-  // 관리자만 투표 요청 발송 가능
-  const callerSnap = await db.doc(`members/${req.auth.uid}`).get()
+  const bandId = req.data && req.data.bandId
+  const eventId = req.data && req.data.eventId
+  if (!bandId) throw new HttpsError('invalid-argument', 'bandId 가 필요해요.')
+  if (!eventId) throw new HttpsError('invalid-argument', 'eventId 가 필요해요.')
+
+  // 그 밴드의 관리자만 투표 요청 발송 가능
+  const callerSnap = await bandRef(bandId).collection('members').doc(req.auth.uid).get()
   if (!callerSnap.exists || callerSnap.get('admin') !== true) {
     throw new HttpsError('permission-denied', '관리자만 투표 요청을 보낼 수 있어요.')
   }
 
-  const eventId = req.data && req.data.eventId
-  if (!eventId) throw new HttpsError('invalid-argument', 'eventId 가 필요해요.')
-
-  const evSnap = await db.doc(`events/${eventId}`).get()
+  const evSnap = await bandRef(bandId).collection('events').doc(eventId).get()
   if (!evSnap.exists) throw new HttpsError('not-found', '일정을 찾을 수 없어요.')
   const ev = evSnap.data()
   if (!REMINDABLE_TYPES.includes(ev.type)) {
@@ -298,8 +310,8 @@ exports.remindUndecided = onCall({ secrets: webPushSecrets }, async (req) => {
   }
 
   const [membersSnap, attSnap] = await Promise.all([
-    db.collection('members').get(),
-    db.collection(`events/${eventId}/attendance`).get(),
+    bandRef(bandId).collection('members').get(),
+    bandRef(bandId).collection('events').doc(eventId).collection('attendance').get(),
   ])
   // 미정 = 아직 투표 안 함 + 명시적으로 '미정' 선택한 멤버
   const statusById = new Map(attSnap.docs.map((d) => [d.id, d.data().status]))
@@ -314,7 +326,7 @@ exports.remindUndecided = onCall({ secrets: webPushSecrets }, async (req) => {
   return { sent }
 })
 
-/* ---------------- 유튜브 재생목록 → 기록 자동 동기화 (주 1회) ---------------- */
+/* ---------------- 유튜브 재생목록 → 기록 자동 동기화 (주 1회, 전 밴드) ---------------- */
 function normTitle(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]+/g, '')
 }
@@ -402,8 +414,8 @@ async function fetchPlaylistVideos(playlistId, apiKey) {
   }
   return out
 }
-async function loadAllTracks() {
-  const pls = await db.collection('playlists').get()
+async function loadAllTracks(bRef) {
+  const pls = await bRef.collection('playlists').get()
   const tracks = []
   for (const p of pls.docs) {
     const ts = await p.ref.collection('tracks').get()
@@ -420,8 +432,8 @@ async function loadAllTracks() {
   return tracks
 }
 // 날짜별 일정 목록 — 그 날짜에 일정이 하나면 기록에 자동 연결하기 위함
-async function loadEventsByDate() {
-  const snap = await db.collection('events').get()
+async function loadEventsByDate(bRef) {
+  const snap = await bRef.collection('events').get()
   const byDate = new Map()
   snap.forEach((d) => {
     const date = d.get('date')
@@ -433,7 +445,60 @@ async function loadEventsByDate() {
   return byDate
 }
 
-// 매주 일요일 18:00(서울)에 config/recImport.playlistIds 의 재생목록을 확인해 새 영상을 기록에 추가
+// 한 밴드의 재생목록을 확인해 새 영상을 그 밴드 기록에 추가
+async function syncBandRecordings(bRef, apiKey) {
+  const cfg = await bRef.collection('config').doc('recImport').get()
+  const playlistIds = cfg.exists && Array.isArray(cfg.get('playlistIds')) ? cfg.get('playlistIds') : []
+  if (!playlistIds.length) return 0
+
+  const recSnap = await bRef.collection('recordings').get()
+  const existing = new Set()
+  recSnap.forEach((d) => {
+    const v = d.get('videoId')
+    if (v) existing.add(v)
+  })
+  const tracks = await loadAllTracks(bRef)
+  const eventsByDate = await loadEventsByDate(bRef)
+
+  let added = 0
+  for (const pid of playlistIds) {
+    const vids = await fetchPlaylistVideos(pid, apiKey)
+    for (const v of vids) {
+      if (existing.has(v.videoId)) continue
+      existing.add(v.videoId)
+      const m = await musicFromTitleSmart(v.title, tracks, apiKey)
+      const recDate = dateFromTitle(v.title) || v.publishedAt || new Date().toISOString().slice(0, 10)
+      const rec = {
+        title: v.title,
+        date: recDate,
+        url: `https://www.youtube.com/watch?v=${v.videoId}`,
+        videoId: v.videoId,
+        thumbnail: `https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg`,
+        addedBy: 'system',
+        addedByName: '자동 가져오기',
+        createdAt: Date.now(),
+      }
+      const evs = eventsByDate.get(recDate) || []
+      if (evs.length === 1) {
+        rec.eventId = evs[0].id
+        rec.eventTitle = evs[0].title
+      }
+      if (m) {
+        rec.playlistId = m.playlistId
+        rec.playlistName = m.playlistName
+        rec.trackId = m.id
+        rec.trackTitle = m.title
+        if (m.artist) rec.trackArtist = m.artist
+      }
+      // 크레딧(파트별 멤버)은 클라이언트 Firebase AI Logic 로 채운다(기록을 열 때 백필). 서버는 생략.
+      await bRef.collection('recordings').doc().set(rec)
+      added++
+    }
+  }
+  return added
+}
+
+// 매주 일요일 18:00(서울)에 모든 밴드의 config/recImport.playlistIds 를 확인해 새 영상을 기록에 추가
 exports.syncRecordingsFromPlaylist = onSchedule(
   { schedule: 'every sunday 18:00', timeZone: 'Asia/Seoul', secrets: [youtubeApiKey] },
   async () => {
@@ -442,57 +507,15 @@ exports.syncRecordingsFromPlaylist = onSchedule(
       console.error('YOUTUBE_API_KEY 시크릿이 없어요.')
       return
     }
-    const cfg = await db.doc('config/recImport').get()
-    const playlistIds = cfg.exists && Array.isArray(cfg.get('playlistIds')) ? cfg.get('playlistIds') : []
-    if (!playlistIds.length) {
-      console.info('자동 동기화할 재생목록이 없어요.')
-      return
-    }
-
-    const recSnap = await db.collection('recordings').get()
-    const existing = new Set()
-    recSnap.forEach((d) => {
-      const v = d.get('videoId')
-      if (v) existing.add(v)
-    })
-    const tracks = await loadAllTracks()
-    const eventsByDate = await loadEventsByDate()
-
-    let added = 0
-    for (const pid of playlistIds) {
-      const vids = await fetchPlaylistVideos(pid, apiKey)
-      for (const v of vids) {
-        if (existing.has(v.videoId)) continue
-        existing.add(v.videoId)
-        const m = await musicFromTitleSmart(v.title, tracks, apiKey)
-        const recDate = dateFromTitle(v.title) || v.publishedAt || new Date().toISOString().slice(0, 10)
-        const rec = {
-          title: v.title,
-          date: recDate,
-          url: `https://www.youtube.com/watch?v=${v.videoId}`,
-          videoId: v.videoId,
-          thumbnail: `https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg`,
-          addedBy: 'system',
-          addedByName: '자동 가져오기',
-          createdAt: Date.now(),
-        }
-        const evs = eventsByDate.get(recDate) || []
-        if (evs.length === 1) {
-          rec.eventId = evs[0].id
-          rec.eventTitle = evs[0].title
-        }
-        if (m) {
-          rec.playlistId = m.playlistId
-          rec.playlistName = m.playlistName
-          rec.trackId = m.id
-          rec.trackTitle = m.title
-          if (m.artist) rec.trackArtist = m.artist
-        }
-        // 크레딧(파트별 멤버)은 클라이언트 Firebase AI Logic 로 채운다(기록을 열 때 백필). 서버는 생략.
-        await db.collection('recordings').doc().set(rec)
-        added++
+    const bands = await db.collection('bands').get()
+    let totalAdded = 0
+    for (const band of bands.docs) {
+      try {
+        totalAdded += await syncBandRecordings(band.ref, apiKey)
+      } catch (e) {
+        console.error('밴드 동기화 실패', band.id, e)
       }
     }
-    console.info('recordings auto-sync 완료', { playlists: playlistIds.length, added })
+    console.info('recordings auto-sync 완료', { bands: bands.size, added: totalAdded })
   },
 )
