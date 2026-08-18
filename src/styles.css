@@ -127,7 +127,7 @@ button { font-family: inherit; }
 /* ---------- filters ---------- */
 /* 하단 패딩을 칩 글로우(box-shadow ~12px)만큼 확보 — 가로 스크롤이 세로도 클립하므로 잘림 방지.
    margin-bottom 음수로 늘어난 여백은 상쇄 */
-.filters { display: flex; gap: 8px; overflow-x: auto; padding: 14px 20px 14px; margin-bottom: -8px; scrollbar-width: none; }
+.filters { display: flex; gap: 8px; overflow-x: auto; padding: 14px 0; margin: 0 20px -8px; scrollbar-width: none; }
 .filters::-webkit-scrollbar { display: none; }
 .chip {
   flex: none; appearance: none; cursor: pointer; font-size: 13px; font-weight: 600;
