@@ -159,7 +159,7 @@ export default function EventCard({
                   {mine.status === 'leave' && mine.leaveTime ? ` ${mine.leaveTime}` : ''}
                 </button>
               ) : !past ? (
-                <button className="card-vote" onClick={() => setModal(isAdmin ? 'summary' : 'vote')} aria-label="참석 투표" title="참석 투표">
+                <button className="card-vote" onClick={() => setModal('vote')} aria-label="참석 투표" title="참석 투표">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 11 3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
                   <span className="vote-dot" aria-hidden="true" />
                 </button>

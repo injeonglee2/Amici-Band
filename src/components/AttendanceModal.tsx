@@ -269,12 +269,6 @@ export default function AttendanceModal({
                 )}
               </div>
 
-              {!readOnly && (
-                <button type="button" className="btn primary block edit-vote-btn" onClick={() => setMode('vote')}>
-                  {mine ? '내 투표 수정' : '참석 투표하기'}
-                </button>
-              )}
-
               {canRemind && (
                 <button type="button" className="btn primary block remind-btn" onClick={sendReminder} disabled={reminding}>
                   {reminding ? '보내는 중…' : `미정 ${undecided.length}명에게 투표 요청`}
@@ -282,8 +276,13 @@ export default function AttendanceModal({
               )}
               {remindMsg && <p className="remind-msg">{remindMsg}</p>}
 
-              <div className="actions">
-                <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
+              <div className="actions att-actions">
+                {!readOnly && (
+                  <button type="button" className="btn primary" onClick={() => setMode('vote')}>
+                    {mine ? '내 투표 수정' : '참석 투표하기'}
+                  </button>
+                )}
+                <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
               </div>
             </>
           )}
