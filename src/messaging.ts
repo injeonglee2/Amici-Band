@@ -159,14 +159,22 @@ export function isApplePwaNeedsInstall(): boolean {
  * - 거부/미지원: 아무것도 안 함 (설정에서 수동으로 다시 켤 수 있음)
  * 성공 시 토큰 반환.
  */
+/**
+ * 자동 권한 요청 버전. 이 값을 올리면 "한 번 물어봤음" 플래그가 초기화된 효과가 나서,
+ * 아직 권한 미결정(default)인 사용자에게 다음 접속 때 딱 한 번 더 자동 요청한다.
+ * (이미 '거부(denied)'한 사용자는 브라우저가 재요청을 막으므로 영향 없음 — 설정에서 직접 켜야 함)
+ */
+const PUSH_ASK_VERSION = '2'
+
 export async function autoRegisterPush(): Promise<string | null> {
   if (!pushConfigured()) return null
   const perm = notificationPermission()
   if (perm === 'granted') return requestPushToken()
   if (perm !== 'default') return null
   try {
-    if (localStorage.getItem('amici.pushAsked')) return null
-    localStorage.setItem('amici.pushAsked', '1')
+    // 저장된 버전이 현재 버전과 같을 때만 스킵 → 버전을 올리면 전원 한 번 더 요청
+    if (localStorage.getItem('amici.pushAsked') === PUSH_ASK_VERSION) return null
+    localStorage.setItem('amici.pushAsked', PUSH_ASK_VERSION)
   } catch {
     /* localStorage 불가 환경 무시 */
   }
