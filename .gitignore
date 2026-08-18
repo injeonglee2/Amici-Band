@@ -15,6 +15,13 @@ dist-ssr
 # Firebase Auth 사용자 export (이메일 등 개인정보) — 절대 커밋 금지
 users.json
 
+# Firebase 서비스 계정 키 (Admin SDK) — 절대 커밋 금지
+serviceAccount*.json
+*-serviceaccount*.json
+*service-account*.json
+amici-sa*.json
+firebase-adminsdk*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
