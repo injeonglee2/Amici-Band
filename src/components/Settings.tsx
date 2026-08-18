@@ -1,17 +1,26 @@
 import { useEffect, useState } from 'react'
-import { deleteFeedback, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, watchFeedback } from '../data'
+import { deleteFeedback, getActiveInviteCode, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, watchAllBands, watchFeedback } from '../data'
 import { useAuth } from '../auth'
 import { notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
 import ThemeSelect from './ThemeSelect'
 import FeedbackSheet from './FeedbackSheet'
 import Toast, { useToast } from './Toast'
+import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
 import { useBackHandler } from '../backnav'
-import type { Feedback } from '../types'
+import type { Band, Feedback } from '../types'
+
+const fmtDay = (ms?: number) => {
+  if (!ms) return '-'
+  const d = new Date(ms)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
 
 export default function Settings({ onClose }: { onClose: () => void }) {
-  const { isDeveloper } = useAuth()
+  const { member, bandId, isDeveloper } = useAuth()
+  const isAdmin = !!member?.admin
   const toast = useToast()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   useBackHandler(() => (feedbackOpen ? setFeedbackOpen(false) : onClose()))
@@ -35,6 +44,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           <span>의견 보내기 · 버그 제보</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
         </button>
+        {isAdmin && bandId && <InviteCodeCard bandId={bandId} toast={toast} />}
+        {isDeveloper && <BandsStatusCard />}
         {isDeveloper && <AdminFeedbackCard toast={toast} />}
         {isDeveloper && <FirebaseLimitsCard />}
         <p className="app-ver">{versionLabel()}</p>
@@ -42,6 +53,82 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
       {feedbackOpen && <FeedbackSheet toast={toast} onClose={() => setFeedbackOpen(false)} />}
       <Toast state={toast} />
+    </div>
+  )
+}
+
+/** 관리자 전용: 이 밴드 초대 코드 보기 + 재발급(회전) */
+function InviteCodeCard({ bandId, toast }: { bandId: string; toast: ReturnType<typeof useToast> }) {
+  const [code, setCode] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    getActiveInviteCode(bandId)
+      .then(setCode)
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [bandId])
+  async function rotate() {
+    if (busy) return
+    setBusy(true)
+    try {
+      const r = await rotateInviteCode(bandId)
+      setCode(r.code)
+      toast.show('새 초대 코드를 발급했어요')
+    } catch {
+      toast.show('코드 재발급에 실패했어요')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="limits-card">
+      <div className="limits-head">
+        <h3>초대 코드</h3>
+        <span className="guide-badge">관리자</span>
+      </div>
+      {code ? (
+        <div className="invite-code">
+          <span>{code}</span>
+          <CopyButton text={code} onCopied={() => toast.show('코드를 복사했어요')} />
+        </div>
+      ) : loaded ? (
+        <p className="app-ver" style={{ textAlign: 'left', margin: 0 }}>아직 코드가 없어요. 아래에서 발급하세요.</p>
+      ) : null}
+      <button type="button" className="btn subtle block" onClick={() => void rotate()} disabled={busy}>
+        {busy ? '발급 중…' : code ? '코드 재발급' : '코드 발급'}
+      </button>
+    </div>
+  )
+}
+
+/** 개발자 전용: 전체 밴드 현황 (과금 리스크 모니터링) */
+function BandsStatusCard() {
+  const [bands, setBands] = useState<Band[]>([])
+  useEffect(() => watchAllBands(setBands, () => {}), [])
+  return (
+    <div className="limits-card">
+      <div className="limits-head">
+        <h3>밴드 현황{bands.length > 0 && <b className="fb-newbadge"> {bands.length}</b>}</h3>
+        <span className="guide-badge dev">개발자</span>
+      </div>
+      {bands.length === 0 ? (
+        <p className="app-ver" style={{ textAlign: 'left', margin: 0 }}>밴드가 없어요.</p>
+      ) : (
+        <ul className="bands-list">
+          {bands.map((b) => (
+            <li key={b.id}>
+              <span className="bands-name">
+                {b.name}
+                {b.unlimited && <em className="bands-unl">무제한</em>}
+              </span>
+              <span className="bands-meta">
+                {b.memberCount ?? 0}{b.unlimited ? '' : '/5'}명 · {fmtDay(b.createdAt)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

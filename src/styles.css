@@ -988,6 +988,32 @@ button { font-family: inherit; }
 }
 .login h1 { margin: 6px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; color: #fff; text-shadow: 0 0 24px rgba(255, 125, 186, 0.4); }
 .login .muted { margin: 0; color: var(--ink-soft); }
+
+/* 온보딩(밴드 만들기 / 코드로 참여) */
+.onboard .field { width: 100%; text-align: left; margin-bottom: 2px; }
+.onboard .field input { width: 100%; }
+.onboard .btn.block { margin-top: 2px; }
+.link-btn {
+  appearance: none; border: none; background: transparent; cursor: pointer;
+  color: var(--ink-faint); font: inherit; font-size: 12.5px; text-decoration: underline; margin-top: 4px;
+}
+.link-btn:hover { color: var(--ink-soft); }
+/* 초대 코드 표시 (온보딩·설정 공통) */
+.invite-code {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; align-self: center;
+  font-size: 20px; font-weight: 800; letter-spacing: 0.12em; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-radius: 12px; padding: 10px 16px;
+}
+.invite-code.big { font-size: 26px; padding: 14px 20px; margin: 4px 0; }
+.limits-card .invite-code { display: flex; margin-bottom: 12px; }
+/* 개발자 밴드 현황 목록 */
+.bands-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bands-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.bands-name { font-weight: 700; color: var(--ink); display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.bands-unl { font-style: normal; font-size: 10px; font-weight: 800; color: #ffd24d; background: color-mix(in srgb, #ffd24d 15%, transparent); padding: 1px 6px; border-radius: 999px; }
+.bands-meta { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .google-btn {
   margin-top: 10px; width: 100%; appearance: none; cursor: pointer; border: 1px solid var(--line-strong);
   background: var(--surface-2); color: var(--ink); border-radius: 13px; padding: 14px; font-size: 15px;

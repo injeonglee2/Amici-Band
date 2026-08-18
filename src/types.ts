@@ -147,6 +147,16 @@ export interface Score {
   createdAt: number
 }
 
+/** 밴드 (bands/{bandId}) — 멀티밴드. AMICI 는 unlimited=true 로 인원 캡 면제 */
+export interface Band {
+  id: string
+  name: string
+  ownerUid: string
+  unlimited?: boolean
+  memberCount?: number
+  createdAt?: number
+}
+
 export type AttendStatus = 'present' | 'late' | 'leave' | 'absent' | 'undecided'
 
 export const STATUS_META: Record<AttendStatus, { label: string; color: string }> = {

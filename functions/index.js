@@ -326,6 +326,109 @@ exports.remindUndecided = onCall({ secrets: webPushSecrets }, async (req) => {
   return { sent }
 })
 
+/* ---------------- 밴드 생성·가입·초대코드 (멀티밴드 2단계) ---------------- */
+const MEMBER_CAP = 5 // 밴드 기본 가입 인원 상한 (unlimited 밴드는 면제)
+
+// 사람이 부르기 쉬운 코드(혼동 문자 제외) — ABC-DEF
+function genCode() {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+  let s = ''
+  for (let i = 0; i < 6; i++) s += A[Math.floor(Math.random() * A.length)]
+  return s.slice(0, 3) + '-' + s.slice(3)
+}
+async function uniqueCode() {
+  for (let i = 0; i < 12; i++) {
+    const c = genCode()
+    const d = await db.collection('inviteCodes').doc(c).get()
+    if (!d.exists) return c
+  }
+  throw new HttpsError('internal', '코드 생성에 실패했어요. 다시 시도해 주세요.')
+}
+
+// 새 밴드 생성 — 생성자가 그 밴드의 관리자(admin)가 된다. (1인 1밴드: 이미 밴드가 있으면 거부)
+exports.createBand = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
+  const uid = req.auth.uid
+  const email = (req.auth.token && req.auth.token.email) || ''
+  const name = String((req.data && req.data.name) || '').trim()
+  if (!name) throw new HttpsError('invalid-argument', '밴드 이름을 입력해 주세요.')
+
+  const userDoc = await db.collection('users').doc(uid).get()
+  if (userDoc.exists && userDoc.get('bandId')) {
+    throw new HttpsError('failed-precondition', '이미 밴드에 속해 있어요. (지금은 1인 1밴드)')
+  }
+
+  const bandId = db.collection('bands').doc().id
+  const code = await uniqueCode()
+  const now = Date.now()
+  const batch = db.batch()
+  batch.set(db.collection('bands').doc(bandId), {
+    name, ownerUid: uid, unlimited: false, memberCount: 1, createdAt: now,
+  })
+  batch.set(db.collection('bands').doc(bandId).collection('members').doc(uid), {
+    uid, email, admin: true, createdAt: now,
+  })
+  batch.set(db.collection('inviteCodes').doc(code), { bandId, active: true, createdAt: now })
+  batch.set(db.collection('users').doc(uid), { bandId, createdAt: now })
+  await batch.commit()
+  return { bandId, code }
+})
+
+// 초대 코드로 가입 — 정원(5명, unlimited 면제) 확인 후 멤버로 추가. (1인 1밴드)
+exports.joinBand = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
+  const uid = req.auth.uid
+  const email = (req.auth.token && req.auth.token.email) || ''
+  const code = String((req.data && req.data.code) || '').trim().toUpperCase()
+  if (!code) throw new HttpsError('invalid-argument', '초대 코드를 입력해 주세요.')
+
+  const userDoc = await db.collection('users').doc(uid).get()
+  if (userDoc.exists && userDoc.get('bandId')) {
+    throw new HttpsError('failed-precondition', '이미 밴드에 속해 있어요. (지금은 1인 1밴드)')
+  }
+
+  const codeSnap = await db.collection('inviteCodes').doc(code).get()
+  if (!codeSnap.exists || codeSnap.get('active') !== true) {
+    throw new HttpsError('not-found', '유효하지 않은 코드예요.')
+  }
+  const bandId = codeSnap.get('bandId')
+
+  const bandRefX = db.collection('bands').doc(bandId)
+  await db.runTransaction(async (tx) => {
+    const band = await tx.get(bandRefX)
+    if (!band.exists) throw new HttpsError('not-found', '밴드를 찾을 수 없어요.')
+    const already = await tx.get(bandRefX.collection('members').doc(uid))
+    if (already.exists) return // 재시도 안전
+    const unlimited = band.get('unlimited') === true
+    const count = band.get('memberCount') || 0
+    if (!unlimited && count >= MEMBER_CAP) {
+      throw new HttpsError('resource-exhausted', `정원이 찼어요. (최대 ${MEMBER_CAP}명)`)
+    }
+    tx.set(bandRefX.collection('members').doc(uid), { uid, email, admin: false, createdAt: Date.now() })
+    tx.update(bandRefX, { memberCount: count + 1 })
+    tx.set(db.collection('users').doc(uid), { bandId, createdAt: Date.now() })
+  })
+  return { bandId }
+})
+
+// 초대 코드 회전 — 그 밴드 관리자만. 기존 활성 코드는 비활성화하고 새 코드 발급.
+exports.rotateInviteCode = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
+  const bandId = String((req.data && req.data.bandId) || '')
+  if (!bandId) throw new HttpsError('invalid-argument', 'bandId 가 필요해요.')
+  const me = await bandRef(bandId).collection('members').doc(req.auth.uid).get()
+  if (!me.exists || me.get('admin') !== true) {
+    throw new HttpsError('permission-denied', '관리자만 코드를 재발급할 수 있어요.')
+  }
+  const active = await db.collection('inviteCodes').where('bandId', '==', bandId).where('active', '==', true).get()
+  const code = await uniqueCode()
+  const batch = db.batch()
+  active.forEach((d) => batch.update(d.ref, { active: false }))
+  batch.set(db.collection('inviteCodes').doc(code), { bandId, active: true, createdAt: Date.now() })
+  await batch.commit()
+  return { code }
+})
+
 /* ---------------- 유튜브 재생목록 → 기록 자동 동기화 (주 1회, 전 밴드) ---------------- */
 function normTitle(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]+/g, '')

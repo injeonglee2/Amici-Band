@@ -6,16 +6,19 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
+  query,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
 import { db, fbApp, storage } from './firebase'
-import { BAND_ID, bandCol, bandDoc, bandStoragePath } from './band'
+import { getCurrentBand, bandCol, bandDoc, bandStoragePath } from './band'
 import { DEMO, demoDb } from './demo'
-import type { Attendance, BandEvent, Feedback, Member, Place, Playlist, Recording, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Band, Attendance, BandEvent, Feedback, Member, Place, Playlist, Recording, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -68,8 +71,78 @@ export async function remindUndecided(eventId: string): Promise<number> {
     getFunctions(fbApp, FUNCTIONS_REGION),
     'remindUndecided',
   )
-  const res = await call({ eventId, bandId: BAND_ID })
+  const res = await call({ eventId, bandId: getCurrentBand() })
   return res.data.sent
+}
+
+/* ---------------- 밴드 계정·멤버십 (users / bands / inviteCodes) ---------------- */
+/** 로그인 사용자가 속한 밴드 id (없으면 null) */
+export async function getUserBand(uid: string): Promise<string | null> {
+  const snap = await getDoc(doc(db, 'users', uid))
+  return snap.exists() ? ((snap.get('bandId') as string) || null) : null
+}
+
+/** users 문서가 없어도 legacy AMICI 멤버면 자동 치유해 amici 로 연결 (전환기 안전망) */
+export async function healUserBand(uid: string): Promise<string | null> {
+  const legacy = await getDoc(doc(db, 'bands', 'amici', 'members', uid))
+  if (legacy.exists()) {
+    await setDoc(doc(db, 'users', uid), { bandId: 'amici', createdAt: Date.now() }, { merge: true })
+    return 'amici'
+  }
+  return null
+}
+
+function requireFunctions() {
+  if (!fbApp) throw new Error('Firebase 가 초기화되지 않았어요.')
+  return getFunctions(fbApp, FUNCTIONS_REGION)
+}
+
+/** 새 밴드 생성 (생성자가 관리자). 반환: 생성된 bandId + 초대코드 */
+export async function createBand(name: string): Promise<{ bandId: string; code: string }> {
+  const call = httpsCallable<{ name: string }, { bandId: string; code: string }>(requireFunctions(), 'createBand')
+  const res = await call({ name })
+  return res.data
+}
+
+/** 초대 코드로 가입. 반환: 가입한 bandId */
+export async function joinBand(code: string): Promise<{ bandId: string }> {
+  const call = httpsCallable<{ code: string }, { bandId: string }>(requireFunctions(), 'joinBand')
+  const res = await call({ code })
+  return res.data
+}
+
+/** 초대 코드 재발급(회전) — 밴드 관리자만. 반환: 새 코드 */
+export async function rotateInviteCode(bandId: string): Promise<{ code: string }> {
+  const call = httpsCallable<{ bandId: string }, { code: string }>(requireFunctions(), 'rotateInviteCode')
+  const res = await call({ bandId })
+  return res.data
+}
+
+/** 이 밴드의 현재 활성 초대 코드 (없으면 null) */
+export async function getActiveInviteCode(bandId: string): Promise<string | null> {
+  const snap = await getDocs(
+    query(collection(db, 'inviteCodes'), where('bandId', '==', bandId), where('active', '==', true)),
+  )
+  return snap.empty ? null : snap.docs[0].id
+}
+
+/** (개발자 전용) 전체 밴드 현황 구독 — 과금 모니터링용 */
+export function watchAllBands(
+  cb: (bands: Band[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  return onSnapshot(
+    collection(db, 'bands'),
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Band, 'id'>) }))
+      list.sort((a, b) => (b.memberCount ?? 0) - (a.memberCount ?? 0) || (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      cb(list)
+    },
+    (err) => {
+      console.error('watchAllBands', err)
+      onError?.(err)
+    },
+  )
 }
 
 /* ---------------- events (bands/{band}/events) ---------------- */

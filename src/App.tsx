@@ -3,12 +3,13 @@ import { DEMO } from './demo'
 import { AuthProvider, useAuth } from './auth'
 import SetupNotice from './components/SetupNotice'
 import Login from './components/Login'
+import Onboarding from './components/Onboarding'
 import NameSetup from './components/NameSetup'
 import Main from './components/Main'
 import './styles.css'
 
 function Shell() {
-  const { user, member, loading } = useAuth()
+  const { user, member, bandId, loading } = useAuth()
 
   if (loading) {
     return (
@@ -23,6 +24,7 @@ function Shell() {
     )
   }
   if (!user) return <Login />
+  if (!bandId) return <Onboarding />
   if (!member || !member.part) return <NameSetup />
   return <Main />
 }
