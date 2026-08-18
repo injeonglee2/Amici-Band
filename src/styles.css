@@ -314,7 +314,7 @@ button { font-family: inherit; }
 /* 일정 유형: 참석 상태(색점)와 형식이 겹치지 않도록 라인 아이콘으로 표시 */
 .type-ico { width: 14px; height: 14px; flex: none; color: var(--k); stroke-width: 2; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--k) 55%, transparent)); }
 .chip .type-ico { width: 15px; height: 15px; }
-.einfo h3 { margin: 3px 0 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+.einfo h3 { margin: 3px 0 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .einfo .sub {
   margin-top: 4px; font-size: 12.5px; color: var(--ink-soft);
   display: flex; flex-wrap: wrap; gap: 3px 12px;
@@ -332,7 +332,7 @@ button { font-family: inherit; }
 .edit-btn svg { width: 17px; height: 17px; }
 .card-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 /* 윗줄: 수정(관리자)만. 일반 계정은 비어도 같은 높이를 차지해 아랫줄 위치가 동일 */
-.ca-top { height: 34px; display: flex; align-items: center; justify-content: flex-end; }
+.ca-top { height: 34px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .ca-bottom { display: flex; align-items: center; gap: 6px; }
 .card-vote {
   position: relative; appearance: none; cursor: pointer; display: grid; place-items: center;
@@ -359,7 +359,6 @@ button { font-family: inherit; }
 }
 .card-vote-pill:hover { background: color-mix(in srgb, var(--k) 24%, transparent); }
 .card-vote-pill:active { transform: scale(0.96); }
-.card-vote-pill .cv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--k); flex: none; }
 /* 참석 현황 하단: 수정/닫기를 한 줄에 반씩 */
 .actions.att-actions .btn { flex: 1 1 0; }
 .event-note {
