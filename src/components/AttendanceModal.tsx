@@ -25,20 +25,22 @@ export default function AttendanceModal({
   ev,
   list,
   members,
-  mode,
+  initialMode,
   readOnly = false,
   onClose,
 }: {
   ev: BandEvent
   list: Attendance[]
   members: Member[]
-  /** 'vote' = 투표 입력창, 'summary' = 참석 현황 요약 */
-  mode: 'vote' | 'summary'
+  /** 처음 열 때 모드: 'vote' = 투표 입력창, 'summary' = 참석 현황 요약. 시트 안에서 서로 전환 가능 */
+  initialMode: 'vote' | 'summary'
   readOnly?: boolean
   onClose: () => void
 }) {
   const { user, member } = useAuth()
   useBackHandler(onClose) // 뒤로가기로 참석 모달 닫기 (내부 취소 확인창은 ConfirmDialog 가 먼저 받는다)
+  // 투표 ↔ 현황을 한 시트 안에서 전환 (투표해야 현황을 볼 수 있게 진입 모드로 제어)
+  const [mode, setMode] = useState<'vote' | 'summary'>(initialMode)
   const [saving, setSaving] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [noteText, setNoteText] = useState('')
@@ -211,7 +213,11 @@ export default function AttendanceModal({
               )}
 
               <div className="actions">
-                <button type="button" className="btn primary block" onClick={onClose}>확인</button>
+                {mine ? (
+                  <button type="button" className="btn primary block" onClick={() => setMode('summary')}>참석 현황 보기</button>
+                ) : (
+                  <button type="button" className="btn primary block" onClick={onClose}>확인</button>
+                )}
               </div>
             </>
           )}
@@ -262,6 +268,12 @@ export default function AttendanceModal({
                   </div>
                 )}
               </div>
+
+              {!readOnly && (
+                <button type="button" className="btn primary block edit-vote-btn" onClick={() => setMode('vote')}>
+                  {mine ? '내 투표 수정' : '참석 투표하기'}
+                </button>
+              )}
 
               {canRemind && (
                 <button type="button" className="btn primary block remind-btn" onClick={sendReminder} disabled={reminding}>

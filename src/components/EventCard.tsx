@@ -12,7 +12,6 @@ import {
   STATUS_META,
   TYPE_META,
   type Attendance,
-  type AttendStatus,
   type BandEvent,
   type Member,
 } from '../types'
@@ -26,8 +25,6 @@ import SetlistSheet from './SetlistSheet'
 import ShowPlaylistSheet from './ShowPlaylistSheet'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
-
-const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
 
 export default function EventCard({
   ev,
@@ -87,12 +84,6 @@ export default function EventCard({
     setNoteOverflow(el.scrollHeight > el.clientHeight + 1)
   }, [ev.note, noteOpen])
   const mine = useMemo(() => att.find((a) => a.uid === user?.uid), [att, user])
-  const undecidedCount = useMemo(() => {
-    const voted = new Set(att.map((a) => a.uid))
-    const notVoted = members.filter((m) => !voted.has(m.uid)).length
-    const explicit = att.filter((a) => a.status === 'undecided').length
-    return notVoted + explicit
-  }, [att, members])
 
   async function doDelete() {
     setConfirmDelete(false)
@@ -140,36 +131,44 @@ export default function EventCard({
             </div>
           </div>
           <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-            {!past && (
-              <>
-                {/* 윗줄: 수정(관리자만). 일반 계정은 빈 자리로 두어 아랫줄 위치를 동일하게 유지 */}
-                <div className="ca-top">
-                  {isAdmin && (
-                    <button className="edit-btn" onClick={onEdit} aria-label="수정">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                    </button>
-                  )}
-                </div>
-                {/* 아랫줄: 캘린더에 추가 + 참석 투표 (관리자·일반 공통) */}
-                <div className="ca-bottom">
-                  {showCalendarExport && (
-                    <button className="edit-btn" onClick={() => void addToDeviceCalendar(ev, place)} aria-label="캘린더에 추가" title="캘린더에 추가">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
-                    </button>
-                  )}
-                  <button className="card-vote" onClick={() => setModal('vote')} aria-label="참석 투표" title="참석 투표">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 11 3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
-                  </button>
-                </div>
-              </>
-            )}
-            {past && canDelete && (
-              <div className="ca-top">
+            {/* 윗줄: 수정(관리자, 다가오는) 또는 삭제(지난). 없으면 빈 자리로 아랫줄 위치 유지 */}
+            <div className="ca-top">
+              {!past && isAdmin && (
+                <button className="edit-btn" onClick={onEdit} aria-label="수정">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                </button>
+              )}
+              {past && canDelete && (
                 <button className="edit-btn del" onClick={() => setConfirmDelete(true)} aria-label="삭제">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
                 </button>
-              </div>
-            )}
+              )}
+            </div>
+            {/* 아랫줄: 캘린더에 추가 + 내 참석 상태(미투표=점 / 투표함=내 상태 색 pill) */}
+            <div className="ca-bottom">
+              {!past && showCalendarExport && (
+                <button className="edit-btn" onClick={() => void addToDeviceCalendar(ev, place)} aria-label="캘린더에 추가" title="캘린더에 추가">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
+                </button>
+              )}
+              {mine ? (
+                <button className="card-vote-pill" style={{ ['--k' as string]: STATUS_META[mine.status].color }} onClick={() => setModal('summary')} aria-label="참석 현황" title="참석 현황">
+                  <span className="cv-dot" aria-hidden="true" />
+                  {STATUS_META[mine.status].label}
+                  {mine.status === 'late' && mine.arriveTime ? ` ${mine.arriveTime}` : ''}
+                  {mine.status === 'leave' && mine.leaveTime ? ` ${mine.leaveTime}` : ''}
+                </button>
+              ) : !past ? (
+                <button className="card-vote" onClick={() => setModal(isAdmin ? 'summary' : 'vote')} aria-label="참석 투표" title="참석 투표">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 11 3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                  <span className="vote-dot" aria-hidden="true" />
+                </button>
+              ) : (
+                <button className="card-vote view" onClick={() => setModal('summary')} aria-label="참석 결과" title="참석 결과">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -190,43 +189,10 @@ export default function EventCard({
           </div>
         )}
 
-        <div
-          className="attend-summary"
-          role="button"
-          tabIndex={0}
-          aria-label={`${ev.title} 참석 ${past ? '결과' : '현황'}`}
-          onClick={() => setModal('summary')}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              setModal('summary')
-            }
-          }}
-        >
-          {ORDER.map((s) => {
-            const n = att.filter((a) => a.status === s).length
-            return (
-              <span
-                key={s}
-                className={'asum' + (mine?.status === s ? ' mine' : '')}
-                style={{ ['--k' as string]: STATUS_META[s].color }}
-              >
-                <span className="dot" />
-                {STATUS_META[s].label}
-                <b>{n}</b>
-              </span>
-            )
-          })}
-          <span className={'asum' + (mine?.status === 'undecided' ? ' mine' : '')} style={{ ['--k' as string]: 'var(--undecided)' }}>
-            <span className="dot" />
-            미정
-            <b>{undecidedCount}</b>
-          </span>
-        </div>
       </div>
 
       {modal && (
-        <AttendanceModal ev={ev} list={att} members={members} mode={modal} readOnly={past} onClose={() => setModal(null)} />
+        <AttendanceModal ev={ev} list={att} members={members} initialMode={modal} readOnly={past} onClose={() => setModal(null)} />
       )}
 
       {setlistOpen &&

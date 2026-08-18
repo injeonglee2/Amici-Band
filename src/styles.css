@@ -335,7 +335,7 @@ button { font-family: inherit; }
 .ca-top { height: 34px; display: flex; align-items: center; justify-content: flex-end; }
 .ca-bottom { display: flex; align-items: center; gap: 6px; }
 .card-vote {
-  appearance: none; cursor: pointer; display: grid; place-items: center;
+  position: relative; appearance: none; cursor: pointer; display: grid; place-items: center;
   width: 34px; height: 34px; border-radius: 10px; color: var(--k);
   background: color-mix(in srgb, var(--k) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--k) 38%, transparent);
@@ -344,6 +344,23 @@ button { font-family: inherit; }
 .card-vote:hover { background: color-mix(in srgb, var(--k) 24%, transparent); }
 .card-vote:active { transform: scale(0.94); }
 .card-vote svg { width: 17px; height: 17px; }
+/* 미투표 알림 점 */
+.vote-dot { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface-solid); }
+/* 지난 일정: 결과 보기(무채색) */
+.card-vote.view { color: var(--ink-soft); background: var(--surface-2); border-color: var(--line-strong); }
+/* 투표함: 내가 고른 상태를 그 상태 색 pill 로 */
+.card-vote-pill {
+  align-self: center; appearance: none; cursor: pointer; white-space: nowrap; flex: none;
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
+  font: inherit; font-size: 12.5px; font-weight: 700; border-radius: 999px; color: var(--k);
+  background: color-mix(in srgb, var(--k) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k) 36%, transparent);
+  transition: background 0.14s, transform 0.06s;
+}
+.card-vote-pill:hover { background: color-mix(in srgb, var(--k) 24%, transparent); }
+.card-vote-pill:active { transform: scale(0.96); }
+.card-vote-pill .cv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--k); flex: none; }
+.edit-vote-btn { margin-top: 12px; }
 .event-note {
   margin: 8px 0 0; background: rgba(255, 255, 255, 0.04); border-radius: 10px; padding: 8px 10px;
   display: flex; align-items: flex-start; gap: 6px;
