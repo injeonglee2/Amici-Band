@@ -214,9 +214,9 @@ export default function AttendanceModal({
 
               <div className="actions">
                 {mine ? (
-                  <button type="button" className="btn primary block" onClick={() => setMode('summary')}>참석 현황 보기</button>
+                  <button type="button" className="btn primary block" onClick={() => setMode('summary')}>확인</button>
                 ) : (
-                  <button type="button" className="btn primary block" onClick={onClose}>확인</button>
+                  <button type="button" className="btn subtle block" onClick={onClose}>닫기</button>
                 )}
               </div>
             </>
@@ -232,7 +232,6 @@ export default function AttendanceModal({
                   return (
                     <div key={s} className="tally-col">
                       <div className="tally-head" style={{ ['--k' as string]: STATUS_META[s].color }}>
-                        <span className="dot" />
                         {STATUS_META[s].label}
                         <b>{people.length}</b>
                       </div>
@@ -253,7 +252,6 @@ export default function AttendanceModal({
                 {undecided.length > 0 && (
                   <div className="tally-col undecided" style={{ ['--k' as string]: 'var(--undecided)' }}>
                     <div className="tally-head">
-                      <span className="dot" />
                       미정
                       <b>{undecided.length}</b>
                     </div>
@@ -270,7 +268,7 @@ export default function AttendanceModal({
               </div>
 
               {canRemind && (
-                <button type="button" className="btn primary block remind-btn" onClick={sendReminder} disabled={reminding}>
+                <button type="button" className="btn block remind-btn" onClick={sendReminder} disabled={reminding}>
                   {reminding ? '보내는 중…' : `미정 ${undecided.length}명에게 투표 요청`}
                 </button>
               )}
@@ -279,7 +277,7 @@ export default function AttendanceModal({
               <div className="actions att-actions">
                 {!readOnly && (
                   <button type="button" className="btn primary" onClick={() => setMode('vote')}>
-                    {mine ? '내 투표 수정' : '참석 투표하기'}
+                    {mine ? '수정' : '참석 투표하기'}
                   </button>
                 )}
                 <button type="button" className="btn subtle" onClick={onClose}>닫기</button>

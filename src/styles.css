@@ -453,7 +453,12 @@ button { font-family: inherit; }
 .tally-col.undecided ul { display: flex; flex-direction: row; flex-wrap: wrap; gap: 3px 10px; }
 .tally-col.undecided li.has-note { flex-basis: 100%; }
 .tally-col.undecided .u-note { color: var(--ink-faint); }
-.remind-btn { margin-top: 14px; }
+/* 리마인더: 수정(그라데이션 primary)과 구분되는 은은한 강조색 버튼 */
+.remind-btn {
+  margin-top: 14px; background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent); border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+.remind-btn:hover { background: color-mix(in srgb, var(--accent) 23%, transparent); }
 .remind-msg { margin: 8px 2px 0; text-align: center; font-size: 12px; color: var(--ink-soft); }
 
 .notif-card {
