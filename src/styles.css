@@ -182,7 +182,7 @@ button { font-family: inherit; }
 
 /* ---------- 월 달력 뷰 ---------- */
 /* 상단 바 좌측: 월 이동 컨트롤 (‹ 2026년 8월 ›) — 우측 목록/캘린더 토글과 한 줄 */
-.cal-navbar { flex: 1; display: flex; align-items: center; gap: 2px; min-width: 0; }
+.cal-navbar { flex: 1; display: flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; }
 .cal-nav {
   appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink-soft);
   width: 32px; height: 32px; border-radius: 9px; flex: none;

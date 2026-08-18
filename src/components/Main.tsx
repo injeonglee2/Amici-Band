@@ -202,6 +202,21 @@ export default function Main() {
 
       {nav === 'home' ? (
       <>
+      <div className="filters">
+        {filters.map((f) => (
+          <button
+            key={f.k}
+            className="chip"
+            aria-pressed={filter === f.k}
+            style={{ ['--k' as string]: f.color }}
+            onClick={() => setFilter(f.k)}
+          >
+            {f.k === 'all' ? <span className="dot" /> : <TypeGlyph type={f.k} className="type-ico" />}
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       <div className="home-topbar">
         {view === 'list' ? (
           <div className="segmented" role="tablist">
@@ -231,21 +246,6 @@ export default function Main() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
           </button>
         </div>
-      </div>
-
-      <div className="filters">
-        {filters.map((f) => (
-          <button
-            key={f.k}
-            className="chip"
-            aria-pressed={filter === f.k}
-            style={{ ['--k' as string]: f.color }}
-            onClick={() => setFilter(f.k)}
-          >
-            {f.k === 'all' ? <span className="dot" /> : <TypeGlyph type={f.k} className="type-ico" />}
-            {f.label}
-          </button>
-        ))}
       </div>
 
       <main className="scroll">
