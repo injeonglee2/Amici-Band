@@ -43,7 +43,8 @@ export default function Main() {
   const [events, setEvents] = useState<BandEvent[]>([]) // 실시간: date >= 1년 전 (미래 포함)
   const [olderEvents, setOlderEvents] = useState<BandEvent[]>([]) // '더보기'로 불러온 1년 이전 지난 일정
   const [olderCursor, setOlderCursor] = useState(() => oneYearAgoStr())
-  const [hasMorePast, setHasMorePast] = useState(true)
+  const [hasMorePast, setHasMorePast] = useState(false) // 1년 이전 일정이 있다고 확인되면 true
+  const [probedOlder, setProbedOlder] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [places, setPlaces] = useState<Place[]>([])
   const [members, setMembers] = useState<Member[]>([])
@@ -94,6 +95,14 @@ export default function Main() {
     [],
   )
   useEffect(() => watchMembers(setMembers), [])
+  // 지난 일정 탭을 처음 열 때, 1년 이전 일정이 있는지 1건만 확인해 '더보기' 노출 여부 결정
+  useEffect(() => {
+    if (tab !== 'past' || probedOlder) return
+    setProbedOlder(true)
+    loadOlderEvents(oneYearAgoStr(), 1)
+      .then((r) => setHasMorePast(r.length > 0))
+      .catch(() => {})
+  }, [tab, probedOlder])
   useEffect(() => {
     startForegroundNotifications()
   }, [])
@@ -153,12 +162,12 @@ export default function Main() {
     if (loadingMore || !hasMorePast) return
     setLoadingMore(true)
     try {
-      const batch = await loadOlderEvents(olderCursor, 50)
+      const batch = await loadOlderEvents(olderCursor, 20)
       if (batch.length) {
         setOlderEvents((prev) => [...prev, ...batch])
         setOlderCursor(batch[batch.length - 1].date) // 다음 '더보기'는 이보다 더 이전
       }
-      if (batch.length < 50) setHasMorePast(false) // 더 없음
+      if (batch.length < 20) setHasMorePast(false) // 더 없음 → 버튼 숨김
     } catch {
       toast.show('지난 일정을 더 불러오지 못했어요')
     } finally {
