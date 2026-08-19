@@ -7,7 +7,9 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   setDoc,
   updateDoc,
@@ -165,11 +167,13 @@ export function watchAllBands(
 export function watchEvents(
   cb: (events: BandEvent[]) => void,
   onError?: (e: Error) => void,
+  since?: string, // 주면 date >= since 만 실시간 구독(읽기 비용 상한). 미래 일정은 항상 포함됨.
 ): () => void {
   if (DEMO) return demoDb.watchEvents(cb)
-  // 정렬은 클라이언트(Main)에서 하므로 Firestore orderBy 없이 단순 조회 → 복합 색인 불필요
+  // 정렬은 클라이언트(Main)에서 하므로 orderBy 없이 조회. since 는 단일 필드 범위라 복합 색인 불필요.
+  const ref = since ? query(bandCol('events'), where('date', '>=', since)) : bandCol('events')
   return onSnapshot(
-    bandCol('events'),
+    ref,
     (snap) => {
       cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<BandEvent, 'id'>) })))
     },
@@ -178,6 +182,15 @@ export function watchEvents(
       onError?.(err)
     },
   )
+}
+
+/** 지난 일정 '더보기' — before(날짜) 이전의 지난 일정을 최신순으로 한 묶음(max개) 1회 조회 */
+export async function loadOlderEvents(before: string, max = 50): Promise<BandEvent[]> {
+  if (DEMO) return []
+  const snap = await getDocs(
+    query(bandCol('events'), where('date', '<', before), orderBy('date', 'desc'), limit(max)),
+  )
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<BandEvent, 'id'>) }))
 }
 
 export async function saveEvent(ev: BandEvent): Promise<void> {

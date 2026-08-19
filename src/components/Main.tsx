@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth'
-import { saveFcmToken, saveWebPushSubscription, watchEvents, watchMembers, watchPlaces } from '../data'
+import { loadOlderEvents, saveFcmToken, saveWebPushSubscription, watchEvents, watchMembers, watchPlaces } from '../data'
 import { TYPE_META, type BandEvent, type EventType, type Member, type Place } from '../types'
 import { dayDiff, ddayLabel, longWhen, parseDate, todayStr } from '../time'
 import { copyValue, resolvePlace } from '../place'
@@ -30,10 +30,21 @@ import { useAndroidBack, useBackHandler } from '../backnav'
 
 type Filter = 'all' | EventType
 
+/** 오늘부터 1년 전 날짜(YYYY-MM-DD) — 지난 일정 기본 조회 창의 하한 */
+function oneYearAgoStr(): string {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function Main() {
   const { member, signOutUser } = useAuth()
   const isAdmin = !!member?.admin
-  const [events, setEvents] = useState<BandEvent[]>([])
+  const [events, setEvents] = useState<BandEvent[]>([]) // 실시간: date >= 1년 전 (미래 포함)
+  const [olderEvents, setOlderEvents] = useState<BandEvent[]>([]) // '더보기'로 불러온 1년 이전 지난 일정
+  const [olderCursor, setOlderCursor] = useState(() => oneYearAgoStr())
+  const [hasMorePast, setHasMorePast] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [places, setPlaces] = useState<Place[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [filter, setFilter] = useState<Filter>('all')
@@ -56,14 +67,18 @@ export default function Main() {
 
   useEffect(
     () =>
-      watchEvents(setEvents, (e) => {
-        const code = (e as { code?: string })?.code ?? ''
-        setLoadErr(
-          code === 'permission-denied'
-            ? '일정을 불러올 권한이 없어요. Firestore 보안 규칙이 게시됐는지 확인해 주세요.'
-            : '일정을 불러오지 못했어요.' + (code ? ` (${code})` : ''),
-        )
-      }),
+      watchEvents(
+        setEvents,
+        (e) => {
+          const code = (e as { code?: string })?.code ?? ''
+          setLoadErr(
+            code === 'permission-denied'
+              ? '일정을 불러올 권한이 없어요. Firestore 보안 규칙이 게시됐는지 확인해 주세요.'
+              : '일정을 불러오지 못했어요.' + (code ? ` (${code})` : ''),
+          )
+        },
+        oneYearAgoStr(), // 최근 1년 + 미래만 실시간 구독 (읽기 비용 상한). 그 이전은 '더보기'
+      ),
     [],
   )
   useEffect(
@@ -107,8 +122,8 @@ export default function Main() {
   const placesMap = useMemo(() => new Map(places.map((p) => [p.id, p])), [places])
 
   const sorted = useMemo(
-    () => [...events].sort((a, b) => (a.date + a.rehStart).localeCompare(b.date + b.rehStart)),
-    [events],
+    () => [...events, ...olderEvents].sort((a, b) => (a.date + a.rehStart).localeCompare(b.date + b.rehStart)),
+    [events, olderEvents],
   )
   const upcoming = useMemo(() => sorted.filter((e) => dayDiff(e.date) >= 0), [sorted])
   // 지난 일정: 최신순(방금 끝난 것부터)
@@ -133,6 +148,23 @@ export default function Main() {
     }
     return g
   }, [list])
+
+  async function loadMorePast() {
+    if (loadingMore || !hasMorePast) return
+    setLoadingMore(true)
+    try {
+      const batch = await loadOlderEvents(olderCursor, 50)
+      if (batch.length) {
+        setOlderEvents((prev) => [...prev, ...batch])
+        setOlderCursor(batch[batch.length - 1].date) // 다음 '더보기'는 이보다 더 이전
+      }
+      if (batch.length < 50) setHasMorePast(false) // 더 없음
+    } catch {
+      toast.show('지난 일정을 더 불러오지 못했어요')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   function calShift(delta: number) {
     const d = new Date(calCursor.y, calCursor.m + delta, 1)
@@ -311,6 +343,12 @@ export default function Main() {
               </div>
             </div>
           ))
+        )}
+
+        {tab === 'past' && hasMorePast && (
+          <button type="button" className="more-past" onClick={() => void loadMorePast()} disabled={loadingMore}>
+            {loadingMore ? '불러오는 중…' : '더보기'}
+          </button>
         )}
         </>
         )}
