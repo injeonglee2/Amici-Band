@@ -128,6 +128,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   const [ownerUid, setOwnerUid] = useState<string | null>(null)
   const [confirmKick, setConfirmKick] = useState<Member | null>(null)
   const [busy, setBusy] = useState('')
+  const [open, setOpen] = useState(false)
   useEffect(() => watchMembers(setMembers), [])
   useEffect(() => {
     getBand(bandId).then((b) => setOwnerUid(b?.ownerUid ?? null)).catch(() => {})
@@ -162,10 +163,12 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   }
   return (
     <div className="limits-card">
-      <div className="limits-head">
+      <button type="button" className="limits-head mm-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <h3>멤버 관리{members.length > 0 && <b className="fb-newbadge"> {members.length}</b>}</h3>
         <span className="guide-badge">관리자</span>
-      </div>
+        <svg className={'mm-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
       <ul className="mm-list">
         {sorted.map((m) => {
           const isOwner = m.uid === ownerUid
@@ -192,6 +195,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
           )
         })}
       </ul>
+      )}
       {confirmKick && (
         <ConfirmDialog
           message={`${confirmKick.name ?? '이 멤버'} 님을 밴드에서 내보낼까요?`}

@@ -1039,8 +1039,11 @@ button { font-family: inherit; }
 .bands-name { font-weight: 700; color: var(--ink); display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .bands-unl { font-style: normal; font-size: 10px; font-weight: 800; color: #ffd24d; background: color-mix(in srgb, #ffd24d 15%, transparent); padding: 1px 6px; border-radius: 999px; }
 .bands-meta { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* 멤버 관리 */
-.mm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+/* 멤버 관리 (드롭다운) */
+.mm-toggle { appearance: none; cursor: pointer; border: none; background: transparent; width: 100%; padding: 0; text-align: left; }
+.mm-chev { flex: none; color: var(--ink-faint); transition: transform 0.18s; }
+.mm-chev.open { transform: rotate(180deg); }
+.mm-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .mm-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .mm-info { min-width: 0; }
 .mm-name { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); }
