@@ -24,7 +24,12 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const isAdmin = !!member?.admin
   const toast = useToast()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
-  const [tab, setTab] = useState<'general' | 'dev'>('general')
+  const [tab, setTab] = useState<'general' | 'band' | 'dev'>('general')
+  const tabs: { k: 'general' | 'band' | 'dev'; label: string }[] = [
+    { k: 'general', label: '일반' },
+    ...(isAdmin && bandId ? [{ k: 'band' as const, label: '밴드 관리' }] : []),
+    ...(isDeveloper ? [{ k: 'dev' as const, label: '개발자' }] : []),
+  ]
   useBackHandler(() => (feedbackOpen ? setFeedbackOpen(false) : onClose()))
   return (
     <div className="app">
@@ -40,14 +45,15 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       </header>
 
       <main className="scroll">
-        {isDeveloper && (
+        {tabs.length > 1 && (
           <div className="segmented set-seg" role="tablist">
-            <button role="tab" aria-selected={tab === 'general'} className={tab === 'general' ? 'on' : ''} onClick={() => setTab('general')}>일반</button>
-            <button role="tab" aria-selected={tab === 'dev'} className={tab === 'dev' ? 'on' : ''} onClick={() => setTab('dev')}>개발자</button>
+            {tabs.map((t) => (
+              <button key={t.k} role="tab" aria-selected={tab === t.k} className={tab === t.k ? 'on' : ''} onClick={() => setTab(t.k)}>{t.label}</button>
+            ))}
           </div>
         )}
 
-        {(!isDeveloper || tab === 'general') && (
+        {tab === 'general' && (
           <>
             <NotifCard />
             <CalendarExportCard />
@@ -55,12 +61,17 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               <span>의견 보내기 · 버그 제보</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
             </button>
-            {isAdmin && bandId && <InviteCodeCard bandId={bandId} toast={toast} />}
-            {isAdmin && bandId && <MemberManageCard bandId={bandId} myUid={user?.uid ?? ''} toast={toast} />}
           </>
         )}
 
-        {isDeveloper && tab === 'dev' && (
+        {tab === 'band' && isAdmin && bandId && (
+          <>
+            <InviteCodeCard bandId={bandId} toast={toast} />
+            <MemberManageCard bandId={bandId} myUid={user?.uid ?? ''} toast={toast} />
+          </>
+        )}
+
+        {tab === 'dev' && isDeveloper && (
           <>
             <BandsStatusCard />
             <AdminFeedbackCard toast={toast} />
