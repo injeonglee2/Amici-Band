@@ -329,6 +329,10 @@ button { font-family: inherit; }
 .type-ico { width: 14px; height: 14px; flex: none; color: var(--k); stroke-width: 2; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--k) 55%, transparent)); }
 .chip .type-ico { width: 15px; height: 15px; }
 .einfo h3 { margin: 3px 0 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 유형 텍스트 없이 제목 앞 색 아이콘으로 표시 (D안) */
+.einfo .etitle { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.einfo .etitle h3 { margin: 0; min-width: 0; }
+.einfo .etitle .type-ico { width: 16px; height: 16px; }
 .einfo .sub {
   margin-top: 4px; font-size: 12.5px; color: var(--ink-soft);
   display: flex; flex-wrap: wrap; gap: 3px 12px;

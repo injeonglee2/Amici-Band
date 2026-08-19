@@ -114,8 +114,10 @@ export default function EventCard({
             <div className="w">({weekday(ev.date)})</div>
           </div>
           <div className="einfo">
-            <div className="tag"><TypeGlyph type={ev.type} className="type-ico" />{t.label}</div>
-            <h3>{ev.title}</h3>
+            <div className="etitle">
+              <TypeGlyph type={ev.type} className="type-ico" />
+              <h3>{ev.title}</h3>
+            </div>
             <div className="sub">
               <span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
