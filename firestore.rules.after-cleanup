@@ -44,7 +44,9 @@ service cloud.firestore {
     match /bands/{bandId} {
       allow read: if isBandMember(bandId) || isDeveloper();
       allow create: if false;
-      allow update: if isBandAdmin(bandId);
+      allow update: if isBandAdmin(bandId)
+        || (isBandMember(bandId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storageBytes', 'aiUsage']));
 
       match /members/{uid} {
         allow read: if isBandMember(bandId);

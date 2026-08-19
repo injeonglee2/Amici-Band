@@ -125,6 +125,7 @@ export interface ScoreFile {
   url: string // 다운로드 URL
   path: string // Storage 경로 (삭제용)
   name?: string // 원본 파일명
+  size?: number // 바이트 (저장 용량 계량용). 이전 업로드분은 없을 수 있음
 }
 
 /**
@@ -155,6 +156,8 @@ export interface Band {
   unlimited?: boolean
   memberCount?: number
   createdAt?: number
+  storageBytes?: number // 누적 저장 용량(악보 등) — 계량용
+  aiUsage?: { month: string; count: number } // 월별 AI 호출 수(YYYY-MM) — 계량용
 }
 
 export type AttendStatus = 'present' | 'late' | 'leave' | 'absent' | 'undecided'

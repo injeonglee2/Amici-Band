@@ -239,7 +239,7 @@ function BandsStatusCard() {
                 {b.unlimited && <em className="bands-unl">무제한</em>}
               </span>
               <span className="bands-meta">
-                {b.memberCount ?? 0}{b.unlimited ? '' : '/5'}명 · {fmtDay(b.createdAt)}
+                {b.memberCount ?? 0}{b.unlimited ? '' : '/5'}명 · {((b.storageBytes ?? 0) / 1048576).toFixed(1)}MB · AI {b.aiUsage?.count ?? 0}회 · {fmtDay(b.createdAt)}
               </span>
             </li>
           ))}

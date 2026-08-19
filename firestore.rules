@@ -123,7 +123,10 @@ service cloud.firestore {
       allow read: if isBandMember(bandId) || isDeveloper();
       // 밴드 생성/멤버십 변경은 createBand·joinBand 함수(Admin)로 처리하므로 클라 직접 생성은 막음
       allow create: if false;
-      allow update: if isBandAdmin(bandId);
+      // 관리자는 밴드 문서 갱신 가능. 일반 멤버는 사용량 계량 필드(storageBytes·aiUsage)만 갱신 허용.
+      allow update: if isBandAdmin(bandId)
+        || (isBandMember(bandId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storageBytes', 'aiUsage']));
 
       match /members/{uid} {
         allow read: if isBandMember(bandId);

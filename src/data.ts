@@ -7,10 +7,12 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -394,7 +396,8 @@ export async function uploadScoreFile(
   if (downloadName) metadata.contentDisposition = `inline; filename="${downloadName.replace(/"/g, '')}"`
   await uploadBytes(r, file, metadata)
   const url = await getDownloadURL(r)
-  return { url, path, name: downloadName || file.name }
+  addStorageBytes(file.size) // 저장 용량 계량(측정용)
+  return { url, path, name: downloadName || file.name, size: file.size }
 }
 
 export async function saveScore(s: Score): Promise<void> {
@@ -409,8 +412,35 @@ export async function saveScore(s: Score): Promise<void> {
 /** 악보 문서 + Storage 파일들을 함께 삭제 (파일 삭제 실패는 무시하고 문서는 지운다) */
 export async function deleteScore(id: string, files: ScoreFile[]): Promise<void> {
   if (DEMO) return
+  const freed = files.reduce((s, f) => s + (f.size ?? 0), 0)
   await Promise.allSettled(files.map((f) => deleteObject(storageRef(storage, f.path))))
   await deleteDoc(bandDoc('scores', id))
+  if (freed) addStorageBytes(-freed) // 저장 용량 계량 되돌리기
+}
+
+/* ---------------- 사용량 계량 (멤버십 1-a: 측정만, 제한 없음) ---------------- */
+function ymNow(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** 현재 밴드 저장 용량(바이트) 증감. 계량 실패가 기능을 막지 않도록 오류는 무시. */
+export function addStorageBytes(delta: number): void {
+  if (DEMO || !getCurrentBand() || !delta) return
+  updateDoc(bandDoc(), { storageBytes: increment(delta) }).catch(() => {})
+}
+
+/** 현재 밴드 이번 달 AI 호출 수 +1 (달 바뀌면 리셋). 실제 API 호출(캐시 미스)에서만 호출됨. */
+export function bumpAiUsage(): void {
+  if (DEMO || !getCurrentBand()) return
+  const month = ymNow()
+  const ref = bandDoc()
+  runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref)
+    const cur = snap.exists() ? (snap.get('aiUsage') as { month?: string } | undefined) : undefined
+    if (cur && cur.month === month) tx.update(ref, { 'aiUsage.count': increment(1) })
+    else tx.set(ref, { aiUsage: { month, count: 1 } }, { merge: true })
+  }).catch(() => {})
 }
 
 /* ---------------- 기록 자동 동기화 설정 (bands/{band}/config/recImport) ---------------- */

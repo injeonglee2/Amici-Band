@@ -3,6 +3,7 @@
 // 형식을 고정하지 않고 LLM 이 해석하므로 표기·순서·구분자가 바뀌어도 대응된다. 실패 시 null.
 import { getAI, getGenerativeModel, VertexAIBackend, type GenerativeModel } from 'firebase/ai'
 import { fbApp } from './firebase'
+import { bumpAiUsage } from './data'
 
 // Vertex AI(현 Agent Platform) 백엔드 리전. 필요 시 'global' 등으로 조정.
 const AI_LOCATION = 'us-central1'
@@ -57,6 +58,7 @@ export async function parseCredits(description: string): Promise<Credits | null>
   if (!m) return null
   try {
     const result = await m.generateContent(`${PROMPT}\n\n${desc}`)
+    bumpAiUsage() // 실제 API 호출 1건 계량 (캐시 미스에서만 여기 도달)
     const text = result.response.text()
     if (!text) return null
     const credits = normalize(JSON.parse(text))
