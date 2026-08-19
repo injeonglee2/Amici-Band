@@ -28,7 +28,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'general' | 'band' | 'dev'>('general')
   const tabs: { k: 'general' | 'band' | 'dev'; label: string }[] = [
     { k: 'general', label: '일반' },
-    ...(isAdmin && bandId ? [{ k: 'band' as const, label: '밴드 관리' }] : []),
+    ...(isAdmin && bandId ? [{ k: 'band' as const, label: '관리' }] : []),
     ...(isDeveloper ? [{ k: 'dev' as const, label: '개발자' }] : []),
   ]
   useBackHandler(() => (feedbackOpen ? setFeedbackOpen(false) : onClose()))
@@ -172,7 +172,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   return (
     <div className="limits-card">
       <button type="button" className="limits-head mm-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <h3>멤버 관리{members.length > 0 && <b className="fb-newbadge"> {members.length}</b>}</h3>
+        <h3>멤버{members.length > 0 && <b className="fb-newbadge"> {members.length}</b>}</h3>
         <span className="guide-badge">관리자</span>
         <svg className={'mm-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="m6 9 6 6 6-6" /></svg>
       </button>
