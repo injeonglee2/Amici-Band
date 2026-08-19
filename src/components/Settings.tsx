@@ -6,6 +6,7 @@ import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type Cal
 import ThemeSelect from './ThemeSelect'
 import FeedbackSheet from './FeedbackSheet'
 import ConfirmDialog from './ConfirmDialog'
+import Segmented from './Segmented'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
@@ -46,11 +47,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
       <main className="scroll">
         {tabs.length > 1 && (
-          <div className="segmented set-seg" role="tablist">
-            {tabs.map((t) => (
-              <button key={t.k} role="tab" aria-selected={tab === t.k} className={tab === t.k ? 'on' : ''} onClick={() => setTab(t.k)}>{t.label}</button>
-            ))}
-          </div>
+          <Segmented className="set-seg" tabs={tabs} value={tab} onChange={(k) => setTab(k as 'general' | 'band' | 'dev')} />
         )}
 
         {tab === 'general' && (

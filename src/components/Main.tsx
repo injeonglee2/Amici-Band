@@ -16,6 +16,7 @@ import {
 } from '../messaging'
 import EventCard from './EventCard'
 import CalendarView from './CalendarView'
+import Segmented from './Segmented'
 import EventForm from './EventForm'
 import { TypeGlyph } from './TypeGlyph'
 import Settings from './Settings'
@@ -260,14 +261,14 @@ export default function Main() {
 
       <div className="home-topbar">
         {view === 'list' ? (
-          <div className="segmented" role="tablist">
-            <button role="tab" aria-selected={tab === 'upcoming'} className={tab === 'upcoming' ? 'on' : ''} onClick={() => setTab('upcoming')}>
-              다가오는
-            </button>
-            <button role="tab" aria-selected={tab === 'past'} className={tab === 'past' ? 'on' : ''} onClick={() => setTab('past')}>
-              지난 일정{past.length > 0 && <span className="seg-count">{past.length}</span>}
-            </button>
-          </div>
+          <Segmented
+            tabs={[
+              { k: 'upcoming', label: '다가오는' },
+              { k: 'past', label: '지난 일정', badge: past.length },
+            ]}
+            value={tab}
+            onChange={(k) => setTab(k as 'upcoming' | 'past')}
+          />
         ) : (
           <div className="cal-navbar">
             <button className="cal-nav" onClick={() => calShift(-1)} aria-label="이전 달">
