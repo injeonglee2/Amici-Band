@@ -161,7 +161,8 @@ button { font-family: inherit; }
 .seg-count {
   font-size: 11px; font-weight: 800; line-height: 1; color: var(--ink-faint); margin-left: 1px;
 }
-.segmented button.on .seg-count { color: var(--accent); }
+/* 선택 탭의 개수: 중요 정보가 아니므로 쨍한 accent 대신 네비 하이라이트 같은 차분한 소프트 톤 */
+.segmented button.on .seg-count { color: color-mix(in srgb, var(--accent) 42%, var(--ink-soft)); }
 /* 설정 화면 안의 세그먼트(일반/개발자) — scroll 패딩에 맞춰 좌우 마진 제거 */
 .segmented.set-seg { margin: 4px 0 14px; }
 
