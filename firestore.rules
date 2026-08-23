@@ -156,6 +156,12 @@ service cloud.firestore {
         allow update, delete: if isBandAdmin(bandId) || (isBandMember(bandId) && resource.data.addedBy == request.auth.uid);
       }
 
+      // 밴드 영상 이름 폴더(합주 등). 멤버가 폴더 생성·기록 이관·재생목록 연결을 하므로 멤버 쓰기 허용.
+      match /recordingFolders/{folderId} {
+        allow read: if isDeveloper() || isBandMember(bandId);
+        allow write: if isBandMember(bandId);
+      }
+
       match /scores/{scoreId} {
         allow read: if isDeveloper() || isBandMember(bandId);
         allow create: if isBandMember(bandId);

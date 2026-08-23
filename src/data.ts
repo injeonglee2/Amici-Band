@@ -364,10 +364,7 @@ export function watchRecordings(
   cb: (recordings: Recording[]) => void,
   onError?: (e: Error) => void,
 ): () => void {
-  if (DEMO) {
-    cb([]) // DEMO(가짜 데이터)에선 기록 없음 — 실제 데이터는 배포본에서만
-    return () => {}
-  }
+  if (DEMO) return demoDb.watchRecordings(cb)
   return onSnapshot(
     bandCol('recordings'),
     (snap) => {
@@ -383,7 +380,7 @@ export function watchRecordings(
 }
 
 export async function saveRecording(r: Recording): Promise<void> {
-  if (DEMO) return
+  if (DEMO) return demoDb.saveRecording(r)
   const { id, ...rest } = r
   // undefined 필드는 deleteField() 로 바꿔, 수정 시 값 지움(빈 메모·일정 연결 해제 등)이 반영되게 한다.
   // (merge:true 에서 필드를 그냥 빼면 기존 값이 남아 지워지지 않는다)
@@ -394,8 +391,42 @@ export async function saveRecording(r: Recording): Promise<void> {
 }
 
 export async function deleteRecording(id: string): Promise<void> {
-  if (DEMO) return
+  if (DEMO) return demoDb.deleteRecording(id)
   await deleteDoc(bandDoc('recordings', id))
+}
+
+/* ---------------- 밴드 영상 이름 폴더 (bands/{band}/recordingFolders) ---------------- */
+export function watchRecordingFolders(
+  cb: (folders: RecordingFolder[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) return demoDb.watchRecordingFolders(cb)
+  return onSnapshot(bandCol('recordingFolders'), (snap) => {
+    const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RecordingFolder, 'id'>) }))
+    list.sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt))
+    cb(list)
+  }, (err) => onError?.(err))
+}
+
+export async function saveRecordingFolder(folder: RecordingFolder): Promise<void> {
+  if (DEMO) return demoDb.saveRecordingFolder(folder)
+  const { id, ...data } = folder
+  await setDoc(bandDoc('recordingFolders', id), data, { merge: true })
+}
+
+export async function deleteRecordingFolder(folderId: string): Promise<void> {
+  if (DEMO) return demoDb.deleteRecordingFolder(folderId)
+  await deleteDoc(bandDoc('recordingFolders', folderId))
+}
+
+/** 폴더에 유튜브 재생목록 연결/해제 (수동·주간 동기화 대상) */
+export async function addRecordingFolderPlaylist(folderId: string, playlistId: string): Promise<void> {
+  if (DEMO) return demoDb.addRecordingFolderPlaylist(folderId, playlistId)
+  await setDoc(bandDoc('recordingFolders', folderId), { playlistIds: arrayUnion(playlistId) }, { merge: true })
+}
+export async function removeRecordingFolderPlaylist(folderId: string, playlistId: string): Promise<void> {
+  if (DEMO) return demoDb.removeRecordingFolderPlaylist(folderId, playlistId)
+  await setDoc(bandDoc('recordingFolders', folderId), { playlistIds: arrayRemove(playlistId) }, { merge: true })
 }
 
 /** 개발자 채널 전환용 전체 채널 일회 조회. */

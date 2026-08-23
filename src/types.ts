@@ -115,6 +115,7 @@ export interface RecordingFolder {
   order?: number
   createdBy: string
   createdAt: number
+  playlistIds?: string[] // 밴드 영상 이름 폴더에 연결된 유튜브 재생목록(수동/자동 동기화 대상)
 }
 
 /**

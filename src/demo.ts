@@ -7,7 +7,7 @@
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, Band, BandEvent, Member, Place, Playlist, RecordingFolder, RunningEntry, SetlistSong, Track, TrackPart } from './types'
+import type { Attendance, Band, BandEvent, Member, Place, Playlist, Recording, RecordingFolder, RunningEntry, SetlistSong, Track, TrackPart } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
@@ -227,6 +227,20 @@ function runEntriesCol(folderId: string): Collection<RunningEntry> {
   return col
 }
 
+/* ---------------- 밴드 영상(기록) + 이름 폴더 ---------------- */
+const initialRecordingFolders: RecordingFolder[] = [
+  { id: 'rf-hapju', name: '합주', order: now, createdBy: DEMO_MEMBER.uid, createdAt: now, playlistIds: ['PLdemoRehearsals'] },
+  { id: 'rf-live', name: '공연', order: now + 1, createdBy: DEMO_MEMBER.uid, createdAt: now + 1 },
+]
+const initialRecordings: Recording[] = [
+  { id: 'rec1', title: '8/15 합주 · Bohemian Rhapsody', date: '2026-08-15', url: 'https://youtu.be/fJ9rUzIMcZQ', videoId: 'fJ9rUzIMcZQ', folderId: 'rf-hapju', addedBy: DEMO_MEMBER.uid, addedByName: '김데모', createdAt: now, credits: { 보컬: ['정보컬'], 기타: ['이기타'] } },
+  { id: 'rec2', title: "8/15 합주 · Sweet Child O' Mine", date: '2026-08-15', url: 'https://youtu.be/1w7OgIMMRc4', videoId: '1w7OgIMMRc4', folderId: 'rf-hapju', addedBy: DEMO_MEMBER.uid, addedByName: '김데모', createdAt: now + 1 },
+  { id: 'rec3', title: '8/8 합주 연습', date: '2026-08-08', url: 'https://youtu.be/fJ9rUzIMcZQ', videoId: 'fJ9rUzIMcZQ', folderId: 'rf-hapju', addedBy: DEMO_MEMBER.uid, addedByName: '김데모', createdAt: now + 2 },
+  { id: 'rec4', title: '여름 정기공연', date: '2026-08-22', url: 'https://youtu.be/1w7OgIMMRc4', videoId: '1w7OgIMMRc4', folderId: 'rf-live', addedBy: DEMO_MEMBER.uid, addedByName: '김데모', createdAt: now + 3 },
+]
+const recordingsCol = makeCollection<Recording>(initialRecordings)
+const recordingFoldersCol = makeCollection<RecordingFolder>(initialRecordingFolders)
+
 export const demoDb = {
   watchMembers: (cb: Sub<Member[]>) => membersCol.watch(cb),
   watchEvents: (cb: Sub<BandEvent[]>) => eventsCol.watch(cb),
@@ -291,4 +305,21 @@ export const demoDb = {
     runEntriesCol(folderId).watch((list) =>
       cb([...list].sort((a, b) => (Number(b.startTime) || 0) - (Number(a.startTime) || 0))),
     ),
+
+  // 밴드 영상(기록) + 이름 폴더
+  watchRecordings: (cb: Sub<Recording[]>) => recordingsCol.watch(cb),
+  saveRecording: (r: Recording) => recordingsCol.upsert(r, (x) => x.id),
+  deleteRecording: (id: string) => recordingsCol.remove(id, (x) => x.id),
+  watchRecordingFolders: (cb: Sub<RecordingFolder[]>) =>
+    recordingFoldersCol.watch((list) => cb([...list].sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt)))),
+  saveRecordingFolder: (f: RecordingFolder) => recordingFoldersCol.upsert(f, (x) => x.id),
+  deleteRecordingFolder: (id: string) => recordingFoldersCol.remove(id, (x) => x.id),
+  addRecordingFolderPlaylist: (folderId: string, pid: string) => {
+    const f = recordingFoldersCol.get().find((x) => x.id === folderId)
+    if (f) recordingFoldersCol.upsert({ ...f, playlistIds: [...new Set([...(f.playlistIds ?? []), pid])] }, (x) => x.id)
+  },
+  removeRecordingFolderPlaylist: (folderId: string, pid: string) => {
+    const f = recordingFoldersCol.get().find((x) => x.id === folderId)
+    if (f) recordingFoldersCol.upsert({ ...f, playlistIds: (f.playlistIds ?? []).filter((p) => p !== pid) }, (x) => x.id)
+  },
 }

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
-import { deleteRecording, newId, saveRecording, setRecImportAuto, watchEvents, watchPlaylists, watchRecordings, watchTracks } from '../data'
-import { TYPE_META, type BandEvent, type Recording, type Track } from '../types'
+import { addRecordingFolderPlaylist, deleteRecording, deleteRecordingFolder, getRecImportPlaylists, newId, removeRecordingFolderPlaylist, saveRecording, saveRecordingFolder, setRecImportAuto, watchEvents, watchPlaylists, watchRecordingFolders, watchRecordings, watchTracks } from '../data'
+import { TYPE_META, type BandEvent, type Member, type Recording, type RecordingFolder, type Track } from '../types'
 import { fetchVideoDescription, fetchYouTubeMeta, parsePlaylistId, parseVideoId, thumbnailUrl } from '../youtube'
-import { importYouTubePlaylist, playlistImportErrorMessage } from '../playlistImport'
+import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlaylistTitle } from '../playlistImport'
 import { parseDate, todayStr, weekday } from '../time'
 import { translateText } from '../translate'
 import { parseCredits } from '../gemini'
@@ -92,6 +92,7 @@ export function recThumb(r: Recording): string | null {
 
 /** 기록 탭 — 합주 녹음/영상 갤러리 (링크 기반). 전체 멤버 공개(보기·추가 가능, 삭제·수정은 올린 사람/관리자) */
 export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }: { toast: ToastState; config?: RecordingModuleConfig }) {
+  const { member } = useAuth()
   const [items, setItems] = useState<Recording[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [adding, setAdding] = useState(false)
@@ -104,6 +105,14 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
   const [sort, setSort] = useState<RecordingSortId>(config.sort.default)
   // 필터가 없을 때는 일자별 폴더로 묶어 보여준다. openFolder = 펼친 폴더 키(일자 YYYY-MM-DD)
   const [openFolder, setOpenFolder] = useState<string | null>(null)
+  // 이름 폴더(합주 등) — 최상위. 그 안에서 일자 묶음(openFolder)이 동작한다.
+  const [recFolders, setRecFolders] = useState<RecordingFolder[]>([])
+  const [foldersLoaded, setFoldersLoaded] = useState(false)
+  const [openNamedFolder, setOpenNamedFolder] = useState<string | null>(null)
+  const [folderForm, setFolderForm] = useState<RecordingFolder | 'new' | null>(null)
+  const [syncOpen, setSyncOpen] = useState(false)
+  const migrated = useRef(false)
+  const useFolders = config.grouping.type === 'date'
 
   useEffect(
     () =>
@@ -118,14 +127,44 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
     [],
   )
 
+  // 이름 폴더 구독
+  useEffect(() => {
+    if (!useFolders) { setFoldersLoaded(true); return }
+    return watchRecordingFolders((f) => { setRecFolders(f); setFoldersLoaded(true) }, () => setFoldersLoaded(true))
+  }, [useFolders])
+
+  // 최초 1회 이관: 폴더가 하나도 없고 기록이 있으면 '합주' 폴더를 만들어 전부 이관 + 자동동기화 재생목록 연결
+  useEffect(() => {
+    if (!useFolders || !foldersLoaded) return
+    if (recFolders.length > 0 || items.length === 0 || migrated.current) return
+    migrated.current = true
+    void (async () => {
+      try {
+        const id = newId()
+        const pls = await getRecImportPlaylists().catch(() => [] as string[])
+        await saveRecordingFolder({ id, name: '합주', order: Date.now(), createdBy: member?.uid ?? '', createdAt: Date.now(), ...(pls.length ? { playlistIds: pls } : {}) })
+        for (const r of items) if (!r.folderId) await saveRecording({ ...r, folderId: id })
+      } catch { migrated.current = false }
+    })()
+  }, [useFolders, foldersLoaded, recFolders.length, items, member?.uid])
+
+  const MISC = '__misc__'
+  const folderKeyOf = (r: Recording) => (r.folderId && recFolders.some((f) => f.id === r.folderId) ? r.folderId! : MISC)
+  const scopedItems = useMemo(
+    () => (openNamedFolder ? items.filter((r) => folderKeyOf(r) === openNamedFolder) : items),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, recFolders, openNamedFolder],
+  )
+  const currentNamedFolder = openNamedFolder ? recFolders.find((f) => f.id === openNamedFolder) ?? null : null
+
   const open = openId ? items.find((r) => r.id === openId) ?? null : null
 
   // 필터 옵션은 실제 기록에 연결된 합주·음악만 모아서 만든다
   // 음악 연결된 곡의 이름·가수를 원본 곡(음악 탭)에서 실시간으로 끌어온다 → 필터가 항상 현재 이름과 동기화
   const [trackInfo, setTrackInfo] = useState<Map<string, { title: string; artist: string }>>(new Map())
   const linkedPlaylistIds = useMemo(
-    () => [...new Set(items.filter((r) => r.playlistId && r.trackId).map((r) => r.playlistId!))].sort().join(','),
-    [items],
+    () => [...new Set(scopedItems.filter((r) => r.playlistId && r.trackId).map((r) => r.playlistId!))].sort().join(','),
+    [scopedItems],
   )
   useEffect(() => {
     if (!linkedPlaylistIds) {
@@ -146,7 +185,7 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
 
   const musicOpts = useMemo(() => {
     const m = new Map<string, { label: string; sub: string }>()
-    items.forEach((r) => {
+    scopedItems.forEach((r) => {
       if (r.playlistId) {
         const key = r.trackId || r.playlistId
         if (!m.has(key)) {
@@ -159,12 +198,12 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
       }
     })
     return [...m].map(([key, v]) => ({ key, label: v.label, sub: v.sub }))
-  }, [items, trackInfo])
+  }, [scopedItems, trackInfo])
 
   // 멤버 필터 옵션 — 기록 credits(파트별 멤버)에 등장하는 사람 + 어느 파트로 참여했는지 요약
   const memberOpts = useMemo(() => {
     const parts = new Map<string, Set<string>>() // 멤버 → 참여 파트들
-    items.forEach((r) => {
+    scopedItems.forEach((r) => {
       if (!r.credits) return
       for (const [part, names] of Object.entries(r.credits)) {
         for (const name of names) {
@@ -176,7 +215,7 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
     return [...parts.entries()]
       .map(([name, ps]) => ({ key: name, label: name, sub: [...ps].join('·') }))
       .sort((a, b) => a.label.localeCompare(b.label, 'ko'))
-  }, [items])
+  }, [scopedItems])
 
   const activeMusic = musicFilter ? musicOpts.find((o) => o.key === musicFilter) ?? null : null
   const activeMember = memberFilter ? memberOpts.find((o) => o.key === memberFilter) ?? null : null
@@ -192,19 +231,19 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
   // 필터 모드: 전체 기록 대상으로 결과를 flat 하게 보여준다(폴더로 묶지 않음)
   const shown = useMemo(() => {
     const list = musicFilter
-      ? items.filter((r) => (r.trackId || r.playlistId) === musicFilter)
+      ? scopedItems.filter((r) => (r.trackId || r.playlistId) === musicFilter)
       : memberFilter
-        ? items.filter((r) => inCredits(r, memberFilter))
-        : items
+        ? scopedItems.filter((r) => inCredits(r, memberFilter))
+        : scopedItems
     return [...list].sort(recordingSort)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, musicFilter, memberFilter, sort])
+  }, [scopedItems, musicFilter, memberFilter, sort])
 
   // 필터가 없을 때: 일자별 폴더로 묶는다(폴더 이름 = 일자).
   const folders = useMemo(() => {
     if (config.grouping.type !== 'date') return []
     const m = new Map<string, Recording[]>()
-    items.forEach((r) => {
+    scopedItems.forEach((r) => {
       const arr = m.get(r.date) || []
       arr.push(r)
       m.set(r.date, arr)
@@ -213,7 +252,16 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
     arr.sort((a, b) => recordingSort(a.recs[0], b.recs[0]))
     return arr
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, sort, config.grouping.type])
+  }, [scopedItems, sort, config.grouping.type])
+
+  // 이름 폴더 카드 목록(최상위). 폴더에 없는 기록은 '미분류'로 묶는다.
+  const namedList = useMemo(() => {
+    const arr = recFolders.map((f) => ({ id: f.id, name: f.name, recs: items.filter((r) => folderKeyOf(r) === f.id) }))
+    const misc = items.filter((r) => folderKeyOf(r) === MISC)
+    if (misc.length) arr.push({ id: MISC, name: '미분류', recs: misc })
+    return arr
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recFolders, items])
 
   const currentFolder = openFolder ? folders.find((f) => f.key === openFolder) ?? null : null
 
@@ -239,13 +287,51 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
 
-        {items.length === 0 && !loadErr ? (
+        {useFolders && !openNamedFolder ? (
+          // ===== Level 1: 이름 폴더 목록 =====
+          namedList.length === 0 ? (
+            <div className="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+              <p>폴더가 없어요.<br />아래 <b>+ 폴더</b>로 폴더를 만들어 시작하세요.</p>
+            </div>
+          ) : (
+            <div className="rec-grid">
+              {namedList.map((f) => (
+                <button key={f.id} type="button" className="rec-card rec-folder" onClick={() => { setOpenNamedFolder(f.id); setOpenFolder(null); setMusicFilter(''); setMemberFilter('') }}>
+                  <div className="rec-thumb">
+                    {recThumb(f.recs[0]) ? <img src={recThumb(f.recs[0]) ?? ''} alt="" loading="lazy" /> : <span className="rec-thumb-none" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></span>}
+                    <span className="rec-folder-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>{f.recs.length}</span>
+                  </div>
+                  <div className="rec-meta"><h3>{f.name}</h3></div>
+                </button>
+              ))}
+            </div>
+          )
+        ) : items.length === 0 && !loadErr ? (
           <div className="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
             <p>{config.labels.empty}<br />아래 <b>+ {config.labels.add}</b>로 유튜브·드라이브 링크나 재생목록을 올려보세요.</p>
           </div>
         ) : (
           <>
+            {useFolders && !currentFolder && !filtering && (
+              <div className="detail-bar rec-folder-bar">
+                <button type="button" className="detail-back" onClick={() => { setOpenNamedFolder(null); setOpenFolder(null) }} aria-label="폴더 목록으로">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                </button>
+                <b style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentNamedFolder?.name ?? '미분류'}</b>
+                {currentNamedFolder && (
+                  <>
+                    <button type="button" className="edit-btn" onClick={() => setSyncOpen(true)} aria-label="재생목록·동기화">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></svg>
+                    </button>
+                    <button type="button" className="edit-btn" onClick={() => setFolderForm(currentNamedFolder)} aria-label="폴더 수정">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             {!currentFolder && (
             <div className="rec-toolbar">
               <div className="rec-filters">
@@ -313,7 +399,13 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
                 <div className="rec-grid">{currentFolder.recs.map(recCard)}</div>
               </>
             ) : config.grouping.type === 'date' ? (
-              // 폴더 목록 — 일정별
+              // 일자 목록 (이 폴더 안)
+              folders.length === 0 ? (
+                <div className="empty-state">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
+                  <p>이 폴더에 기록이 없어요.<br />아래 <b>+ {config.labels.add}</b>로 올려보세요.</p>
+                </div>
+              ) : (
               <div className="rec-grid">
                 {folders.map((f) => (
                   <button key={f.key} type="button" className="rec-card rec-folder" onClick={() => setOpenFolder(f.key)}>
@@ -336,6 +428,7 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
                   </button>
                 ))}
               </div>
+              )
             ) : (
               <div className="rec-grid">{shown.map(recCard)}</div>
             )}
@@ -343,14 +436,22 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
         )}
       </main>
 
-      <button className="fab" onClick={() => setAdding(true)}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-        {config.labels.add}
-      </button>
+      {useFolders && !openNamedFolder ? (
+        <button className="fab" onClick={() => setFolderForm('new')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          폴더
+        </button>
+      ) : (
+        <button className="fab" onClick={() => setAdding(true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          {config.labels.add}
+        </button>
+      )}
 
       {adding && (
         <RecordingForm
           editing={null}
+          folderId={openNamedFolder && openNamedFolder !== MISC ? openNamedFolder : undefined}
           existingVideoIds={new Set(items.filter((r) => r.videoId).map((r) => r.videoId as string))}
           toast={toast}
           onClose={() => setAdding(false)}
@@ -362,6 +463,26 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
           existingVideoIds={new Set(items.filter((r) => r.videoId).map((r) => r.videoId as string))}
           toast={toast}
           onClose={() => setEditingRec(null)}
+        />
+      )}
+      {folderForm && (
+        <RecFolderForm
+          editing={folderForm === 'new' ? null : folderForm}
+          nextOrder={recFolders.length ? Math.max(...recFolders.map((f) => f.order ?? f.createdAt)) + 1 : Date.now()}
+          creatorUid={member?.uid ?? ''}
+          recCount={folderForm === 'new' ? 0 : (namedList.find((n) => n.id === folderForm.id)?.recs.length ?? 0)}
+          toast={toast}
+          onDeleted={() => { setFolderForm(null); setOpenNamedFolder(null) }}
+          onClose={() => setFolderForm(null)}
+        />
+      )}
+      {syncOpen && currentNamedFolder && (
+        <FolderSyncSheet
+          folder={currentNamedFolder}
+          existingVideoIds={new Set(items.filter((r) => r.videoId).map((r) => r.videoId as string))}
+          member={member}
+          toast={toast}
+          onClose={() => setSyncOpen(false)}
         />
       )}
       {open && (
@@ -503,7 +624,7 @@ function RecFilterSheet({
 }
 
 /* ---------------- 기록 추가/수정 시트 ---------------- */
-function RecordingForm({ editing, existingVideoIds, toast, onClose }: { editing: Recording | null; existingVideoIds: Set<string>; toast: ToastState; onClose: () => void }) {
+function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: { editing: Recording | null; folderId?: string; existingVideoIds: Set<string>; toast: ToastState; onClose: () => void }) {
   const { member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
@@ -683,6 +804,7 @@ function RecordingForm({ editing, existingVideoIds, toast, onClose }: { editing:
     setImportProgress('')
     try {
       await setRecImportAuto(pid, true).catch(() => {}) // 가져온 재생목록은 매주 자동 동기화에도 등록
+      if (folderId) await addRecordingFolderPlaylist(folderId, pid).catch(() => {}) // 이 폴더에도 재생목록 연결(수동 동기화용)
       setImportProgress('재생목록 불러오는 중…')
       const result = await importYouTubePlaylist({
         input: pid,
@@ -699,6 +821,7 @@ function RecordingForm({ editing, existingVideoIds, toast, onClose }: { editing:
             videoId: s.videoId, thumbnail: s.thumbnail,
             ...(ev ? { eventId: ev.id, eventTitle: ev.title } : {}),
             ...(m ? { playlistId: m.playlistId, playlistName: m.playlistName, trackId: m.id, trackTitle: m.title, trackArtist: m.artist || undefined } : {}),
+            ...(folderId ? { folderId } : {}),
             ...(credits ? { credits } : {}), addedBy: member?.uid ?? '', addedByName: member?.name, createdAt: Date.now(),
           })
         },
@@ -747,6 +870,7 @@ function RecordingForm({ editing, existingVideoIds, toast, onClose }: { editing:
         addedBy: editing?.addedBy ?? member?.uid ?? '',
         addedByName: editing?.addedByName ?? member?.name,
         createdAt: editing?.createdAt ?? now,
+        folderId: folderId ?? editing?.folderId,
       }
       await saveRecording(r)
       toast.show(editing ? '기록을 수정했어요' : '기록을 추가했어요')
@@ -1048,5 +1172,172 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
         />
       )}
     </>
+  )
+}
+
+/* ---------------- 이름 폴더 추가/수정 시트 ---------------- */
+function RecFolderForm({ editing, nextOrder, creatorUid, recCount, toast, onDeleted, onClose }: {
+  editing: RecordingFolder | null
+  nextOrder: number
+  creatorUid: string
+  recCount: number
+  toast: ToastState
+  onDeleted: () => void
+  onClose: () => void
+}) {
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose)
+  const [name, setName] = useState(editing?.name ?? '')
+  const [busy, setBusy] = useState(false)
+  const [confirmDel, setConfirmDel] = useState(false)
+
+  async function submit() {
+    if (!name.trim() || busy) return
+    setBusy(true)
+    try {
+      await saveRecordingFolder(
+        editing
+          ? { ...editing, name: name.trim() }
+          : { id: newId(), name: name.trim(), order: nextOrder, createdBy: creatorUid, createdAt: Date.now() },
+      )
+      toast.show(editing ? '폴더를 수정했어요' : '폴더를 만들었어요')
+      onClose()
+    } catch {
+      toast.show('저장하지 못했어요')
+      setBusy(false)
+    }
+  }
+  async function doDelete() {
+    if (!editing) return
+    setConfirmDel(false)
+    setBusy(true)
+    try {
+      await deleteRecordingFolder(editing.id)
+      toast.show('폴더를 삭제했어요')
+      onDeleted()
+    } catch {
+      toast.show('삭제하지 못했어요')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="sheet" ref={sheetRef}>
+          <div className="grab-zone" {...grabHandlers}><div className="grab" /></div>
+          <h2>{editing ? '폴더 수정' : '새 폴더'}</h2>
+          <div className="field">
+            <label htmlFor="rf-name">폴더 이름</label>
+            <input id="rf-name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit() }} maxLength={40} autoFocus placeholder="예) 합주, 공연, 연습" />
+          </div>
+          <div className="actions">
+            {editing && <button type="button" className="btn danger" onClick={() => setConfirmDel(true)} disabled={busy}>삭제</button>}
+            <button type="button" className="btn subtle grow" onClick={onClose} disabled={busy}>취소</button>
+            <button type="button" className="btn primary" onClick={() => void submit()} disabled={!name.trim() || busy}>{busy ? '저장 중…' : '저장'}</button>
+          </div>
+        </div>
+      </div>
+      {confirmDel && (
+        <ConfirmDialog
+          message={recCount > 0 ? `'${editing?.name}' 폴더를 삭제할까요? 폴더 안 ${recCount}개 기록은 '미분류'로 이동합니다.` : `'${editing?.name}' 폴더를 삭제할까요?`}
+          confirmLabel="삭제"
+          cancelLabel="닫기"
+          danger
+          onConfirm={() => void doDelete()}
+          onCancel={() => setConfirmDel(false)}
+        />
+      )}
+    </>
+  )
+}
+
+/* ---------------- 폴더별 재생목록 정보 + 수동 동기화 시트 ---------------- */
+function FolderSyncSheet({ folder, existingVideoIds, member, toast, onClose }: {
+  folder: RecordingFolder
+  existingVideoIds: Set<string>
+  member: Member | null
+  toast: ToastState
+  onClose: () => void
+}) {
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose)
+  const [names, setNames] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState('')
+  const pls = folder.playlistIds ?? []
+  const plsKey = pls.join(',')
+
+  useEffect(() => {
+    let live = true
+    pls.forEach((pid) => {
+      resolveYouTubePlaylistTitle(pid).then((t) => { if (live && t) setNames((m) => ({ ...m, [pid]: t })) }).catch(() => {})
+    })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plsKey])
+
+  async function sync() {
+    if (busy || pls.length === 0) return
+    setBusy(true)
+    setProgress('')
+    const seen = new Set(existingVideoIds)
+    let added = 0
+    try {
+      for (const pid of pls) {
+        const res = await importYouTubePlaylist({
+          input: pid,
+          existingVideoIds: seen,
+          onProgress: ({ current, total }) => setProgress(`동기화 중 ${current}/${total}`),
+          save: async (s) => {
+            const credits = await parseCredits(s.description).catch(() => null)
+            const date = dateFromTitle(s.title) || s.publishedAt || todayStr()
+            await saveRecording({
+              id: newId(), title: s.title || '(제목 없음)', date, url: s.url,
+              videoId: s.videoId, thumbnail: s.thumbnail, folderId: folder.id,
+              ...(credits ? { credits } : {}),
+              addedBy: member?.uid ?? '', addedByName: member?.name, createdAt: Date.now(),
+            })
+            if (s.videoId) seen.add(s.videoId)
+          },
+        })
+        added += res.added
+      }
+      toast.show(added ? `${added}개 동기화했어요` : '새 영상이 없어요')
+      onClose()
+    } catch (e) {
+      toast.show(playlistImportErrorMessage(e))
+      setBusy(false)
+      setProgress('')
+    }
+  }
+  async function unlink(pid: string) {
+    try { await removeRecordingFolderPlaylist(folder.id, pid); toast.show('연결을 해제했어요') } catch { toast.show('해제하지 못했어요') }
+  }
+
+  return (
+    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" ref={sheetRef}>
+        <div className="grab-zone" {...grabHandlers}><div className="grab" /></div>
+        <h2>연결된 재생목록</h2>
+        {pls.length === 0 ? (
+          <p className="hint">이 폴더에 연결된 재생목록이 없어요.<br />기록 추가에서 재생목록 링크를 가져오면 자동으로 연결됩니다.</p>
+        ) : (
+          <ul className="list">
+            {pls.map((pid) => (
+              <li key={pid} className="playlist-row">
+                <div className="playlist-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg></div>
+                <div className="playlist-info"><h3>{names[pid] || '재생목록'}</h3></div>
+                <button type="button" className="edit-btn" aria-label="연결 해제" onClick={() => void unlink(pid)} disabled={busy}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="actions">
+          <button type="button" className="btn primary grow" onClick={() => void sync()} disabled={busy || pls.length === 0}>{busy ? (progress || '동기화 중…') : '지금 동기화'}</button>
+          <button type="button" className="btn subtle" onClick={onClose} disabled={busy}>닫기</button>
+        </div>
+      </div>
+    </div>
   )
 }
