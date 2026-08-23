@@ -1,13 +1,19 @@
 :root {
-  color-scheme: dark;
+  --color-scheme: dark;
+  color-scheme: var(--color-scheme);
 
   /* 앱 셸 최대 폭 — 모바일 컨테이너/시트/하단바가 모두 이 값을 공유해 일관 유지 */
   --app-max: 440px;
 
   --bg: #0a0a12;
+  --body-bg: radial-gradient(75% 45% at 85% -5%, rgba(123, 104, 238, 0.22), transparent 60%), #0a0a12;
   --surface: rgba(255, 255, 255, 0.045);
   --surface-solid: #15141f;
   --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-active: #44424d;
+  --control-bg: rgba(255, 255, 255, 0.05);
+  --top-bg: linear-gradient(180deg, rgba(10, 10, 18, 0.82), rgba(10, 10, 18, 0.35));
+  --nav-bg: linear-gradient(0deg, rgba(10, 10, 18, 0.94), rgba(10, 10, 18, 0.7));
   --glass-border: rgba(255, 255, 255, 0.09);
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.16);
@@ -15,6 +21,7 @@
   --ink: #eceaf6;
   --ink-soft: #a6a1c4;
   --ink-faint: #6d6a8c;
+  --heading: #fff;
 
   --accent: #ff5da2; /* magenta pink */
   --accent-2: #7b68ee; /* purple */
@@ -49,11 +56,7 @@
 }
 
 body {
-  background:
-    radial-gradient(75% 45% at 85% -5%, rgba(123, 104, 238, 0.22), transparent 60%),
-    radial-gradient(70% 45% at 0% 12%, rgba(255, 125, 186, 0.13), transparent 55%),
-    radial-gradient(90% 60% at 50% 110%, rgba(77, 208, 255, 0.08), transparent 60%),
-    var(--bg);
+  background: var(--body-bg);
   background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font);
@@ -74,7 +77,7 @@ button { font-family: inherit; }
 @media (min-width: 560px) {
   .app {
     min-height: calc(100vh - 24px);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg);
     border: 1px solid var(--glass-border); border-bottom: none;
     border-radius: 30px 30px 0 0; box-shadow: var(--shadow-lift); overflow: hidden;
   }
@@ -83,7 +86,7 @@ button { font-family: inherit; }
 .top {
   position: sticky; top: 0; z-index: 20;
   padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 14px;
-  background: linear-gradient(180deg, rgba(10, 10, 18, 0.82), rgba(10, 10, 18, 0.35));
+  background: var(--top-bg);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line);
 }
@@ -100,9 +103,11 @@ button { font-family: inherit; }
 .brand { flex: 1; min-width: 0; }
 .brand h1 {
   margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1;
-  color: #fff; text-shadow: 0 0 20px rgba(255, 125, 186, 0.35);
+  color: var(--heading); text-shadow: none;
 }
 .brand p { margin: 3px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+.workspace-context { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+.workspace-context i { display: grid; place-items: center; width: 15px; height: 15px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 18%, transparent); font-style: normal; }
 
 .usermenu { position: relative; flex: none; }
 .ghost-btn {
@@ -111,7 +116,7 @@ button { font-family: inherit; }
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: color 0.14s, border-color 0.14s, background 0.14s;
 }
-.ghost-btn:hover { color: var(--ink); border-color: var(--line-strong); background: rgba(255, 255, 255, 0.1); }
+.ghost-btn:hover { color: var(--ink); border-color: var(--line-strong); background: var(--surface-active); }
 .ghost-btn.icon { width: 38px; padding: 0; justify-content: center; }
 .ghost-btn.icon svg { width: 18px; height: 18px; }
 .menu {
@@ -123,6 +128,10 @@ button { font-family: inherit; }
   padding: 9px 10px; border-radius: 9px; font-size: 14px; cursor: pointer;
 }
 .menu button:hover { background: var(--surface-2); }
+.menu button.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.menu button { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.menu button small { color: inherit; font-size: 9px; font-weight: 800; white-space: nowrap; }
+.menu-divider { height: 1px; margin: 5px 7px; background: var(--line); }
 
 /* ---------- filters ---------- */
 /* 하단 패딩을 칩 글로우(box-shadow ~12px)만큼 확보 — 가로 스크롤이 세로도 클립하므로 잘림 방지.
@@ -155,7 +164,7 @@ button { font-family: inherit; }
   transition: background 0.14s, color 0.14s;
 }
 .segmented button.on {
-  background: color-mix(in srgb, #ffffff 20%, var(--surface-solid)); color: #fff;
+  background: var(--surface-active); color: var(--ink);
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
 }
 .seg-count {
@@ -182,7 +191,7 @@ button { font-family: inherit; }
 }
 .view-toggle button svg { width: 18px; height: 18px; }
 .view-toggle button.on {
-  background: color-mix(in srgb, #ffffff 20%, var(--surface-solid)); color: #fff;
+  background: var(--surface-active); color: var(--ink);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
@@ -510,6 +519,43 @@ button { font-family: inherit; }
 .limits-card .btn.block { text-align: center; }
 .limits-note { margin: 10px 0 0; font-size: 11.5px; color: var(--ink-faint); line-height: 1.55; }
 .limits-note a { color: var(--accent); text-decoration: underline; }
+.mini-btn {
+  flex: none; border: 1px solid var(--line-strong); border-radius: 9px; padding: 6px 9px;
+  background: var(--surface-2); color: var(--ink-soft); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.mini-btn:disabled { cursor: default; opacity: 0.55; }
+.billing-usage-card .limits-note { margin-top: 0; }
+.usage-today { display: grid; gap: 9px; margin: 14px 0; }
+.usage-meter > div:first-child { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; }
+.usage-meter b { color: var(--ink); }
+.usage-meter span { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.usage-track { height: 6px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: var(--surface-2); }
+.usage-track i { display: block; height: 100%; min-width: 1px; border-radius: inherit; background: var(--accent); }
+.usage-table-wrap { max-height: 320px; margin-top: 14px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.usage-table th, .usage-table td { padding: 8px 7px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.usage-table th { position: sticky; top: 0; background: var(--surface-solid); color: var(--ink-soft); font-weight: 700; }
+.usage-table th:first-child, .usage-table td:first-child { text-align: left; }
+.usage-table tbody tr:last-child td { border-bottom: 0; }
+.usage-table td { color: var(--ink); }
+.usage-links { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+.usage-links a { color: var(--accent); font-size: 11.5px; font-weight: 700; text-decoration: none; }
+.usage-charts { display: grid; gap: 14px; margin-top: 14px; }
+.usage-chart { min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.usage-chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.usage-chart-head b { color: var(--ink); font-size: 12px; }
+.usage-chart-head span { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.usage-chart-plot { position: relative; height: 142px; padding-top: 13px; }
+.usage-bars { position: absolute; inset: 0; display: flex; align-items: stretch; gap: 2px; }
+.usage-bar-slot { position: relative; flex: 1 1 0; min-width: 2px; height: 100%; border-bottom: 1px solid var(--line-strong); }
+.usage-bar-slot i { position: absolute; right: 1px; bottom: 18px; left: 1px; min-height: 0; border-radius: 3px 3px 1px 1px; background: var(--accent); opacity: .72; }
+.usage-bar-slot i.over { background: var(--no); opacity: .9; }
+.usage-bar-slot small { position: absolute; right: -8px; bottom: 0; left: -8px; color: var(--ink-faint); font-size: 8px; text-align: center; white-space: nowrap; }
+.usage-threshold { position: absolute; z-index: 2; right: 0; left: 0; border-top: 1px dashed var(--no); pointer-events: none; transform: translateY(9px); }
+.usage-threshold span { position: absolute; right: 0; bottom: 2px; padding-left: 5px; background: var(--surface-2); color: var(--no); font-size: 8.5px; font-weight: 700; }
+.usage-chart.unavailable { color: var(--ink-soft); }
+.usage-chart.unavailable b { color: var(--ink); font-size: 12px; }
+.usage-chart.unavailable p { margin: 5px 0 0; font-size: 11px; line-height: 1.5; }
 .note-input {
   width: 100%; margin-top: 12px; font: inherit; font-size: 16px; color: var(--ink);
   background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line-strong); border-radius: 10px;
@@ -534,14 +580,14 @@ button { font-family: inherit; }
 /* ---------- bottom navigation ---------- */
 .bottom-nav {
   position: fixed; z-index: 30; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: var(--app-max); display: flex; gap: 4px; padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(0deg, rgba(10, 10, 18, 0.94), rgba(10, 10, 18, 0.7));
+  width: 100%; max-width: var(--app-max); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--nav-bg);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border-top: 1px solid var(--line);
 }
 @media (min-width: 560px) { .bottom-nav { position: absolute; left: 0; transform: none; } }
 .navitem {
-  flex: 1; appearance: none; cursor: pointer; background: transparent; border: none;
+  min-width: 0; appearance: none; cursor: pointer; background: transparent; border: none;
   display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0;
   font-size: 11px; font-weight: 700; color: var(--ink-faint); border-radius: 12px; transition: color 0.14s, background 0.14s;
 }
@@ -652,6 +698,74 @@ button { font-family: inherit; }
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 8px 6px 12px; max-width: 42vw;
 }
 .theme-select.pill .theme-select-chev { width: 15px; height: 15px; }
+
+.template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0; }
+.template-preview-label { margin: 18px 0 -8px; color: var(--accent); font-size: 11px; font-weight: 800; }
+.template-card { min-width: 0; padding: 12px; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; }
+.template-card.on { border-color: var(--template-color); background: color-mix(in srgb, var(--template-color) 13%, var(--surface-solid)); box-shadow: 0 0 0 1px var(--template-color); }
+.template-card .template-symbol { display: grid; place-items: center; width: 28px; height: 28px; margin-bottom: 8px; border-radius: 9px; background: color-mix(in srgb, var(--template-color) 20%, transparent); color: var(--template-color); font-weight: 900; }
+.template-card b, .template-card small { display: block; }
+.template-card b { font-size: 13px; }
+.template-card small { margin-top: 4px; color: var(--ink-soft); font-size: 10.5px; line-height: 1.35; }
+.template-grid.compact { margin-bottom: 0; }
+.template-grid.compact .template-card { display: flex; align-items: center; gap: 8px; padding: 9px; }
+.template-grid.compact .template-symbol { width: 24px; height: 24px; margin: 0; }
+
+/* 개인 템플릿: Notion 기본 라이트 모드의 종이·잉크·절제된 그림자 분위기 */
+html[data-template='personal'] body { background-color: var(--bg); }
+html[data-template='personal'] .app { background: var(--bg); }
+html[data-template='personal'] .top { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+html[data-template='personal'] .mark { background: #f7f6f3; box-shadow: inset 0 0 0 1px var(--line-strong); }
+html[data-template='personal'] .brand h1,
+html[data-template='personal'] .login h1 { color: var(--heading); text-shadow: none; }
+html[data-template='personal'] .hero { background: var(--surface-2); border-color: var(--line); box-shadow: none; }
+html[data-template='personal'] .hero .dday span,
+html[data-template='personal'] .hero .meta { color: var(--ink-soft); }
+html[data-template='personal'] .hero .meta .addr-line { color: var(--ink-faint); }
+html[data-template='personal'] .event-card,
+html[data-template='personal'] .limits-card,
+html[data-template='personal'] .notif-card { box-shadow: none; }
+html[data-template='personal'] input,
+html[data-template='personal'] textarea,
+html[data-template='personal'] select,
+html[data-template='personal'] .theme-select { background: var(--control-bg); color: var(--ink); }
+html[data-template='personal'] .fab { background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 12px rgba(35,131,226,.22); }
+html[data-template='personal'] .bottom-nav { box-shadow: 0 -1px 0 var(--line); }
+html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
+.personal-video-card { position: relative; padding: 0; overflow: hidden; }
+.personal-video-open { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.personal-video-open .rec-thumb { border-radius: 0; }
+.personal-play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: rgba(0,0,0,.18); opacity: 0; transition: opacity .14s; }
+.personal-play svg { width: 34px; height: 34px; filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
+.personal-video-open:hover .personal-play { opacity: 1; }
+.personal-video-card .rec-meta { padding: 10px 12px 12px; }
+.personal-video-card .rec-meta p { margin: 4px 0 0; color: var(--ink-soft); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personal-video-delete { position: absolute; top: 7px; right: 7px; width: 26px; height: 26px; border: 0; border-radius: 50%; background: rgba(0,0,0,.58); color: #fff; cursor: pointer; font-size: 18px; line-height: 1; }
+.personal-video-player .player-video iframe { width: 100%; height: 100%; border: 0; }
+.folder-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.folder-template-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); color: var(--ink); text-align: left; cursor: pointer; }
+.folder-template-card.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface-solid)); box-shadow: 0 0 0 1px var(--accent); }
+.folder-template-card span, .folder-template-card b, .folder-template-card small { display: block; }
+.folder-template-card span { margin-bottom: 7px; font-size: 20px; }
+.folder-template-card b { font-size: 13px; }
+.folder-template-card small { margin-top: 4px; color: var(--ink-soft); font-size: 10.5px; line-height: 1.35; }
+.recipe-sections { margin: 2px 0 14px; }
+.recipe-sections button span { margin-left: 3px; color: var(--ink-faint); font-size: 10px; }
+.ingredient-empty-icon { font-size: 38px; }
+.ingredient-list .playlist-row { cursor: default; }
+.ingredient-ico { font-size: 18px; }
+.ingredient-picker { display: flex; flex-wrap: wrap; gap: 7px; }
+.ingredient-picker .chip { width: auto; }
+.recipe-filter { display: flex; gap: 7px; margin: 0 0 14px; padding: 2px 0; overflow-x: auto; scrollbar-width: none; }
+.recipe-filter::-webkit-scrollbar { display: none; }
+.recipe-filter .chip { flex: none; width: auto; white-space: nowrap; }
+.recipe-filter .chip span { margin-left: 3px; color: var(--ink-faint); font-size: 10px; }
+.recipe-filter .chip[aria-pressed='true'] span { color: inherit; opacity: .72; }
+.empty-state.compact { min-height: 210px; }
+.recipe-detail { margin-top: 18px; }
+.recipe-detail h3 { margin: 0 0 8px; font-size: 13px; color: var(--ink-soft); }
+.recipe-detail p, .recipe-copy { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+.onboarding-template { margin: 12px 0 18px; cursor: default; }
 .tsel-sheet h2 { margin-bottom: 6px; }
 /* 설정: 탭 가능한 진입 행 (의견 보내기 등) */
 .set-entry {

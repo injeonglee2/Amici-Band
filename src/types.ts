@@ -103,6 +103,54 @@ export interface Recording {
   addedBy: string
   addedByName?: string // 올린 사람 이름 스냅샷
   createdAt: number
+  folderId?: string // 개인 기록 모듈의 사용자 지정 폴더 참조(밴드 기록에서는 사용하지 않음)
+  order?: number // 폴더 안 직접 정렬 순서
+}
+
+/** 개인 기록 모듈에서 사용자가 만드는 영상 폴더 */
+export interface RecordingFolder {
+  id: string
+  name: string
+  templateId?: 'video' | 'recipe'
+  order?: number
+  createdBy: string
+  createdAt: number
+}
+
+/** 개인 영상 폴더 안의 유튜브 영상 */
+export interface PersonalVideo {
+  id: string
+  folderId: string
+  title: string
+  url: string
+  videoId: string
+  thumbnail: string
+  note?: string
+  ingredientIds?: string[]
+  recipe?: string
+  order: number
+  addedBy: string
+  createdAt: number
+}
+
+/** 개인 기록 폴더 안의 이미지 묶음 또는 PDF 문서. */
+export interface PersonalRecordEntry {
+  id: string
+  folderId: string
+  title: string
+  kind: 'pdf' | 'images'
+  files: ScoreFile[]
+  addedBy: string
+  createdAt: number
+}
+
+/** 레시피 영상 폴더 안에서 여러 레시피가 함께 사용하는 재료 */
+export interface RecipeIngredient {
+  id: string
+  folderId: string
+  name: string
+  order: number
+  createdAt: number
 }
 
 /** 버그 제보·개선 의견 — feedback/{id}. 작성은 로그인 멤버, 열람·관리는 관리자만 */
@@ -158,6 +206,7 @@ export interface Band {
   createdAt?: number
   storageBytes?: number // 누적 저장 용량(악보 등) — 계량용
   aiUsage?: { month: string; count: number } // 월별 AI 호출 수(YYYY-MM) — 계량용
+  templateId?: import('./workspaceTemplates').WorkspaceTemplateId // 없으면 기존 밴드 템플릿
 }
 
 export type AttendStatus = 'present' | 'late' | 'leave' | 'absent' | 'undecided'

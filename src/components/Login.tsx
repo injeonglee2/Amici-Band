@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useAuth } from '../auth'
 import { versionLabel } from '../version'
+import { WORKSPACE_TEMPLATES } from '../workspaceTemplates'
+import { useWorkspaceTheme } from '../useWorkspaceTheme'
 
 function messageFor(code: string): string {
   switch (code) {
@@ -24,6 +26,7 @@ function messageFor(code: string): string {
 }
 
 export default function Login() {
+  useWorkspaceTheme(WORKSPACE_TEMPLATES.personal)
   const { signIn } = useAuth()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -49,7 +52,7 @@ export default function Login() {
           <img src="/logo.png" alt="Amici Band" />
         </div>
         <h1>Amici Band</h1>
-        <p className="muted">연습 · 공연 일정과 참석 투표</p>
+        <p className="muted">개인 기록과 공동 일정을 한곳에서 관리해요.</p>
         <button className="google-btn" onClick={go} disabled={busy}>
           <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
             <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z" />

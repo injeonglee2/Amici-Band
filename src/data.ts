@@ -15,6 +15,7 @@ import {
   runTransaction,
   setDoc,
   updateDoc,
+  writeBatch,
   where,
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
@@ -22,9 +23,23 @@ import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'fi
 import { db, fbApp, storage } from './firebase'
 import { getCurrentBand, bandCol, bandDoc, bandStoragePath } from './band'
 import { DEMO, demoDb } from './demo'
-import type { Band, Attendance, BandEvent, Feedback, Member, Place, Playlist, Recording, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Band, Attendance, BandEvent, Feedback, Member, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
+
+export interface BillingDailyUsage {
+  date: string
+  reads: number
+  writes: number
+  deletes: number
+  storageBytes: number
+}
+
+export async function getBillingUsageStats(days = 30): Promise<{ rows: BillingDailyUsage[]; generatedAt: number; timezone: string; storageAvailable: boolean }> {
+  const call = httpsCallable<{ days: number }, { rows: BillingDailyUsage[]; generatedAt: number; timezone: string; storageAvailable: boolean }>(requireFunctions(), 'getBillingUsageStats')
+  const result = await call({ days })
+  return result.data
+}
 
 /* ---------------- members (bands/{band}/members/{uid}) ---------------- */
 export async function getMember(uid: string): Promise<Member | null> {
@@ -32,8 +47,30 @@ export async function getMember(uid: string): Promise<Member | null> {
   return snap.exists() ? (snap.data() as Member) : null
 }
 
+export async function getMemberFromBand(bandId: string, uid: string): Promise<Member | null> {
+  const snap = await getDoc(doc(db, 'bands', bandId, 'members', uid))
+  return snap.exists() ? (snap.data() as Member) : null
+}
+
+export async function getLegacyMember(uid: string): Promise<Member | null> {
+  const snap = await getDoc(doc(db, 'members', uid))
+  return snap.exists() ? (snap.data() as Member) : null
+}
+
+export async function getUserProfile(uid: string): Promise<{ name?: string; part?: Member['part'] }> {
+  const snap = await getDoc(doc(db, 'users', uid))
+  if (!snap.exists()) return {}
+  return {
+    name: (snap.get('profileName') as string | undefined)?.trim() || undefined,
+    part: (snap.get('profilePart') as Member['part'] | null | undefined) || undefined,
+  }
+}
+
 export async function saveMember(m: Member): Promise<void> {
-  await setDoc(bandDoc('members', m.uid), m, { merge: true })
+  await Promise.all([
+    setDoc(bandDoc('members', m.uid), m, { merge: true }),
+    setDoc(doc(db, 'users', m.uid), { profileName: m.name, profilePart: m.part ?? null }, { merge: true }),
+  ])
 }
 
 /** 전체 멤버 명단 구독 (미정 계산용) */
@@ -68,15 +105,24 @@ export async function saveWebPushSubscription(uid: string, subscription: WebPush
   )
 }
 
-/** 아직 투표 안 한(미정) 멤버에게 투표 요청 푸시 — Cloud Function 호출. 발송 건수 반환 */
-export async function remindUndecided(eventId: string): Promise<number> {
-  if (DEMO || !fbApp) return 0
-  const call = httpsCallable<{ eventId: string; bandId: string }, { sent: number }>(
+export interface ReminderDeliveryResult {
+  undecided: number
+  registeredMembers: number
+  sent: number
+  failed: number
+  fcmTokens: number
+  webPushSubscriptions: number
+}
+
+/** 아직 투표 안 한(미정) 멤버에게 투표 요청 푸시 — 대상·등록·성공·실패를 구분해 반환 */
+export async function remindUndecided(eventId: string): Promise<ReminderDeliveryResult> {
+  if (DEMO || !fbApp) return { undecided: 0, registeredMembers: 0, sent: 0, failed: 0, fcmTokens: 0, webPushSubscriptions: 0 }
+  const call = httpsCallable<{ eventId: string; bandId: string }, ReminderDeliveryResult>(
     getFunctions(fbApp, FUNCTIONS_REGION),
     'remindUndecided',
   )
   const res = await call({ eventId, bandId: getCurrentBand() })
-  return res.data.sent
+  return res.data
 }
 
 /* ---------------- 밴드 계정·멤버십 (users / bands / inviteCodes) ---------------- */
@@ -102,9 +148,9 @@ function requireFunctions() {
 }
 
 /** 새 밴드 생성 (생성자가 관리자). 반환: 생성된 bandId + 초대코드 */
-export async function createBand(name: string): Promise<{ bandId: string; code: string }> {
-  const call = httpsCallable<{ name: string }, { bandId: string; code: string }>(requireFunctions(), 'createBand')
-  const res = await call({ name })
+export async function createBand(name: string, templateId: string = 'band'): Promise<{ bandId: string; code?: string }> {
+  const call = httpsCallable<{ name: string; templateId: string }, { bandId: string; code?: string }>(requireFunctions(), 'createBand')
+  const res = await call({ name, templateId })
   return res.data
 }
 
@@ -326,8 +372,7 @@ export function watchRecordings(
     bandCol('recordings'),
     (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Recording, 'id'>) }))
-      // 최근 일자 우선, 같은 날짜면 최근 등록 순
-      list.sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : b.date.localeCompare(a.date)))
+      // 정렬·그룹화는 템플릿별 기록 모듈이 담당한다. 데이터 계층은 원본 순서에 의존하지 않는다.
       cb(list)
     },
     (err) => {
@@ -351,6 +396,171 @@ export async function saveRecording(r: Recording): Promise<void> {
 export async function deleteRecording(id: string): Promise<void> {
   if (DEMO) return
   await deleteDoc(bandDoc('recordings', id))
+}
+
+/** 개발자 채널 전환용 전체 채널 일회 조회. */
+export async function getAllBands(): Promise<Band[]> {
+  const snap = await getDocs(collection(db, 'bands'))
+  const list = snap.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<Band, 'id'>) }))
+  list.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+  return list
+}
+
+/** 사용자가 접근 가능한 채널 id. 기존 bandId 단일 필드도 함께 지원한다. */
+export async function getUserBandIds(uid: string): Promise<string[]> {
+  const snap = await getDoc(doc(db, 'users', uid))
+  if (!snap.exists()) return []
+  const current = (snap.get('bandId') as string) || ''
+  const stored = (snap.get('bandIds') as string[] | undefined) ?? []
+  return [...new Set([current, ...stored].filter(Boolean))]
+}
+
+/** 앱 소유자의 활성 채널 전환. 실제 접근 권한은 각 채널 멤버십 규칙으로 다시 검증된다. */
+export async function setActiveUserBand(uid: string, bandId: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { bandId }, { merge: true })
+}
+
+/* ---------------- personal video folders ---------------- */
+export function watchVideoFolders(
+  cb: (folders: RecordingFolder[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) { cb([]); return () => {} }
+  return onSnapshot(bandCol('videoFolders'), (snap) => {
+    const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RecordingFolder, 'id'>) }))
+    list.sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt))
+    cb(list)
+  }, (err) => onError?.(err))
+}
+
+export async function saveVideoFolder(folder: RecordingFolder): Promise<void> {
+  if (DEMO) return
+  const { id, ...data } = folder
+  await setDoc(bandDoc('videoFolders', id), data, { merge: true })
+}
+
+export async function deleteVideoFolder(folderId: string): Promise<void> {
+  if (DEMO) return
+  const videos = await getDocs(bandCol('videoFolders', folderId, 'videos'))
+  const ingredients = await getDocs(bandCol('videoFolders', folderId, 'ingredients'))
+  const batch = writeBatch(db)
+  videos.docs.forEach((video) => batch.delete(video.ref))
+  ingredients.docs.forEach((ingredient) => batch.delete(ingredient.ref))
+  batch.delete(bandDoc('videoFolders', folderId))
+  await batch.commit()
+}
+
+/* ---------------- personal record folders ---------------- */
+export function watchPersonalRecordFolders(
+  cb: (folders: RecordingFolder[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) { cb([]); return () => {} }
+  return onSnapshot(bandCol('recordFolders'), (snap) => {
+    const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RecordingFolder, 'id'>) }))
+    list.sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt))
+    cb(list)
+  }, (err) => onError?.(err))
+}
+
+export async function savePersonalRecordFolder(folder: RecordingFolder): Promise<void> {
+  if (DEMO) return
+  const { id, ...data } = folder
+  await setDoc(bandDoc('recordFolders', id), data, { merge: true })
+}
+
+export async function deletePersonalRecordFolder(folderId: string): Promise<void> {
+  if (DEMO) return
+  const entries = await getDocs(bandCol('recordFolders', folderId, 'entries'))
+  const files = entries.docs.flatMap((entry) => ((entry.get('files') as ScoreFile[] | undefined) ?? []))
+  const freed = files.reduce((sum, file) => sum + (file.size ?? 0), 0)
+  await Promise.allSettled(files.map((file) => deleteObject(storageRef(storage, file.path))))
+  const batch = writeBatch(db)
+  entries.docs.forEach((entry) => batch.delete(entry.ref))
+  batch.delete(bandDoc('recordFolders', folderId))
+  await batch.commit()
+  if (freed) addStorageBytes(-freed)
+}
+
+export function watchPersonalRecordEntries(folderId: string, cb: (entries: PersonalRecordEntry[]) => void, onError?: (e: Error) => void): () => void {
+  if (DEMO) { cb([]); return () => {} }
+  return onSnapshot(bandCol('recordFolders', folderId, 'entries'), (snap) => {
+    const entries = snap.docs.map((item) => ({ id: item.id, folderId, ...(item.data() as Omit<PersonalRecordEntry, 'id' | 'folderId'>) }))
+    entries.sort((a, b) => b.createdAt - a.createdAt)
+    cb(entries)
+  }, (error) => onError?.(error))
+}
+
+export async function uploadPersonalRecordFile(folderId: string, entryId: string, file: File, index: number): Promise<ScoreFile> {
+  const safe = file.name.replace(/[^\w.-]+/g, '_').slice(-60)
+  const path = bandStoragePath('recordFolders', folderId, 'entries', entryId, `${index}-${safe}`)
+  const target = storageRef(storage, path)
+  await uploadBytes(target, file, { contentType: file.type || undefined })
+  const url = await getDownloadURL(target)
+  addStorageBytes(file.size)
+  return { url, path, name: file.name, size: file.size }
+}
+
+export async function savePersonalRecordEntry(entry: PersonalRecordEntry): Promise<void> {
+  if (DEMO) return
+  const { id, folderId, ...data } = entry
+  await setDoc(bandDoc('recordFolders', folderId, 'entries', id), data)
+}
+
+export async function deletePersonalRecordEntry(entry: PersonalRecordEntry): Promise<void> {
+  if (DEMO) return
+  const freed = entry.files.reduce((sum, file) => sum + (file.size ?? 0), 0)
+  await Promise.allSettled(entry.files.map((file) => deleteObject(storageRef(storage, file.path))))
+  await deleteDoc(bandDoc('recordFolders', entry.folderId, 'entries', entry.id))
+  if (freed) addStorageBytes(-freed)
+}
+
+export function watchPersonalVideos(
+  folderId: string,
+  cb: (videos: PersonalVideo[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) { cb([]); return () => {} }
+  return onSnapshot(bandCol('videoFolders', folderId, 'videos'), (snap) => {
+    const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PersonalVideo, 'id'>) }))
+    list.sort((a, b) => a.order - b.order || a.createdAt - b.createdAt)
+    cb(list)
+  }, (err) => onError?.(err))
+}
+
+export async function savePersonalVideo(video: PersonalVideo): Promise<void> {
+  if (DEMO) return
+  const { id, folderId, ...data } = video
+  await setDoc(bandDoc('videoFolders', folderId, 'videos', id), data, { merge: true })
+}
+
+export async function deletePersonalVideo(folderId: string, videoId: string): Promise<void> {
+  if (DEMO) return
+  await deleteDoc(bandDoc('videoFolders', folderId, 'videos', videoId))
+}
+
+export function watchRecipeIngredients(
+  folderId: string,
+  cb: (ingredients: RecipeIngredient[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) { cb([]); return () => {} }
+  return onSnapshot(bandCol('videoFolders', folderId, 'ingredients'), (snap) => {
+    const list = snap.docs.map((d) => ({ id: d.id, folderId, ...(d.data() as Omit<RecipeIngredient, 'id' | 'folderId'>) }))
+    list.sort((a, b) => a.order - b.order || a.createdAt - b.createdAt)
+    cb(list)
+  }, (err) => onError?.(err))
+}
+
+export async function saveRecipeIngredient(ingredient: RecipeIngredient): Promise<void> {
+  if (DEMO) return
+  const { id, folderId, ...data } = ingredient
+  await setDoc(bandDoc('videoFolders', folderId, 'ingredients', id), data, { merge: true })
+}
+
+export async function deleteRecipeIngredient(folderId: string, ingredientId: string): Promise<void> {
+  if (DEMO) return
+  await deleteDoc(bandDoc('videoFolders', folderId, 'ingredients', ingredientId))
 }
 
 /* ---------------- scores (bands/{band}/scores — 파트별 PDF·이미지, Storage) ---------------- */

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { deleteFeedback, getActiveInviteCode, getBand, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers } from '../data'
+import { deleteFeedback, getActiveInviteCode, getBand, getBillingUsageStats, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers, type BillingDailyUsage } from '../data'
 import { useAuth } from '../auth'
 import { notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
@@ -12,6 +12,7 @@ import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
 import { useBackHandler } from '../backnav'
 import { PART_META, type Band, type Feedback, type Member, type Part } from '../types'
+import { getTemplatePreview, getWorkspaceTemplate, setTemplatePreview, WORKSPACE_TEMPLATES, type WorkspaceTemplateId } from '../workspaceTemplates'
 
 const fmtDay = (ms?: number) => {
   if (!ms) return '-'
@@ -21,7 +22,7 @@ const fmtDay = (ms?: number) => {
 }
 
 export default function Settings({ onClose }: { onClose: () => void }) {
-  const { user, member, bandId, isDeveloper } = useAuth()
+  const { user, member, bandId, workspace, isDeveloper } = useAuth()
   const isAdmin = !!member?.admin
   const toast = useToast()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -63,13 +64,15 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
         {tab === 'band' && isAdmin && bandId && (
           <>
-            <InviteCodeCard bandId={bandId} toast={toast} />
+            {workspace?.templateId !== 'personal' && <InviteCodeCard bandId={bandId} toast={toast} />}
             <MemberManageCard bandId={bandId} myUid={user?.uid ?? ''} toast={toast} />
           </>
         )}
 
         {tab === 'dev' && isDeveloper && (
           <>
+            <BillingUsageCard />
+            <TemplatePreviewCard />
             <BandsStatusCard />
             <AdminFeedbackCard toast={toast} />
             <FirebaseLimitsCard />
@@ -81,6 +84,95 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
       {feedbackOpen && <FeedbackSheet toast={toast} onClose={() => setFeedbackOpen(false)} />}
       <Toast state={toast} />
+    </div>
+  )
+}
+
+const usageNumber = new Intl.NumberFormat('ko-KR')
+
+function BillingUsageCard() {
+  const [rows, setRows] = useState<BillingDailyUsage[]>([])
+  const [storageAvailable, setStorageAvailable] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  async function load() {
+    setLoading(true); setError('')
+    try {
+      const result = await getBillingUsageStats(30)
+      setRows(result.rows)
+      setStorageAvailable(result.storageAvailable)
+    } catch (err) {
+      const message = (err as { message?: string })?.message || ''
+      setError(message.includes('Monitoring Viewer') ? 'Cloud Monitoring 조회 권한이 필요해요.' : '사용량을 불러오지 못했어요.')
+    } finally { setLoading(false) }
+  }
+
+  useEffect(() => { void load() }, [])
+  const latest = rows.at(-1)
+  return <div className="limits-card billing-usage-card">
+    <div className="limits-head"><h3>Firebase 과금 지표 · 최근 30일</h3><button type="button" className="mini-btn" onClick={() => void load()} disabled={loading}>{loading ? '조회 중…' : '새로고침'}</button></div>
+    <p className="limits-note">Cloud Monitoring 기준 UTC 집계입니다. 점선은 무료 구간이 끝나고 과금이 시작되는 기준입니다.</p>
+    {error ? <div className="banner-err">{error}</div> : loading && !rows.length ? <p className="muted">최근 30일 사용량을 불러오는 중…</p> : <div className="usage-charts">
+      <UsageBarChart label="Firestore 읽기" rows={rows} value={(row) => row.reads} quota={50000} quotaLabel="일 50,000회" />
+      <UsageBarChart label="Firestore 쓰기" rows={rows} value={(row) => row.writes} quota={20000} quotaLabel="일 20,000회" />
+      <UsageBarChart label="Firestore 삭제" rows={rows} value={(row) => row.deletes} quota={20000} quotaLabel="일 20,000회" />
+      {storageAvailable ? <UsageBarChart label="파일 저장 총량" rows={rows} value={(row) => row.storageBytes} quota={5 * 1024 ** 3} quotaLabel="5GB·월" format={formatBytes} /> : <div className="usage-chart unavailable"><b>파일 저장 총량</b><p>Cloud Storage 지표가 아직 수집되지 않았어요. 버킷 지표는 최대 하루 늦게 나타날 수 있어요.</p></div>}
+    </div>}
+    {latest && <p className="limits-note">현재 표시값: 읽기 {usageNumber.format(latest.reads)} · 쓰기 {usageNumber.format(latest.writes)} · 삭제 {usageNumber.format(latest.deletes)}{storageAvailable ? ` · 파일 ${formatBytes(latest.storageBytes)}` : ''}</p>}
+    <div className="usage-links"><a href="https://console.firebase.google.com/project/amicicalender/usage" target="_blank" rel="noopener noreferrer">Firebase 사용량 콘솔</a><a href="https://console.cloud.google.com/storage/monitoring?project=amicicalender" target="_blank" rel="noopener noreferrer">Storage 모니터링</a><a href="https://console.firebase.google.com/project/amicicalender/hosting/usage" target="_blank" rel="noopener noreferrer">Hosting 사용량</a></div>
+  </div>
+}
+
+function formatBytes(value: number) {
+  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)}KB`
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)}MB`
+  return `${(value / 1024 ** 3).toFixed(2)}GB`
+}
+
+function UsageBarChart({ label, rows, value, quota, quotaLabel, format = (number: number) => usageNumber.format(number) }: {
+  label: string; rows: BillingDailyUsage[]; value: (row: BillingDailyUsage) => number; quota: number; quotaLabel: string; format?: (value: number) => string
+}) {
+  const values = rows.map(value)
+  const current = values.at(-1) ?? 0
+  const scaleMax = Math.max(quota * 1.12, ...values.map((item) => item * 1.08), 1)
+  const threshold = Math.min(100, quota / scaleMax * 100)
+  return <section className="usage-chart">
+    <div className="usage-chart-head"><b>{label}</b><span>{format(current)}</span></div>
+    <div className="usage-chart-plot">
+      <div className="usage-threshold" style={{ bottom: `${threshold}%` }}><span>과금 시작 · {quotaLabel}</span></div>
+      <div className="usage-bars">{rows.map((row, index) => {
+        const amount = values[index]
+        return <div className="usage-bar-slot" key={row.date} title={`${row.date} · ${format(amount)}`}><i className={amount > quota ? 'over' : ''} style={{ height: `${Math.max(amount ? 2 : 0, amount / scaleMax * 100)}%` }} /><small>{index % 5 === 0 || index === rows.length - 1 ? row.date.slice(5).replace('-', '/') : ''}</small></div>
+      })}</div>
+    </div>
+  </section>
+}
+
+function TemplatePreviewCard() {
+  const { workspace } = useAuth()
+  const saved = getTemplatePreview()
+  const active = saved ?? getWorkspaceTemplate(workspace?.templateId).id
+  function select(id: WorkspaceTemplateId) {
+    setTemplatePreview(id === getWorkspaceTemplate(workspace?.templateId).id ? null : id)
+    window.location.reload()
+  }
+  return (
+    <div className="limits-card">
+      <div className="limits-head">
+        <h3>템플릿 미리보기</h3>
+        <span className="guide-badge dev">소유자</span>
+      </div>
+      <p className="limits-note">현재 공간의 데이터는 바꾸지 않고 테마와 내비게이션만 시험합니다.</p>
+      <div className="template-grid compact" role="radiogroup" aria-label="템플릿 미리보기">
+        {Object.values(WORKSPACE_TEMPLATES).map((template) => (
+          <button key={template.id} type="button" role="radio" aria-checked={active === template.id}
+            className={'template-card' + (active === template.id ? ' on' : '')}
+            style={{ ['--template-color' as string]: template.theme.accent }} onClick={() => select(template.id)}>
+            <span className="template-symbol">{template.symbol}</span><b>{template.label}</b>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -396,7 +488,7 @@ function FirebaseLimitsCard() {
 }
 
 function NotifCard() {
-  const { user } = useAuth()
+  const { user, bandId, isChannelMember } = useAuth()
   const [state, setState] = useState<'idle' | 'enabling' | 'on' | 'off' | 'denied' | 'unavailable'>(
     !pushConfigured()
       ? 'unavailable'
@@ -408,7 +500,7 @@ function NotifCard() {
   )
 
   async function enable() {
-    if (!user) return
+    if (!user || !isChannelMember) return
     setState('enabling')
     try {
       const { fcmToken, webPushSubscription } = await requestNotificationRegistrations()
@@ -428,7 +520,31 @@ function NotifCard() {
     }
   }
 
-  const msg =
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'hidden' || !pushConfigured()) return
+      const permission = notificationPermission()
+      if (permission === 'granted') {
+        void enable()
+      } else {
+        setState(permission === 'denied' ? 'denied' : 'idle')
+      }
+    }
+    window.addEventListener('focus', refresh)
+    window.addEventListener('pageshow', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('pageshow', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+    // 채널을 바꾸면 현재 채널의 멤버 문서에 알림 기기를 다시 연결한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, bandId, isChannelMember])
+
+  const msg = !isChannelMember
+    ? '개발자 점검 모드에서는 이 채널에 기기 알림 정보를 추가하지 않아요.'
+    :
     state === 'on'
       ? '이 기기에서 알림을 받는 중이에요.'
       : state === 'denied'

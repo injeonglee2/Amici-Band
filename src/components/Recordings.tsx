@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
 import { deleteRecording, newId, saveRecording, setRecImportAuto, watchEvents, watchPlaylists, watchRecordings, watchTracks } from '../data'
 import { TYPE_META, type BandEvent, type Recording, type Track } from '../types'
-import { fetchPlaylistItems, fetchVideoDescription, fetchYouTubeMeta, parsePlaylistId, parseVideoId, PlaylistImportError, thumbnailUrl } from '../youtube'
+import { fetchVideoDescription, fetchYouTubeMeta, parsePlaylistId, parseVideoId, thumbnailUrl } from '../youtube'
+import { importYouTubePlaylist, playlistImportErrorMessage } from '../playlistImport'
 import { parseDate, todayStr, weekday } from '../time'
 import { translateText } from '../translate'
 import { parseCredits } from '../gemini'
@@ -13,6 +14,7 @@ import ThemeSelect from './ThemeSelect'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
+import { BAND_RECORDING_MODULE, compareRecordings, type RecordingModuleConfig, type RecordingSortId } from '../recordingModules'
 
 function fmtDate(date: string): string {
   const d = parseDate(date)
@@ -89,7 +91,7 @@ export function recThumb(r: Recording): string | null {
 }
 
 /** 기록 탭 — 합주 녹음/영상 갤러리 (링크 기반). 전체 멤버 공개(보기·추가 가능, 삭제·수정은 올린 사람/관리자) */
-export default function RecordingsView({ toast }: { toast: ToastState }) {
+export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }: { toast: ToastState; config?: RecordingModuleConfig }) {
   const [items, setItems] = useState<Recording[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [adding, setAdding] = useState(false)
@@ -99,7 +101,7 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
   const [musicFilter, setMusicFilter] = useState('')
   const [memberFilter, setMemberFilter] = useState('')
   const [filterOpen, setFilterOpen] = useState(false)
-  const [sort, setSort] = useState<'new' | 'old'>('new')
+  const [sort, setSort] = useState<RecordingSortId>(config.sort.default)
   // 필터가 없을 때는 일자별 폴더로 묶어 보여준다. openFolder = 펼친 폴더 키(일자 YYYY-MM-DD)
   const [openFolder, setOpenFolder] = useState<string | null>(null)
 
@@ -181,10 +183,7 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
 
   const filtering = !!(musicFilter || memberFilter)
 
-  const byDateSort = (a: Recording, b: Recording) => {
-    const d = a.date === b.date ? a.createdAt - b.createdAt : a.date.localeCompare(b.date)
-    return sort === 'new' ? -d : d
-  }
+  const recordingSort = compareRecordings(sort)
 
   // 멤버가 어느 파트로든 credits 에 있으면 매칭
   const inCredits = (r: Recording, name: string) =>
@@ -197,26 +196,24 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
       : memberFilter
         ? items.filter((r) => inCredits(r, memberFilter))
         : items
-    return [...list].sort(byDateSort)
+    return [...list].sort(recordingSort)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, musicFilter, memberFilter, sort])
 
   // 필터가 없을 때: 일자별 폴더로 묶는다(폴더 이름 = 일자).
   const folders = useMemo(() => {
+    if (config.grouping.type !== 'date') return []
     const m = new Map<string, Recording[]>()
     items.forEach((r) => {
       const arr = m.get(r.date) || []
       arr.push(r)
       m.set(r.date, arr)
     })
-    const arr = [...m.entries()].map(([date, recs]) => ({ key: date, title: fmtDate(date), date, recs: [...recs].sort(byDateSort) }))
-    arr.sort((a, b) => {
-      const d = a.date.localeCompare(b.date)
-      return sort === 'new' ? -d : d
-    })
+    const arr = [...m.entries()].map(([date, recs]) => ({ key: date, title: fmtDate(date), date, recs: [...recs].sort(recordingSort) }))
+    arr.sort((a, b) => recordingSort(a.recs[0], b.recs[0]))
     return arr
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, sort])
+  }, [items, sort, config.grouping.type])
 
   const currentFolder = openFolder ? folders.find((f) => f.key === openFolder) ?? null : null
 
@@ -245,14 +242,14 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
         {items.length === 0 && !loadErr ? (
           <div className="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
-            <p>기록이 없어요.<br />아래 <b>+ 기록 추가</b>로 유튜브·드라이브 링크나 재생목록을 올려보세요.</p>
+            <p>{config.labels.empty}<br />아래 <b>+ {config.labels.add}</b>로 유튜브·드라이브 링크나 재생목록을 올려보세요.</p>
           </div>
         ) : (
           <>
             {!currentFolder && (
             <div className="rec-toolbar">
               <div className="rec-filters">
-                {(musicOpts.length > 0 || memberOpts.length > 0) && (
+                {((config.capabilities.musicFilter && musicOpts.length > 0) || (config.capabilities.memberFilter && memberOpts.length > 0)) && (
                   <button
                     type="button"
                     className={'rec-filter-btn' + (musicFilter || memberFilter ? ' on' : '')}
@@ -285,10 +282,13 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
                 <button
                   type="button"
                   className="rec-sort"
-                  onClick={() => setSort((s) => (s === 'new' ? 'old' : 'new'))}
+                  onClick={() => setSort((s) => {
+                    const i = config.sort.options.findIndex((o) => o.id === s)
+                    return config.sort.options[(i + 1) % config.sort.options.length]?.id ?? config.sort.default
+                  })}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h11M3 12h8M3 18h5" /><path d="m17 6 4 4M17 6l-4 4M17 6v12" /></svg>
-                  {sort === 'new' ? '최신순' : '오래된순'}
+                  {config.sort.options.find((o) => o.id === sort)?.label ?? '정렬'}
                 </button>
               </div>
             </div>
@@ -297,11 +297,11 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
             {filtering ? (
               // 필터 모드 — 전체 기록 대상 결과(폴더로 묶지 않고 그대로)
               shown.length === 0 ? (
-                <p className="setlist-empty">이 조건의 기록이 없어요.</p>
+                <p className="setlist-empty">{config.labels.noResults}</p>
               ) : (
                 <div className="rec-grid">{shown.map(recCard)}</div>
               )
-            ) : currentFolder ? (
+            ) : config.grouping.type === 'date' && currentFolder ? (
               // 폴더 열림 — 재생목록과 같은 형식(구분선 있는 헤더) + 그 날의 기록들
               <>
                 <div className="detail-bar rec-folder-bar">
@@ -312,7 +312,7 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
                 </div>
                 <div className="rec-grid">{currentFolder.recs.map(recCard)}</div>
               </>
-            ) : (
+            ) : config.grouping.type === 'date' ? (
               // 폴더 목록 — 일정별
               <div className="rec-grid">
                 {folders.map((f) => (
@@ -336,6 +336,8 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
                   </button>
                 ))}
               </div>
+            ) : (
+              <div className="rec-grid">{shown.map(recCard)}</div>
             )}
           </>
         )}
@@ -343,7 +345,7 @@ export default function RecordingsView({ toast }: { toast: ToastState }) {
 
       <button className="fab" onClick={() => setAdding(true)}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-        기록 추가
+        {config.labels.add}
       </button>
 
       {adding && (
@@ -682,52 +684,34 @@ function RecordingForm({ editing, existingVideoIds, toast, onClose }: { editing:
     try {
       await setRecImportAuto(pid, true).catch(() => {}) // 가져온 재생목록은 매주 자동 동기화에도 등록
       setImportProgress('재생목록 불러오는 중…')
-      const songs = await fetchPlaylistItems(pid)
-      const fresh = songs.filter((s) => !existingVideoIds.has(s.videoId))
-      if (fresh.length === 0) {
+      const result = await importYouTubePlaylist({
+        input: pid,
+        existingVideoIds,
+        onProgress: ({ current, total }) => setImportProgress(`추가 중 ${current}/${total}`),
+        save: async (s) => {
+          const m = await musicFromTitleAsync(s.title, matchTracks)
+          const recDate = dateFromTitle(s.title) || s.publishedAt || todayStr()
+          const onDate = events.filter((e) => e.date === recDate)
+          const ev = onDate.length === 1 ? onDate[0] : null
+          const credits = await parseCredits(s.description)
+          await saveRecording({
+            id: newId(), title: s.title || '(제목 없음)', date: recDate, url: s.url,
+            videoId: s.videoId, thumbnail: s.thumbnail,
+            ...(ev ? { eventId: ev.id, eventTitle: ev.title } : {}),
+            ...(m ? { playlistId: m.playlistId, playlistName: m.playlistName, trackId: m.id, trackTitle: m.title, trackArtist: m.artist || undefined } : {}),
+            ...(credits ? { credits } : {}), addedBy: member?.uid ?? '', addedByName: member?.name, createdAt: Date.now(),
+          })
+        },
+      })
+      if (result.added === 0) {
         toast.show('이미 모두 가져온 재생목록이에요')
         onClose()
         return
       }
-      let added = 0
-      for (const s of fresh) {
-        setImportProgress(`추가 중 ${added + 1}/${fresh.length}`)
-        const m = await musicFromTitleAsync(s.title, matchTracks)
-        const recDate = dateFromTitle(s.title) || s.publishedAt || todayStr()
-        const onDate = events.filter((e) => e.date === recDate)
-        const ev = onDate.length === 1 ? onDate[0] : null // 그 날짜에 일정이 하나면 자동 연결
-        const credits = await parseCredits(s.description) // 설명글에서 파트별 멤버 해석
-        await saveRecording({
-          id: newId(),
-          title: s.title || '(제목 없음)',
-          date: recDate,
-          url: s.url,
-          videoId: s.videoId,
-          thumbnail: s.thumbnail,
-          ...(ev ? { eventId: ev.id, eventTitle: ev.title } : {}),
-          ...(m
-            ? { playlistId: m.playlistId, playlistName: m.playlistName, trackId: m.id, trackTitle: m.title, trackArtist: m.artist || undefined }
-            : {}),
-          ...(credits ? { credits } : {}),
-          addedBy: member?.uid ?? '',
-          addedByName: member?.name,
-          createdAt: Date.now(),
-        })
-        added++
-      }
-      toast.show(`${added}개 가져왔어요`)
+      toast.show(`${result.added}개 가져왔어요`)
       onClose()
     } catch (e) {
-      const code = e instanceof PlaylistImportError ? e.code : ''
-      setErr(
-        code === 'NO_KEY'
-          ? '유튜브 API 키가 설정돼 있지 않아요.'
-          : code === 'NOT_FOUND'
-            ? '재생목록을 찾을 수 없어요. 공개/일부공개인지 확인해 주세요.'
-            : code === 'QUOTA'
-              ? '오늘 유튜브 조회 한도를 초과했어요. 내일 다시 시도해 주세요.'
-              : '가져오기에 실패했어요.' + (code ? ` (${code})` : ''),
-      )
+      setErr(playlistImportErrorMessage(e))
       console.error(e)
     } finally {
       setBusy(false)

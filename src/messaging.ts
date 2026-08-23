@@ -166,10 +166,13 @@ export function isApplePwaNeedsInstall(): boolean {
  */
 const PUSH_ASK_VERSION = '2'
 
-export async function autoRegisterPush(): Promise<string | null> {
+export async function autoRegisterPush(): Promise<{
+  fcmToken: string | null
+  webPushSubscription: WebPushSubscription | null
+} | null> {
   if (!pushConfigured()) return null
   const perm = notificationPermission()
-  if (perm === 'granted') return requestPushToken()
+  if (perm === 'granted') return requestNotificationRegistrations()
   if (perm !== 'default') return null
   try {
     // 저장된 버전이 현재 버전과 같을 때만 스킵 → 버전을 올리면 전원 한 번 더 요청
@@ -178,5 +181,5 @@ export async function autoRegisterPush(): Promise<string | null> {
   } catch {
     /* localStorage 불가 환경 무시 */
   }
-  return requestPushToken()
+  return requestNotificationRegistrations()
 }

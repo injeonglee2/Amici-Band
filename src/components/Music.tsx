@@ -31,169 +31,30 @@ import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
 import { DEMO } from '../demo'
 import { exportErrorMessage, exportPlaylistToYouTube, YouTubeExportError, type ExportResult } from '../ytexport'
+import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
 
-type EditingList = Playlist | 'new' | null
+const MUSIC_FOLDER_CONFIG: FolderModuleConfig = {
+  labels: {
+    folder: '재생목록', empty: '재생목록이 없어요.', add: '재생목록',
+    createTitle: '새 재생목록', editTitle: '재생목록 수정', name: '재생목록 이름',
+    placeholder: '예) 이번 공연 셋리스트',
+    deleteConfirm: () => '이 재생목록을 삭제할까요? 담아둔 곡도 함께 사라집니다.',
+  },
+  emptyIcon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>,
+  rowIcon: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>,
+}
+
+const playlistRepository: FolderRepository<Playlist> = {
+  watch: watchPlaylists,
+  create: (name, creatorUid) => ({ id: newId(), name, createdBy: creatorUid, createdAt: Date.now() }),
+  save: savePlaylist,
+  remove: (playlist) => deletePlaylist(playlist.id),
+}
 
 /** 음악 뷰 — 하단 네비 '음악' 탭. 재생목록(폴더) 목록 + 상세(곡 목록) */
 export default function MusicView({ toast }: { toast: ToastState }) {
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [loadErr, setLoadErr] = useState('')
-  const [openId, setOpenId] = useState<string | null>(null)
-  const [editing, setEditing] = useState<EditingList>(null)
-
-  useEffect(
-    () =>
-      watchPlaylists(setPlaylists, (e) => {
-        const code = (e as { code?: string })?.code ?? ''
-        setLoadErr(
-          code === 'permission-denied'
-            ? '재생목록을 불러올 권한이 없어요. Firestore 보안 규칙을 다시 게시해 주세요.'
-            : '재생목록을 불러오지 못했어요.' + (code ? ` (${code})` : ''),
-        )
-      }),
-    [],
-  )
-
-  const open = playlists.find((p) => p.id === openId) ?? null
-
-  // 재생목록 상세 (곡 목록)
-  if (open) {
-    return <PlaylistDetail playlist={open} toast={toast} onBack={() => setOpenId(null)} />
-  }
-
-  // 재생목록 목록 (폴더)
-  return (
-    <>
-      <main className="scroll">
-        {loadErr && <div className="banner-err">{loadErr}</div>}
-
-        {playlists.length === 0 && !loadErr ? (
-          <div className="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
-            <p>재생목록이 없어요.<br />아래 <b>+ 재생목록</b>으로 시작하세요.</p>
-          </div>
-        ) : (
-          <div className="list playlist-list">
-            {playlists.map((p) => (
-              <button key={p.id} className="playlist-row" onClick={() => setOpenId(p.id)}>
-                <div className="playlist-ico" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
-                </div>
-                <div className="playlist-info">
-                  <h3>{p.name}</h3>
-                </div>
-                <svg className="playlist-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-              </button>
-            ))}
-          </div>
-        )}
-      </main>
-
-      <button className="fab" onClick={() => setEditing('new')}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-        재생목록
-      </button>
-
-      {editing !== null && (
-        <PlaylistForm
-          editing={editing === 'new' ? null : editing}
-          onClose={() => setEditing(null)}
-          onDeleted={() => setEditing(null)}
-        />
-      )}
-    </>
-  )
-}
-
-/* ---------------- 재생목록 만들기/수정 시트 ---------------- */
-function PlaylistForm({
-  editing,
-  onClose,
-  onDeleted,
-}: {
-  editing: Playlist | null
-  onClose: () => void
-  onDeleted: () => void
-}) {
-  const { member } = useAuth()
-  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
-  useBackHandler(onClose) // 뒤로가기로 재생목록 폼 닫기
-  const [name, setName] = useState(editing?.name ?? '')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-
-  const valid = name.trim().length > 0
-
-  async function submit() {
-    if (!valid || busy) return
-    setBusy(true)
-    setErr('')
-    try {
-      const p: Playlist = {
-        id: editing?.id ?? newId(),
-        name: name.trim(),
-        createdBy: editing?.createdBy ?? member?.uid ?? '',
-        createdAt: editing?.createdAt ?? Date.now(),
-      }
-      await savePlaylist(p)
-      onClose()
-    } catch (e) {
-      const code = (e as { code?: string })?.code ?? ''
-      setErr(
-        code === 'permission-denied'
-          ? '저장 권한이 없어요. Firestore 보안 규칙을 다시 게시해 주세요.'
-          : '저장에 실패했어요.' + (code ? ` (${code})` : ''),
-      )
-      console.error(e)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function remove() {
-    if (!editing) return
-    if (!confirm('이 재생목록을 삭제할까요? 담아둔 곡도 함께 사라집니다.')) return
-    setBusy(true)
-    try {
-      await deletePlaylist(editing.id)
-      onDeleted()
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" ref={sheetRef}>
-        <div className="grab-zone" {...grabHandlers}>
-          <div className="grab" />
-        </div>
-        <h2>{editing ? '재생목록 수정' : '새 재생목록'}</h2>
-
-        <div className="field">
-          <label htmlFor="pl-name">재생목록 이름</label>
-          <input
-            id="pl-name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
-            placeholder="예) 이번 공연 셋리스트"
-            maxLength={40}
-            autoFocus
-          />
-        </div>
-
-        {err && <p className="err small">{err}</p>}
-
-        <div className="actions">
-          {editing && <button type="button" className="btn danger" onClick={remove} disabled={busy}>삭제</button>}
-          <button type="button" className="btn subtle" onClick={onClose} disabled={busy}>취소</button>
-          <button type="button" className="btn primary" onClick={submit} disabled={!valid || busy}>{busy ? '저장 중…' : '저장'}</button>
-        </div>
-      </div>
-    </div>
-  )
+  return <FolderModule config={MUSIC_FOLDER_CONFIG} repository={playlistRepository}
+    renderDetail={(playlist, onBack) => <PlaylistDetail playlist={playlist} toast={toast} onBack={onBack} />} />
 }
 
 /* ---------------- 재생목록 상세 (곡 목록) ---------------- */
