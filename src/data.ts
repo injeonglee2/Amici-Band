@@ -600,8 +600,10 @@ export async function uploadScoreFile(
   const safe = file.name.replace(/[^\w.-]+/g, '_').slice(-60)
   const path = bandStoragePath('scores', scoreId, `${index}-${safe}`)
   const r = storageRef(storage, path)
-  const metadata: { contentType?: string; contentDisposition?: string } = {
+  const metadata: { contentType?: string; contentDisposition?: string; cacheControl?: string } = {
     contentType: file.type || undefined,
+    // 악보 파일은 업로드 후 바뀌지 않음 → 브라우저/CDN 장기 캐시로 재다운로드(egress) 절감
+    cacheControl: 'public, max-age=31536000, immutable',
   }
   if (downloadName) metadata.contentDisposition = `inline; filename="${downloadName.replace(/"/g, '')}"`
   await uploadBytes(r, file, metadata)

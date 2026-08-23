@@ -1089,6 +1089,13 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 /* 악보 뷰어 — 헤더/버튼 고정, 가운데 악보만 스크롤 */
 .score-viewer-sheet { display: flex; flex-direction: column; max-height: 92vh; overflow: hidden; padding-bottom: 0; }
 .score-viewer-sheet .setlist-head { flex: none; }
+/* 악보 제목: 미리보기에서 인라인 수정 */
+.score-title-row { display: flex; align-items: center; gap: 8px; }
+.score-title-edit-btn { flex: none; appearance: none; border: none; background: transparent; cursor: pointer; color: var(--ink-faint); padding: 2px; display: inline-flex; }
+.score-title-edit-btn svg { width: 16px; height: 16px; }
+.score-title-edit-btn:hover { color: var(--ink); }
+.score-title-edit { display: flex; align-items: center; gap: 6px; }
+.score-title-edit input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 10px; }
 .score-viewer-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -20px; padding: 4px 20px 4px; }
 .score-viewer-actions {
   flex: none; margin-top: 0; padding: 12px 0 calc(16px + env(safe-area-inset-bottom, 0px));

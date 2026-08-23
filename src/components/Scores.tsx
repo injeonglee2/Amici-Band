@@ -194,10 +194,8 @@ export function ScoreSongSheet({
   toast: ToastState
   onClose: () => void
 }) {
-  const { user, member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   const [viewing, setViewing] = useState<Score | null>(null)
-  const [removing, setRemoving] = useState<Score | null>(null)
   const [adding, setAdding] = useState(false)
   useBackHandler(() => (viewing ? setViewing(null) : onClose()))
 
@@ -228,18 +226,6 @@ export function ScoreSongSheet({
     return out
   }, [song])
 
-  async function doRemove(s: Score) {
-    setRemoving(null)
-    try {
-      await deleteScore(s.id, s.files)
-      toast.show('악보를 삭제했어요')
-    } catch (e) {
-      const code = (e as { code?: string })?.code ?? ''
-      toast.show(code === 'permission-denied' ? '삭제 권한이 없어요.' : '삭제에 실패했어요.')
-      console.error(e)
-    }
-  }
-
   return (
     <>
       <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -258,23 +244,15 @@ export function ScoreSongSheet({
                 {partLabel(g.part)} <b>{g.scores.length}</b>
               </div>
               <div className="score-cards">
-                {g.scores.map((s) => {
-                  const canManage = !!user && (s.addedBy === user.uid || !!member?.admin)
-                  return (
-                    <div key={s.id} className="score-card">
-                      <button type="button" className="score-card-main" onClick={() => setViewing(s)}>
-                        <span className="score-kind">{s.kind === 'pdf' ? 'PDF' : `IMG ${s.files.length}`}</span>
-                        <span className="score-card-title">{s.title || '악보'}</span>
-                        {s.addedByName && <span className="score-by">{s.addedByName}</span>}
-                      </button>
-                      {canManage && (
-                        <button type="button" className="score-del" onClick={() => setRemoving(s)} aria-label="악보 삭제">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6M14 11v6" /></svg>
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
+                {g.scores.map((s) => (
+                  <div key={s.id} className="score-card">
+                    <button type="button" className="score-card-main" onClick={() => setViewing(s)}>
+                      <span className="score-kind">{s.kind === 'pdf' ? 'PDF' : `IMG ${s.files.length}`}</span>
+                      <span className="score-card-title">{s.title || '악보'}</span>
+                      {s.addedByName && <span className="score-by">{s.addedByName}</span>}
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -294,26 +272,25 @@ export function ScoreSongSheet({
           onClose={() => setAdding(false)}
         />
       )}
-      {viewing && <ScoreViewer score={viewing} onClose={() => setViewing(null)} />}
-      {removing && (
-        <ConfirmDialog
-          message={`'${removing.title || '악보'}'을(를) 삭제할까요?`}
-          confirmLabel="삭제"
-          cancelLabel="닫기"
-          danger
-          onConfirm={() => void doRemove(removing)}
-          onCancel={() => setRemoving(null)}
-        />
-      )}
+      {viewing && <ScoreViewer score={viewing} toast={toast} onClose={() => setViewing(null)} />}
     </>
   )
 }
 
+/* 세션 캐시: 같은 PDF를 다시 열 때 재다운로드·재렌더를 건너뛴다(Storage egress·CPU 절감) */
+const pdfPageCache = new Map<string, string[]>()
+
 /* PDF를 앱 안에서 페이지별로 렌더 (pdf.js — 버킷 CORS 설정 필요). 실패 시 새 탭 안내 */
 function PdfPages({ url }: { url: string }) {
-  const [pages, setPages] = useState<string[]>([])
-  const [status, setStatus] = useState<'loading' | 'done' | 'error'>('loading')
+  const cached = pdfPageCache.get(url)
+  const [pages, setPages] = useState<string[]>(cached ?? [])
+  const [status, setStatus] = useState<'loading' | 'done' | 'error'>(cached ? 'done' : 'loading')
   useEffect(() => {
+    if (pdfPageCache.has(url)) {
+      setPages(pdfPageCache.get(url) as string[])
+      setStatus('done')
+      return
+    }
     let cancelled = false
     ;(async () => {
       try {
@@ -337,6 +314,7 @@ function PdfPages({ url }: { url: string }) {
           page.cleanup()
         }
         if (!cancelled) {
+          pdfPageCache.set(url, imgs)
           setPages(imgs)
           setStatus('done')
         }
@@ -370,10 +348,46 @@ function PdfPages({ url }: { url: string }) {
 }
 
 /* ---------------- 악보 뷰어 (이미지 세로 스크롤 / PDF 인앱 렌더) ---------------- */
-function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) {
+function ScoreViewer({ score, toast, onClose }: { score: Score; toast: ToastState; onClose: () => void }) {
+  const { user, member } = useAuth()
+  const canManage = !!user && (score.addedBy === user.uid || !!member?.admin)
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
   const isPdf = score.kind === 'pdf'
+  const [title, setTitle] = useState(score.title || '악보')
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(title)
+  const [confirmDel, setConfirmDel] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function saveTitle() {
+    const t = draft.trim()
+    if (!t || t === title) { setEditing(false); return }
+    setBusy(true)
+    try {
+      await saveScore({ ...score, title: t })
+      setTitle(t)
+      setEditing(false)
+      toast.show('제목을 바꿨어요')
+    } catch {
+      toast.show('수정에 실패했어요')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function doDelete() {
+    setConfirmDel(false)
+    setBusy(true)
+    try {
+      await deleteScore(score.id, score.files)
+      toast.show('악보를 삭제했어요')
+      onClose()
+    } catch {
+      toast.show('삭제에 실패했어요')
+      setBusy(false)
+    }
+  }
 
   async function download() {
     for (const f of score.files) {
@@ -389,7 +403,22 @@ function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) 
           <div className="grab" />
         </div>
         <div className="setlist-head">
-          <h2>{score.title || '악보'}</h2>
+          {editing ? (
+            <div className="score-title-edit">
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={40} autoFocus placeholder="악보 제목" />
+              <button type="button" className="btn primary sm" onClick={() => void saveTitle()} disabled={busy || !draft.trim()}>저장</button>
+              <button type="button" className="btn subtle sm" onClick={() => { setEditing(false); setDraft(title) }}>취소</button>
+            </div>
+          ) : (
+            <h2 className="score-title-row">
+              {title}
+              {canManage && (
+                <button type="button" className="score-title-edit-btn" onClick={() => { setDraft(title); setEditing(true) }} aria-label="제목 수정">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                </button>
+              )}
+            </h2>
+          )}
           <p>{score.songTitle} · {partLabel(score.part)}</p>
         </div>
 
@@ -409,9 +438,23 @@ function ScoreViewer({ score, onClose }: { score: Score; onClose: () => void }) 
           <button type="button" className="btn primary" onClick={() => void download()}>
             다운로드
           </button>
+          {canManage && (
+            <button type="button" className="btn danger" onClick={() => setConfirmDel(true)} disabled={busy}>삭제</button>
+          )}
           <button type="button" className="btn subtle" onClick={onClose}>닫기</button>
         </div>
       </div>
+
+      {confirmDel && (
+        <ConfirmDialog
+          message={`'${title}'을(를) 삭제할까요?`}
+          confirmLabel="삭제"
+          cancelLabel="닫기"
+          danger
+          onConfirm={() => void doDelete()}
+          onCancel={() => setConfirmDel(false)}
+        />
+      )}
     </div>
   )
 }
