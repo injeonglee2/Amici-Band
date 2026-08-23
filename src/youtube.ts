@@ -238,6 +238,27 @@ export class PlaylistImportError extends Error {
   }
 }
 
+/** 공개/일부공개 재생목록의 표시 제목을 조회한다. */
+export async function fetchPlaylistTitle(playlistId: string): Promise<string> {
+  if (!YT_API_KEY) throw new PlaylistImportError('NO_KEY')
+  const u = new URL('https://www.googleapis.com/youtube/v3/playlists')
+  u.searchParams.set('part', 'snippet')
+  u.searchParams.set('id', playlistId)
+  u.searchParams.set('key', YT_API_KEY)
+  const res = await fetch(u.toString())
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: { errors?: { reason?: string }[] } } | null
+    const reason = body?.error?.errors?.[0]?.reason
+    if (res.status === 404 || reason === 'playlistNotFound') throw new PlaylistImportError('NOT_FOUND')
+    if (reason === 'quotaExceeded') throw new PlaylistImportError('QUOTA')
+    throw new PlaylistImportError(reason || `HTTP_${res.status}`)
+  }
+  const data = (await res.json()) as { items?: { snippet?: { title?: string } }[] }
+  const title = data.items?.[0]?.snippet?.title?.trim()
+  if (!title) throw new PlaylistImportError('NOT_FOUND')
+  return decodeEntities(title)
+}
+
 /**
  * 공개/일부공개 재생목록의 곡을 모두 추출. (비공개 재생목록은 API 키로 읽을 수 없음)
  * 삭제·비공개 항목은 건너뛴다. 최대 1000곡(안전장치).

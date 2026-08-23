@@ -13,22 +13,92 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { setGlobalOptions } = require('firebase-functions/v2')
 const { defineSecret } = require('firebase-functions/params')
-const admin = require('firebase-admin')
+const { initializeApp } = require('firebase-admin/app')
+const { FieldValue, getFirestore } = require('firebase-admin/firestore')
+const { getMessaging } = require('firebase-admin/messaging')
+const { MetricServiceClient } = require('@google-cloud/monitoring')
 const webpush = require('web-push')
 
-admin.initializeApp()
-const db = admin.firestore()
-const messaging = admin.messaging()
+initializeApp()
+const db = getFirestore()
+const messaging = getMessaging()
 const webPushPublicKey = defineSecret('WEB_PUSH_PUBLIC_KEY')
 const webPushPrivateKey = defineSecret('WEB_PUSH_PRIVATE_KEY')
 const webPushSecrets = [webPushPublicKey, webPushPrivateKey]
 const youtubeApiKey = defineSecret('YOUTUBE_API_KEY')
+const monitoringClient = new MetricServiceClient()
 
 // Firestore(서울)와 같은 리전
 setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 })
 
 /** 밴드 문서 참조 */
 const bandRef = (bandId) => db.collection('bands').doc(bandId)
+
+// 소유자 전용: Cloud Monitoring의 Firestore 과금 기준 지표를 최근 N일 일별로 집계한다.
+exports.getBillingUsageStats = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
+  const email = String((req.auth.token && req.auth.token.email) || '').toLowerCase()
+  if (email !== DEVELOPER_EMAIL) throw new HttpsError('permission-denied', '앱 소유자만 볼 수 있어요.')
+
+  const days = Math.min(90, Math.max(7, Number(req.data && req.data.days) || 30))
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT
+  if (!projectId) throw new HttpsError('internal', '프로젝트 정보를 확인할 수 없어요.')
+  const end = new Date()
+  const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() - days + 1))
+  const metrics = {
+    reads: 'firestore.googleapis.com/document/read_count',
+    writes: 'firestore.googleapis.com/document/write_count',
+    deletes: 'firestore.googleapis.com/document/delete_count',
+  }
+
+  async function dailyMetric(metricType, aligner = 'ALIGN_SUM') {
+    const [series] = await monitoringClient.listTimeSeries({
+      name: monitoringClient.projectPath(projectId),
+      filter: `metric.type = "${metricType}"`,
+      interval: {
+        startTime: { seconds: Math.floor(start.getTime() / 1000) },
+        endTime: { seconds: Math.floor(end.getTime() / 1000) },
+      },
+      view: 'FULL',
+      aggregation: {
+        alignmentPeriod: { seconds: 86400 },
+        perSeriesAligner: aligner,
+        crossSeriesReducer: 'REDUCE_SUM',
+      },
+    })
+    const values = new Map()
+    for (const item of series) for (const point of item.points || []) {
+      const rawSeconds = point.interval && point.interval.endTime && point.interval.endTime.seconds
+      const seconds = typeof rawSeconds === 'number' ? rawSeconds : Number(rawSeconds && rawSeconds.toString())
+      if (!seconds) continue
+      const date = new Date(seconds * 1000 - 1).toISOString().slice(0, 10)
+      const raw = point.value && (point.value.int64Value ?? point.value.doubleValue)
+      values.set(date, (values.get(date) || 0) + Number(raw || 0))
+    }
+    return values
+  }
+
+  try {
+    const [reads, writes, deletes, storage] = await Promise.all([
+      ...Object.values(metrics).map((metric) => dailyMetric(metric)),
+      dailyMetric('storage.googleapis.com/storage/total_bytes', 'ALIGN_MAX').catch((error) => {
+        console.error('storage total_bytes unavailable', error)
+        return new Map()
+      }),
+    ])
+    const rows = []
+    let lastStorageBytes = 0
+    for (let i = 0; i < days; i++) {
+      const date = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10)
+      if (storage.has(date)) lastStorageBytes = storage.get(date) || 0
+      rows.push({ date, reads: reads.get(date) || 0, writes: writes.get(date) || 0, deletes: deletes.get(date) || 0, storageBytes: lastStorageBytes })
+    }
+    return { rows, generatedAt: Date.now(), timezone: 'UTC', source: 'Cloud Monitoring', storageAvailable: storage.size > 0 }
+  } catch (error) {
+    console.error('getBillingUsageStats', error)
+    throw new HttpsError('internal', 'Cloud Monitoring 사용량을 불러오지 못했어요. Monitoring Viewer 권한을 확인해 주세요.')
+  }
+})
 
 // 리마인더 허용 유형
 const REMINDABLE_TYPES = ['practice', 'show']
@@ -130,7 +200,7 @@ function collectWebPushSubscriptions(memberDocs) {
 
 /** 멀티캐스트 발송 + 무효 토큰 정리 (토큰은 어느 밴드 멤버 문서에나 있을 수 있어 collectionGroup 로 정리) */
 async function sendPush(tokens, { title, body, eventId }) {
-  if (!tokens.length) return 0
+  if (!tokens.length) return { sent: 0, failed: 0 }
   const res = await messaging.sendEachForMulticast({
     tokens,
     notification: { title, body },
@@ -152,16 +222,16 @@ async function sendPush(tokens, { title, body, eventId }) {
     const members = await db.collectionGroup('members').where('fcmTokens', 'array-contains-any', invalid.slice(0, 10)).get()
     const batch = db.batch()
     members.forEach((m) => {
-      batch.update(m.ref, { fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalid) })
+      batch.update(m.ref, { fcmTokens: FieldValue.arrayRemove(...invalid) })
     })
     await batch.commit().catch(() => {})
   }
-  return res.successCount
+  return { sent: res.successCount, failed: res.failureCount }
 }
 
 async function sendStandardWebPush(memberDocs, { title, body, eventId }) {
   const subscriptions = collectWebPushSubscriptions(memberDocs)
-  if (!subscriptions.length) return 0
+  if (!subscriptions.length) return { sent: 0, failed: 0 }
 
   webpush.setVapidDetails(
     'https://amicicalender.web.app',
@@ -197,12 +267,12 @@ async function sendStandardWebPush(memberDocs, { title, body, eventId }) {
     const batch = db.batch()
     staleByMember.forEach(({ memberRef, subscriptions: stale }) => {
       batch.update(memberRef, {
-        webPushSubscriptions: admin.firestore.FieldValue.arrayRemove(...stale),
+        webPushSubscriptions: FieldValue.arrayRemove(...stale),
       })
     })
     await batch.commit().catch(() => {})
   }
-  return successCount
+  return { sent: successCount, failed: results.length - successCount }
 }
 
 async function sendAllPush(memberDocs, payload) {
@@ -214,9 +284,27 @@ async function sendAllPush(memberDocs, payload) {
   ])
   if (fcm.status === 'rejected') console.error('FCM 발송 실패:', fcm.reason)
   if (web.status === 'rejected') console.error('표준 웹푸시 발송 실패:', web.reason)
-  const fcmSent = fcm.status === 'fulfilled' ? fcm.value : 0
-  const webPushSent = web.status === 'fulfilled' ? web.value : 0
-  return fcmSent + webPushSent
+  const fcmTokens = collectTokens(memberDocs)
+  const webPushSubscriptions = collectWebPushSubscriptions(memberDocs)
+  const registeredMembers = memberDocs.filter((member) => {
+    const tokens = member.get('fcmTokens')
+    const subscriptions = member.get('webPushSubscriptions')
+    return (Array.isArray(tokens) && tokens.length > 0) ||
+      (Array.isArray(subscriptions) && subscriptions.length > 0)
+  }).length
+  const fcmResult = fcm.status === 'fulfilled'
+    ? fcm.value
+    : { sent: 0, failed: fcmTokens.length }
+  const webResult = web.status === 'fulfilled'
+    ? web.value
+    : { sent: 0, failed: webPushSubscriptions.length }
+  return {
+    sent: fcmResult.sent + webResult.sent,
+    failed: fcmResult.failed + webResult.failed,
+    registeredMembers,
+    fcmTokens: fcmTokens.length,
+    webPushSubscriptions: webPushSubscriptions.length,
+  }
 }
 
 exports.notifyOnEventCreate = onDocumentCreated(
@@ -227,7 +315,7 @@ exports.notifyOnEventCreate = onDocumentCreated(
   const { bandId, eventId } = event.params
   const membersSnap = await bandRef(bandId).collection('members').get()
   const isPractice = data.type === 'practice'
-  const sent = await sendAllPush(membersSnap.docs, {
+  const delivery = await sendAllPush(membersSnap.docs, {
     title: isPractice
       ? `참석 투표 요청: ${data.title || '합주 일정'}`
       : `새 일정: ${data.title || '일정'}`,
@@ -236,7 +324,7 @@ exports.notifyOnEventCreate = onDocumentCreated(
       : `${data.date || ''} 새 일정이 추가됐어요. 확인해 주세요.`,
     eventId,
   })
-  console.info('event-create push complete', { bandId, eventId, sent })
+  console.info('event-create push complete', { bandId, eventId, delivery })
   },
 )
 
@@ -252,7 +340,7 @@ exports.notifyOnEventUpdate = onDocumentUpdated(
     const changeSummary = await buildEventChangeSummary(before, after, bandId)
     const membersSnap = await bandRef(bandId).collection('members').get()
     const isShow = after.type === 'show'
-    const sent = await sendAllPush(membersSnap.docs, {
+    const delivery = await sendAllPush(membersSnap.docs, {
       title: `${isShow ? '공연' : '합주'} 일정 변경: ${after.title || '일정'}`,
       body: changeSummary,
       eventId,
@@ -262,7 +350,7 @@ exports.notifyOnEventUpdate = onDocumentUpdated(
       eventId,
       eventType: after.type,
       changeSummary,
-      sent,
+      delivery,
     })
   },
 )
@@ -280,11 +368,11 @@ exports.notifyOnFeedbackCreate = onDocumentCreated(
     const typeLabel = data.type === 'bug' ? '버그' : data.type === 'idea' ? '개선' : '의견'
     const who = data.createdByName || '멤버'
     const text = String(data.text || '')
-    const sent = await sendAllPush(devSnap.docs, {
+    const delivery = await sendAllPush(devSnap.docs, {
       title: `새 ${typeLabel} 제보 · ${who}`,
       body: text.length > 60 ? text.slice(0, 60) + '…' : text,
     })
-    console.info('feedback-create push complete', { fbId: event.params.fbId, sent })
+    console.info('feedback-create push complete', { fbId: event.params.fbId, delivery })
   },
 )
 
@@ -318,12 +406,14 @@ exports.remindUndecided = onCall({ secrets: webPushSecrets }, async (req) => {
   const undecided = membersSnap.docs.filter(
     (d) => !statusById.has(d.id) || statusById.get(d.id) === 'undecided',
   )
-  const sent = await sendAllPush(undecided, {
+  const delivery = await sendAllPush(undecided, {
     title: `투표 요청: ${ev.title || '일정'}`,
     body: '아직 참석 투표를 안 하셨어요. 참석 여부를 알려주세요!',
     eventId,
   })
-  return { sent }
+  const result = { undecided: undecided.length, ...delivery }
+  console.info('undecided-reminder push complete', { bandId, eventId, ...result })
+  return result
 })
 
 /* ---------------- 밴드 생성·가입·초대코드 (멀티밴드 2단계) ---------------- */
@@ -345,33 +435,62 @@ async function uniqueCode() {
   throw new HttpsError('internal', '코드 생성에 실패했어요. 다시 시도해 주세요.')
 }
 
-// 새 밴드 생성 — 생성자가 그 밴드의 관리자(admin)가 된다. (1인 1밴드: 이미 밴드가 있으면 거부)
+// 새 채널 생성 — 일반 사용자는 1개, 앱 소유자만 여러 개인 채널을 만들 수 있다.
 exports.createBand = onCall(async (req) => {
   if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
   const uid = req.auth.uid
   const email = (req.auth.token && req.auth.token.email) || ''
   const name = String((req.data && req.data.name) || '').trim()
-  if (!name) throw new HttpsError('invalid-argument', '밴드 이름을 입력해 주세요.')
+  const requestedTemplate = String((req.data && req.data.templateId) || 'personal')
+  if (!['personal', 'gathering'].includes(requestedTemplate)) {
+    throw new HttpsError('failed-precondition', '개인 또는 공동 채널만 새로 만들 수 있어요.')
+  }
+  const templateId = requestedTemplate
+  if (!name) throw new HttpsError('invalid-argument', '채널 이름을 입력해 주세요.')
 
   const userDoc = await db.collection('users').doc(uid).get()
-  if (userDoc.exists && userDoc.get('bandId')) {
-    throw new HttpsError('failed-precondition', '이미 밴드에 속해 있어요. (지금은 1인 1밴드)')
+  const isDeveloper = email.toLowerCase() === DEVELOPER_EMAIL
+  const currentBandId = userDoc.exists ? userDoc.get('bandId') : null
+  if (currentBandId && !isDeveloper) {
+    throw new HttpsError('failed-precondition', '일반 사용자는 채널을 하나만 소유하거나 참여할 수 있어요.')
   }
 
   const bandId = db.collection('bands').doc().id
-  const code = await uniqueCode()
+  const code = templateId === 'personal' ? null : await uniqueCode()
   const now = Date.now()
+  let reusableProfile = {
+    name: userDoc.exists ? String(userDoc.get('profileName') || '').trim() : '',
+    part: userDoc.exists ? userDoc.get('profilePart') : null,
+  }
+  if (!reusableProfile.name && currentBandId) {
+    const previousMember = await bandRef(currentBandId).collection('members').doc(uid).get()
+    if (previousMember.exists) {
+      reusableProfile = {
+        name: String(previousMember.get('name') || '').trim(),
+        part: previousMember.get('part') || null,
+      }
+    }
+  }
   const batch = db.batch()
   batch.set(db.collection('bands').doc(bandId), {
-    name, ownerUid: uid, unlimited: false, memberCount: 1, createdAt: now,
+    name, templateId, ownerUid: uid, unlimited: false, memberCount: 1, createdAt: now,
   })
   batch.set(db.collection('bands').doc(bandId).collection('members').doc(uid), {
     uid, email, admin: true, createdAt: now,
+    ...(reusableProfile.name ? { name: reusableProfile.name } : {}),
+    ...(reusableProfile.part ? { part: reusableProfile.part } : {}),
   })
-  batch.set(db.collection('inviteCodes').doc(code), { bandId, active: true, createdAt: now })
-  batch.set(db.collection('users').doc(uid), { bandId, createdAt: now })
+  if (code) batch.set(db.collection('inviteCodes').doc(code), { bandId, active: true, createdAt: now })
+  const knownBandIds = currentBandId ? [currentBandId, bandId] : [bandId]
+  batch.set(db.collection('users').doc(uid), {
+    bandId,
+    bandIds: FieldValue.arrayUnion(...knownBandIds),
+    ...(reusableProfile.name ? { profileName: reusableProfile.name } : {}),
+    ...(reusableProfile.part ? { profilePart: reusableProfile.part } : {}),
+    createdAt: userDoc.exists ? (userDoc.get('createdAt') || now) : now,
+  }, { merge: true })
   await batch.commit()
-  return { bandId, code }
+  return code ? { bandId, code } : { bandId }
 })
 
 // 초대 코드로 가입 — 정원(5명, unlimited 면제) 확인 후 멤버로 추가. (1인 1밴드)
@@ -397,6 +516,9 @@ exports.joinBand = onCall(async (req) => {
   await db.runTransaction(async (tx) => {
     const band = await tx.get(bandRefX)
     if (!band.exists) throw new HttpsError('not-found', '밴드를 찾을 수 없어요.')
+    if (band.get('templateId') === 'personal') {
+      throw new HttpsError('permission-denied', '개인 채널에는 참여할 수 없어요.')
+    }
     const already = await tx.get(bandRefX.collection('members').doc(uid))
     if (already.exists) return // 재시도 안전
     const unlimited = band.get('unlimited') === true
@@ -406,7 +528,7 @@ exports.joinBand = onCall(async (req) => {
     }
     tx.set(bandRefX.collection('members').doc(uid), { uid, email, admin: false, createdAt: Date.now() })
     tx.update(bandRefX, { memberCount: count + 1 })
-    tx.set(db.collection('users').doc(uid), { bandId, createdAt: Date.now() })
+    tx.set(db.collection('users').doc(uid), { bandId, bandIds: [bandId], createdAt: Date.now() }, { merge: true })
   })
   return { bandId }
 })
@@ -419,6 +541,10 @@ exports.rotateInviteCode = onCall(async (req) => {
   const me = await bandRef(bandId).collection('members').doc(req.auth.uid).get()
   if (!me.exists || me.get('admin') !== true) {
     throw new HttpsError('permission-denied', '관리자만 코드를 재발급할 수 있어요.')
+  }
+  const channel = await bandRef(bandId).get()
+  if (channel.get('templateId') === 'personal') {
+    throw new HttpsError('failed-precondition', '개인 채널은 초대 코드를 발급하지 않아요.')
   }
   const active = await db.collection('inviteCodes').where('bandId', '==', bandId).where('active', '==', true).get()
   const code = await uniqueCode()

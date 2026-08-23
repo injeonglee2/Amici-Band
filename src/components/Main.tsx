@@ -28,6 +28,12 @@ import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
 import { useAndroidBack, useBackHandler } from '../backnav'
+import { getTemplatePreview, getWorkspaceTemplate, workspaceThemeStyle, type WorkspaceNavId } from '../workspaceTemplates'
+import { BAND_RECORDING_MODULE } from '../recordingModules'
+import PersonalVideos from './PersonalVideos'
+import Onboarding from './Onboarding'
+import PersonalRecords from './PersonalRecords'
+import { useWorkspaceTheme } from '../useWorkspaceTheme'
 
 type Filter = 'all' | EventType
 
@@ -39,8 +45,10 @@ function oneYearAgoStr(): string {
 }
 
 export default function Main() {
-  const { member, signOutUser } = useAuth()
+  const { member, bandId, workspace, channels, isDeveloper, isChannelMember, switchChannel, signOutUser } = useAuth()
   const isAdmin = !!member?.admin
+  const workspaceTemplate = getWorkspaceTemplate(isDeveloper ? (getTemplatePreview() ?? workspace?.templateId) : workspace?.templateId)
+  useWorkspaceTheme(workspaceTemplate)
   const [events, setEvents] = useState<BandEvent[]>([]) // 실시간: date >= 1년 전 (미래 포함)
   const [olderEvents, setOlderEvents] = useState<BandEvent[]>([]) // '더보기'로 불러온 1년 이전 지난 일정
   const [olderCursor, setOlderCursor] = useState(() => oneYearAgoStr())
@@ -58,14 +66,28 @@ export default function Main() {
     return { y: t.getFullYear(), m: t.getMonth() }
   })
   const [calSelected, setCalSelected] = useState(() => todayStr())
-  const [nav, setNav] = useState<'home' | 'places' | 'music' | 'recordings' | 'scores'>('home')
+  const [nav, setNav] = useState<WorkspaceNavId>(() => workspaceTemplate.navigation[0]?.id ?? 'home')
   const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [channelOnboarding, setChannelOnboarding] = useState(false)
   const [loadErr, setLoadErr] = useState('')
   const toast = useToast()
+
+  // 템플릿별 활성 탭만 허용한다. 이후 개인 기록 모듈도 navigation 설정만 추가하면 진입 가능하다.
+  useEffect(() => {
+    if (!workspaceTemplate.navigation.some((item) => item.id === nav)) {
+      setNav(workspaceTemplate.navigation[0]?.id ?? 'home')
+    }
+  }, [nav, workspaceTemplate])
+
+  async function selectChannel(nextBandId: string) {
+    if (nextBandId === bandId) { setMenuOpen(false); return }
+    await switchChannel(nextBandId)
+    window.location.reload()
+  }
 
   useEffect(
     () =>
@@ -114,12 +136,17 @@ export default function Main() {
   }, [])
   // 기본 켜기: 로그인하면 자동으로 알림 권한 요청 + 토큰 등록 (허용된 기기는 조용히 갱신)
   useEffect(() => {
-    if (!member) return
-    autoRegisterPush().then((t) => {
-      if (t) saveFcmToken(member.uid, t)
+    if (!member || !isChannelMember) return
+    autoRegisterPush().then((registrations) => {
+      if (!registrations) return
+      const { fcmToken, webPushSubscription } = registrations
+      void Promise.all([
+        fcmToken ? saveFcmToken(member.uid, fcmToken) : Promise.resolve(),
+        webPushSubscription ? saveWebPushSubscription(member.uid, webPushSubscription) : Promise.resolve(),
+      ])
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [member?.uid])
+  }, [member?.uid, bandId, isChannelMember])
 
   // ── 안드로이드 물리 뒤로가기 ──
   // 열린 다이얼로그·시트·상세는 각 컴포넌트가 useBackHandler 로 자기 닫기를 등록한다
@@ -195,6 +222,7 @@ export default function Main() {
     setFormOpen(true)
   }
 
+  if (channelOnboarding) return <Onboarding onCancel={() => setChannelOnboarding(false)} />
   if (settingsOpen) return <Settings onClose={() => setSettingsOpen(false)} />
 
   // <전체> 다음은 무지개(빨강→보라) 순: 공연(코랄) · 번개(옐로) · 합주(시안) · 회의(인디고)
@@ -211,14 +239,15 @@ export default function Main() {
   const nextPlace = next ? resolvePlace(next, placesMap) : null
 
   return (
-    <div className="app">
+    <div className="app" data-template={workspaceTemplate.id} style={workspaceThemeStyle(workspaceTemplate)}>
       <header className="top">
         <div className="brandrow">
           <div className="mark">
             <img src="/logo.png" alt="Amici Band" />
           </div>
           <div className="brand">
-            <h1>{nav === 'places' ? '장소' : nav === 'music' ? '음악' : nav === 'recordings' ? '기록' : nav === 'scores' ? '악보' : 'Amici Band'}</h1>
+            <span className="workspace-context"><i>{workspaceTemplate.symbol}</i>{workspaceTemplate.label}</span>
+            <h1>{nav === 'home' ? (workspace?.name || 'Amici Band') : workspaceTemplate.navigation.find((item) => item.id === nav)?.label}</h1>
           </div>
           <button className="ghost-btn icon" onClick={() => setSettingsOpen(true)} aria-label="설정" title="설정">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -233,6 +262,13 @@ export default function Main() {
             </button>
             {menuOpen && (
               <div className="menu" onMouseLeave={() => setMenuOpen(false)}>
+                {isDeveloper && channels.map((channel) => (
+                  <button key={channel.id} className={channel.id === bandId ? 'active' : ''} onClick={() => void selectChannel(channel.id)}>
+                    <span>{channel.name}</span>{channel.id === bandId && <small>사용 중</small>}
+                  </button>
+                ))}
+                {isDeveloper && <div className="menu-divider" />}
+                {isDeveloper && <button onClick={() => { setMenuOpen(false); setChannelOnboarding(true) }}>채널 추가</button>}
                 <button onClick={signOutUser}>로그아웃</button>
               </div>
             )}
@@ -374,7 +410,11 @@ export default function Main() {
       ) : nav === 'places' ? (
         <PlacesView places={places} loadErr={placesErr} toast={toast} />
       ) : nav === 'recordings' ? (
-        <RecordingsView toast={toast} />
+        workspaceTemplate.id === 'personal'
+          ? <PersonalVideos toast={toast} />
+          : <RecordingsView toast={toast} config={BAND_RECORDING_MODULE} />
+      ) : nav === 'journal' ? (
+        <PersonalRecords toast={toast} />
       ) : nav === 'scores' ? (
         <ScoresView toast={toast} />
       ) : (
@@ -382,51 +422,14 @@ export default function Main() {
       )}
 
       <nav className="bottom-nav" role="tablist" aria-label="주 메뉴">
-        <button
-          role="tab"
-          aria-selected={nav === 'music'}
-          className={'navitem' + (nav === 'music' ? ' on' : '')}
-          onClick={() => setNav('music')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
-          음악
-        </button>
-        <button
-          role="tab"
-          aria-selected={nav === 'scores'}
-          className={'navitem' + (nav === 'scores' ? ' on' : '')}
-          onClick={() => setNav('scores')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" /></svg>
-          악보
-        </button>
-        <button
-          role="tab"
-          aria-selected={nav === 'home'}
-          className={'navitem' + (nav === 'home' ? ' on' : '')}
-          onClick={() => setNav('home')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-          일정
-        </button>
-        <button
-          role="tab"
-          aria-selected={nav === 'recordings'}
-          className={'navitem' + (nav === 'recordings' ? ' on' : '')}
-          onClick={() => setNav('recordings')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
-          기록
-        </button>
-        <button
-          role="tab"
-          aria-selected={nav === 'places'}
-          className={'navitem' + (nav === 'places' ? ' on' : '')}
-          onClick={() => setNav('places')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-          장소
-        </button>
+        {workspaceTemplate.navigation.map((item) => (
+          <button key={item.id} role="tab" aria-selected={nav === item.id}
+            className={'navitem' + (nav === item.id ? ' on' : '')} style={{ gridColumn: item.slot }}
+            onClick={() => setNav(item.id)}>
+            <NavIcon id={item.id} />
+            {item.label}
+          </button>
+        ))}
       </nav>
 
       {formOpen && (
@@ -438,20 +441,63 @@ export default function Main() {
   )
 }
 
+function NavIcon({ id }: { id: WorkspaceNavId }) {
+  if (id === 'music') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+  if (id === 'scores') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" /></svg>
+  if (id === 'recordings') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
+  if (id === 'journal') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
+  if (id === 'places') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+}
+
 /**
  * 알림이 꺼진 멤버에게 상단에 '알림 켜기' 배너를 노출(투표 요청 등 푸시를 받으려면 각자 켜야 함).
  * 버튼(사용자 제스처)으로 권한을 요청하므로 자동 요청보다 확실히 팝업이 뜬다.
  * 아이폰(미설치)은 홈 화면 추가 안내만 보여준다.
  */
 function NotifBanner() {
-  const { user } = useAuth()
+  const { user, bandId, isChannelMember } = useAuth()
   const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>(notificationPermission())
+  const [registered, setRegistered] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
 
-  if (!user || dismissed) return null
-  if (perm === 'granted' || perm === 'unsupported') return null
+  useEffect(() => {
+    const refreshPermission = () => {
+      if (document.visibilityState === 'hidden') return
+      setPerm(notificationPermission())
+    }
+    window.addEventListener('focus', refreshPermission)
+    window.addEventListener('pageshow', refreshPermission)
+    document.addEventListener('visibilitychange', refreshPermission)
+    return () => {
+      window.removeEventListener('focus', refreshPermission)
+      window.removeEventListener('pageshow', refreshPermission)
+      document.removeEventListener('visibilitychange', refreshPermission)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!user || !isChannelMember || perm !== 'granted' || !pushConfigured()) return
+    let cancelled = false
+    setRegistered(false)
+    requestNotificationRegistrations()
+      .then(async ({ fcmToken, webPushSubscription }) => {
+        await Promise.all([
+          fcmToken ? saveFcmToken(user.uid, fcmToken) : Promise.resolve(),
+          webPushSubscription ? saveWebPushSubscription(user.uid, webPushSubscription) : Promise.resolve(),
+        ])
+        if (!cancelled) setRegistered(Boolean(fcmToken || webPushSubscription))
+      })
+      .catch(() => {
+        if (!cancelled) setRegistered(false)
+      })
+    return () => { cancelled = true }
+  }, [user, bandId, isChannelMember, perm])
+
+  if (!user || !isChannelMember || dismissed) return null
+  if ((perm === 'granted' && registered) || perm === 'unsupported') return null
   const iosInstall = isApplePwaNeedsInstall()
   if (!iosInstall && !pushConfigured()) return null // 알림 자체가 불가한 환경
   const denied = perm === 'denied'
@@ -465,6 +511,7 @@ function NotifBanner() {
         fcmToken ? saveFcmToken(user.uid, fcmToken) : Promise.resolve(),
         webPushSubscription ? saveWebPushSubscription(user.uid, webPushSubscription) : Promise.resolve(),
       ])
+      setRegistered(Boolean(fcmToken || webPushSubscription))
     } finally {
       const p = notificationPermission()
       setPerm(p)
@@ -480,12 +527,23 @@ function NotifBanner() {
         <span className="notif-banner-text">
           {iosInstall
             ? '아이폰은 홈 화면에 추가한 뒤 알림을 켤 수 있어요 (공유 → 홈 화면에 추가).'
+            : perm === 'granted'
+              ? '알림 권한은 허용됐지만 이 기기를 연결하지 못했어요. 다시 연결해 주세요.'
             : denied
               ? '알림이 차단돼 있어요. 아래 안내대로 허용해 주세요.'
               : '알림을 켜면 새 일정·투표 요청을 바로 받아요.'}
         </span>
         {!iosInstall &&
-          (denied ? (
+          (perm === 'granted' ? (
+            <button
+              type="button"
+              className="btn primary notif-banner-btn"
+              onClick={() => void enable()}
+              disabled={busy}
+            >
+              {busy ? '연결 중…' : '다시 연결'}
+            </button>
+          ) : denied ? (
             // 차단 상태: 브라우저가 권한 팝업 재요청을 막으므로 '알림 켜기'는 눌러도 안 켜진다.
             // 헷갈리지 않게 설정 방법을 펼치는 버튼으로 바꾼다.
             <button
@@ -530,7 +588,10 @@ function NotifHelpSteps() {
       </>
     ) : os === 'android' ? (
       standalone ? (
-        <><b>기기 설정 → 앱 → Amici → 알림</b> → 켜기</>
+        <>
+          <b>기기 설정 → 앱 → Amici → 알림</b>을 켠 뒤에도 계속 차단으로 나오면,
+          Chrome에서 amicicalender.web.app의 <b>사이트 설정 → 알림</b>도 허용해 주세요.
+        </>
       ) : (
         <>Chrome 주소창 왼쪽 <b>자물쇠(사이트 정보) → 권한 → 알림</b> → 허용</>
       )

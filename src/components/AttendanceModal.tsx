@@ -129,8 +129,18 @@ export default function AttendanceModal({
     setReminding(true)
     setRemindMsg('')
     try {
-      const sent = await remindUndecided(ev.id)
-      setRemindMsg(sent > 0 ? `${sent}건 발송했어요` : '보낼 대상이 없어요 (알림 켠 미정 멤버 없음)')
+      const result = await remindUndecided(ev.id)
+      if (result.sent > 0) {
+        setRemindMsg(
+          result.failed > 0
+            ? `${result.sent}건 발송, ${result.failed}건 실패했어요.`
+            : `${result.sent}건 발송했어요.`,
+        )
+      } else if (result.registeredMembers === 0) {
+        setRemindMsg(`미정 ${result.undecided}명 중 알림을 등록한 멤버가 없어요.`)
+      } else {
+        setRemindMsg(`알림 등록 멤버 ${result.registeredMembers}명에게 발송을 시도했지만 실패했어요.`)
+      }
     } catch (e) {
       const msg = (e as { message?: string })?.message ?? ''
       setRemindMsg('발송 실패' + (msg ? ` — ${msg}` : ''))

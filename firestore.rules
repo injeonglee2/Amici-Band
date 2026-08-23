@@ -23,6 +23,11 @@ service cloud.firestore {
       return isBandMember(bandId)
         && get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.get('admin', false) == true;
     }
+    function isBandOwner(bandId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/bands/$(bandId))
+        && get(/databases/$(database)/documents/bands/$(bandId)).data.ownerUid == request.auth.uid;
+    }
 
     // 멤버 프로필: 로그인하면 읽기 가능, 본인 문서만 쓰기
     // 단, admin(관리자) 필드는 스스로 켤 수 없음 — 콘솔에서만 부여
@@ -81,7 +86,7 @@ service cloud.firestore {
     // 초대 코드 → 밴드 매핑. 조회로 코드가 새지 않도록 그 밴드 관리자만 읽기.
     // 발급/회전은 createBand·rotateInviteCode 함수(Admin)만 → 클라 쓰기 금지.
     match /inviteCodes/{code} {
-      allow read: if isBandAdmin(resource.data.bandId);
+      allow read: if isDeveloper() || isBandAdmin(resource.data.bandId);
       allow write: if false;
     }
 
@@ -129,7 +134,7 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storageBytes', 'aiUsage']));
 
       match /members/{uid} {
-        allow read: if isBandMember(bandId);
+        allow read: if isDeveloper() || isBandMember(bandId);
         // 본인 문서만 생성/수정, admin 은 스스로 켤 수 없음
         allow create: if signedIn() && request.auth.uid == uid
                       && request.resource.data.get('admin', false) == false;
@@ -140,46 +145,72 @@ service cloud.firestore {
       }
 
       match /places/{placeId} {
-        allow read: if isBandMember(bandId);
+        allow read: if isDeveloper() || isBandMember(bandId);
         allow create: if isBandAdmin(bandId);
         allow update, delete: if isBandMember(bandId);
       }
 
       match /recordings/{recId} {
-        allow read: if isBandMember(bandId);
+        allow read: if isDeveloper() || isBandMember(bandId);
         allow create: if isBandMember(bandId);
         allow update, delete: if isBandAdmin(bandId) || (isBandMember(bandId) && resource.data.addedBy == request.auth.uid);
       }
 
       match /scores/{scoreId} {
-        allow read: if isBandMember(bandId);
+        allow read: if isDeveloper() || isBandMember(bandId);
         allow create: if isBandMember(bandId);
         allow update, delete: if isBandAdmin(bandId) || (isBandMember(bandId) && resource.data.addedBy == request.auth.uid);
       }
 
       match /config/{docId} {
-        allow read: if isBandMember(bandId);
+        allow read: if isDeveloper() || isBandMember(bandId);
         allow write: if isBandAdmin(bandId);
       }
 
       match /playlists/{playlistId} {
-        allow read, write: if isBandMember(bandId);
+        allow read: if isDeveloper() || isBandMember(bandId);
+        allow write: if isBandMember(bandId);
         match /tracks/{trackId} {
-          allow read, write: if isBandMember(bandId);
+          allow read: if isDeveloper() || isBandMember(bandId);
+          allow write: if isBandMember(bandId);
+        }
+      }
+
+      // 개인 템플릿 영상 라이브러리: 폴더와 하위 유튜브 링크
+      match /videoFolders/{folderId} {
+        allow read: if isDeveloper() || isBandOwner(bandId);
+        allow write: if isBandOwner(bandId);
+        match /videos/{videoId} {
+          allow read: if isDeveloper() || isBandOwner(bandId);
+          allow write: if isBandOwner(bandId);
+        }
+        match /ingredients/{ingredientId} {
+          allow read: if isDeveloper() || isBandOwner(bandId);
+          allow write: if isBandOwner(bandId);
+        }
+      }
+
+      // 개인 템플릿 기록 모듈: 이후 폴더 하위 기록 형식을 확장한다.
+      match /recordFolders/{folderId} {
+        allow read: if isDeveloper() || isBandOwner(bandId);
+        allow write: if isBandOwner(bandId);
+        match /entries/{entryId} {
+          allow read: if isDeveloper() || isBandOwner(bandId);
+          allow write: if isBandOwner(bandId);
         }
       }
 
       match /events/{eventId} {
-        allow read: if isBandMember(bandId);
+        allow read: if isDeveloper() || isBandMember(bandId);
         allow create, update: if isBandAdmin(bandId);
         allow delete: if isBandAdmin(bandId) || (isBandMember(bandId) && resource.data.createdBy == request.auth.uid);
 
         match /attendance/{uid} {
-          allow read: if isBandMember(bandId);
+          allow read: if isDeveloper() || isBandMember(bandId);
           allow write: if isBandMember(bandId) && request.auth.uid == uid;
         }
         match /setlist/{songId} {
-          allow read: if isBandMember(bandId);
+          allow read: if isDeveloper() || isBandMember(bandId);
           allow write: if isBandAdmin(bandId);
         }
       }

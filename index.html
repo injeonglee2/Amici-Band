@@ -14,6 +14,16 @@
          라이트 모드 확장 시 아래 한 줄 주석 해제:
          @media (prefers-color-scheme: light){ html,body{ background:#fbf9f4 } } -->
     <style>html, body { margin: 0; background: #000000; }</style>
+    <script>
+      try {
+        const saved = JSON.parse(localStorage.getItem('amici.activeWorkspaceTheme') || '{}')
+        if (saved.background) document.documentElement.style.background = saved.background
+        if (saved.bodyBackground) document.documentElement.style.setProperty('--body-bg', saved.bodyBackground)
+        if (saved.colorScheme) document.documentElement.style.colorScheme = saved.colorScheme
+        const themeMeta = document.querySelector('meta[name="theme-color"]')
+        if (themeMeta && saved.background) themeMeta.setAttribute('content', saved.background)
+      } catch (_) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
