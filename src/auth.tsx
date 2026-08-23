@@ -61,14 +61,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     return onAuthStateChanged(auth, async (u) => {
       setUser(u)
-      if (u) {
-        await resolveFor(u)
-      } else {
-        setBandId(null)
-        setCurrentBand('')
-        setMember(null)
+      try {
+        if (u) {
+          await resolveFor(u)
+        } else {
+          setBandId(null)
+          setCurrentBand('')
+          setMember(null)
+        }
+      } catch (e) {
+        // 밴드/멤버 조회 실패가 로그인 자체(스플래시)를 막지 않도록. 원인은 로그로.
+        console.error('auth resolve failed', e)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
