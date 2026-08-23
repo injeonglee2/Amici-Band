@@ -322,9 +322,11 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
                 <b style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentNamedFolder?.name ?? '미분류'}</b>
                 {currentNamedFolder && (
                   <>
-                    <button type="button" className="edit-btn" onClick={() => setSyncOpen(true)} aria-label="재생목록·동기화">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></svg>
-                    </button>
+                    {!!currentNamedFolder.playlistIds?.length && (
+                      <button type="button" className="edit-btn" onClick={() => setSyncOpen(true)} aria-label="재생목록 수동 동기화">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></svg>
+                      </button>
+                    )}
                     <button type="button" className="edit-btn" onClick={() => setFolderForm(currentNamedFolder)} aria-label="폴더 수정">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg>
                     </button>
@@ -1188,22 +1190,37 @@ function RecFolderForm({ editing, nextOrder, creatorUid, recCount, toast, onDele
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
   const [name, setName] = useState(editing?.name ?? '')
+  const [playlistUrl, setPlaylistUrl] = useState('')
+  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
 
   async function submit() {
-    if (!name.trim() || busy) return
+    if (busy) return
+    const playlistId = !editing && playlistUrl.trim() ? parsePlaylistId(playlistUrl) : null
+    if (!editing && playlistUrl.trim() && !playlistId) {
+      setError('올바른 유튜브 재생목록 링크를 입력해 주세요.')
+      return
+    }
+    if (!name.trim() && !playlistId) return
     setBusy(true)
+    setError('')
     try {
+      const finalName = name.trim() || await resolveYouTubePlaylistTitle(playlistId!)
       await saveRecordingFolder(
         editing
-          ? { ...editing, name: name.trim() }
-          : { id: newId(), name: name.trim(), order: nextOrder, createdBy: creatorUid, createdAt: Date.now() },
+          ? { ...editing, name: finalName }
+          : {
+              id: newId(), name: finalName, order: nextOrder, createdBy: creatorUid, createdAt: Date.now(),
+              ...(playlistId ? { playlistIds: [playlistId] } : {}),
+            },
       )
-      toast.show(editing ? '폴더를 수정했어요' : '폴더를 만들었어요')
+      toast.show(editing ? '폴더를 수정했어요' : playlistId ? '폴더를 만들고 재생목록을 연결했어요' : '폴더를 만들었어요')
       onClose()
-    } catch {
-      toast.show('저장하지 못했어요')
+    } catch (e) {
+      const message = playlistId ? playlistImportErrorMessage(e) : '저장하지 못했어요'
+      setError(message)
+      toast.show(message)
       setBusy(false)
     }
   }
@@ -1231,10 +1248,17 @@ function RecFolderForm({ editing, nextOrder, creatorUid, recCount, toast, onDele
             <label htmlFor="rf-name">폴더 이름</label>
             <input id="rf-name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit() }} maxLength={40} autoFocus placeholder="예) 합주, 공연, 연습" />
           </div>
+          {!editing && <div className="field">
+            <label htmlFor="rf-playlist">연결할 유튜브 재생목록 <span className="muted">(선택)</span></label>
+            <input id="rf-playlist" value={playlistUrl} onChange={(e) => { setPlaylistUrl(e.target.value); setError('') }}
+              inputMode="url" placeholder="https://www.youtube.com/playlist?list=…" />
+            <p className="hint">링크를 연결하면 폴더 안에서 수동 동기화 버튼을 사용할 수 있어요.</p>
+          </div>}
+          {error && <p className="err small">{error}</p>}
           <div className="actions">
             {editing && <button type="button" className="btn danger" onClick={() => setConfirmDel(true)} disabled={busy}>삭제</button>}
             <button type="button" className="btn subtle grow" onClick={onClose} disabled={busy}>취소</button>
-            <button type="button" className="btn primary" onClick={() => void submit()} disabled={!name.trim() || busy}>{busy ? '저장 중…' : '저장'}</button>
+            <button type="button" className="btn primary" onClick={() => void submit()} disabled={(!name.trim() && !playlistUrl.trim()) || busy}>{busy ? '저장 중…' : '저장'}</button>
           </div>
         </div>
       </div>
