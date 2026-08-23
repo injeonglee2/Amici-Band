@@ -15,7 +15,7 @@ import {
 import { auth, googleProvider } from './firebase'
 import { getAllBands, getBand, getLegacyMember, getMember, getMemberFromBand, getUserBand, getUserBandIds, getUserProfile, healUserBand, saveMember, setActiveUserBand } from './data'
 import { setCurrentBand } from './band'
-import { DEMO, DEMO_MEMBER } from './demo'
+import { DEMO, DEMO_CHANNELS, DEMO_MEMBER, demoActiveWorkspace, setDemoChannel } from './demo'
 import { isDeveloperEmail } from './roles'
 import type { Band, Member, Part } from './types'
 import { rememberWorkspaceTemplate } from './workspaceTemplates'
@@ -127,9 +127,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? ({ uid: DEMO_MEMBER.uid, email: DEMO_MEMBER.email, displayName: DEMO_MEMBER.name } as unknown as User)
         : user,
       member: DEMO ? DEMO_MEMBER : member,
-      bandId: DEMO ? 'demo' : bandId,
-      workspace: DEMO ? { id: 'demo', name: 'Amici Band', ownerUid: DEMO_MEMBER.uid, templateId: 'band' } : workspace,
-      channels: DEMO ? [] : channels,
+      bandId: DEMO ? demoActiveWorkspace().id : bandId,
+      workspace: DEMO ? demoActiveWorkspace() : workspace,
+      channels: DEMO ? DEMO_CHANNELS : channels,
       isDeveloper: isDeveloperEmail(DEMO ? DEMO_MEMBER.email : (member?.email ?? user?.email)),
       isChannelMember: DEMO ? true : isChannelMember,
       loading: DEMO ? false : loading,
@@ -159,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await resolveFor(user)
       },
       switchChannel: async (nextBandId: string) => {
+        if (DEMO) { setDemoChannel(nextBandId); return }
         if (!user || !isDeveloperEmail(user.email)) return
         await setActiveUserBand(user.uid, nextBandId)
         await resolveFor(user)

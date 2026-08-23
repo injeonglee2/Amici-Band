@@ -262,12 +262,12 @@ export default function Main() {
             </button>
             {menuOpen && (
               <div className="menu" onMouseLeave={() => setMenuOpen(false)}>
-                {isDeveloper && channels.map((channel) => (
+                {channels.length > 1 && channels.map((channel) => (
                   <button key={channel.id} className={channel.id === bandId ? 'active' : ''} onClick={() => void selectChannel(channel.id)}>
                     <span>{channel.name}</span>{channel.id === bandId && <small>사용 중</small>}
                   </button>
                 ))}
-                {isDeveloper && <div className="menu-divider" />}
+                {channels.length > 1 && <div className="menu-divider" />}
                 {isDeveloper && <button onClick={() => { setMenuOpen(false); setChannelOnboarding(true) }}>채널 추가</button>}
                 <button onClick={signOutUser}>로그아웃</button>
               </div>

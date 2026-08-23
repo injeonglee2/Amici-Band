@@ -455,7 +455,7 @@ export function watchPersonalRecordFolders(
   cb: (folders: RecordingFolder[]) => void,
   onError?: (e: Error) => void,
 ): () => void {
-  if (DEMO) { cb([]); return () => {} }
+  if (DEMO) return demoDb.watchRecordFolders(cb)
   return onSnapshot(bandCol('recordFolders'), (snap) => {
     const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RecordingFolder, 'id'>) }))
     list.sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt))
@@ -464,13 +464,13 @@ export function watchPersonalRecordFolders(
 }
 
 export async function savePersonalRecordFolder(folder: RecordingFolder): Promise<void> {
-  if (DEMO) return
+  if (DEMO) return demoDb.saveRecordFolder(folder)
   const { id, ...data } = folder
   await setDoc(bandDoc('recordFolders', id), data, { merge: true })
 }
 
 export async function deletePersonalRecordFolder(folderId: string): Promise<void> {
-  if (DEMO) return
+  if (DEMO) return demoDb.deleteRecordFolder(folderId)
   const entries = await getDocs(bandCol('recordFolders', folderId, 'entries'))
   const files = entries.docs.flatMap((entry) => ((entry.get('files') as ScoreFile[] | undefined) ?? []))
   const freed = files.reduce((sum, file) => sum + (file.size ?? 0), 0)
@@ -493,7 +493,7 @@ export function watchPersonalRecordEntries(folderId: string, cb: (entries: Perso
 
 /** 러닝 폴더 엔트리 전체 조회 — 저장된 모든 필드를 그대로 반환(전체 덤프용). 경로는 recordFolders 재사용. */
 export function watchRunningEntries(folderId: string, cb: (entries: RunningEntry[]) => void, onError?: (e: Error) => void): () => void {
-  if (DEMO) { cb([]); return () => {} }
+  if (DEMO) return demoDb.watchRunningEntries(folderId, cb)
   return onSnapshot(bandCol('recordFolders', folderId, 'entries'), (snap) => {
     const entries: RunningEntry[] = snap.docs.map((item) => ({ id: item.id, folderId, ...(item.data() as Record<string, unknown>) }))
     // 최신순: startTime → createdAt → date(문자열을 시각으로) 순으로 타임스탬프 산출

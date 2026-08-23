@@ -7,7 +7,7 @@
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, BandEvent, Member, Place, Playlist, SetlistSong, Track, TrackPart } from './types'
+import type { Attendance, Band, BandEvent, Member, Place, Playlist, RecordingFolder, RunningEntry, SetlistSong, Track, TrackPart } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
@@ -144,6 +144,73 @@ function setlistCol(eventId: string): Collection<SetlistSong> {
   return col
 }
 
+/* ---------------- 데모 채널(워크스페이스): 밴드 + 개인 ---------------- */
+export const DEMO_BAND: Band = { id: 'demo', name: 'Amici Band', ownerUid: DEMO_MEMBER.uid, templateId: 'band', createdAt: now }
+export const DEMO_PERSONAL: Band = { id: 'demo-personal', name: '내 기록', ownerUid: DEMO_MEMBER.uid, templateId: 'personal', createdAt: now }
+export const DEMO_CHANNELS: Band[] = [DEMO_BAND, DEMO_PERSONAL]
+
+// URL 의 ?demo=personal 이면 개인 채널, 그 외(?demo, ?demo=band)면 밴드 채널
+const demoChannelParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('demo') : ''
+export function demoActiveWorkspace(): Band {
+  return demoChannelParam === 'personal' ? DEMO_PERSONAL : DEMO_BAND
+}
+export function setDemoChannel(bandId: string): void {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams(window.location.search)
+  params.set('demo', bandId === DEMO_PERSONAL.id ? 'personal' : 'band')
+  window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`)
+}
+
+/* ---------------- 개인 채널 기록 폴더 + 러닝 샘플 데이터 ---------------- */
+const RUNNING_FOLDER_ID = 'demo-run'
+const initialRecordFolders: RecordingFolder[] = [
+  { id: RUNNING_FOLDER_ID, name: '러닝', templateId: 'running', order: now, createdBy: DEMO_MEMBER.uid, createdAt: now },
+  { id: 'demo-daily', name: '일상', order: now + 1, createdBy: DEMO_MEMBER.uid, createdAt: now + 1 },
+]
+const recordFoldersCol = makeCollection<RecordingFolder>(initialRecordFolders)
+
+// [며칠 전, 거리(km), 시간(분), 평균 심박, 최대 심박] — 뒤로 갈수록 같은 페이스에 심박이 낮아지는(향상) 추세
+const runSpecs: [number, number, number, number, number][] = [
+  [33, 5.0, 32, 168, 182],
+  [30, 6.2, 40, 170, 184],
+  [26, 4.5, 28, 165, 178],
+  [21, 7.0, 44, 166, 180],
+  [17, 5.5, 33, 160, 175],
+  [12, 8.0, 49, 162, 178],
+  [6, 5.0, 29, 155, 170],
+  [2, 6.5, 37, 154, 169],
+  [1, 5.2, 29, 152, 168],
+]
+function buildDemoRuns(): RunningEntry[] {
+  return runSpecs.map(([daysAgo, km, min, avgHr, maxHr], i) => {
+    const startTime = now - daysAgo * 86400000
+    const durationSec = min * 60
+    return {
+      id: `run-${i}`,
+      folderId: RUNNING_FOLDER_ID,
+      date: new Date(startTime).toISOString().slice(0, 10),
+      startTime,
+      endTime: startTime + durationSec * 1000,
+      distanceM: Math.round(km * 1000),
+      durationSec,
+      avgHr,
+      maxHr,
+      calories: Math.round(km * 65),
+      steps: Math.round(km * 1450),
+      createdAt: startTime,
+    }
+  })
+}
+const runEntriesCols = new Map<string, Collection<RunningEntry>>()
+function runEntriesCol(folderId: string): Collection<RunningEntry> {
+  let col = runEntriesCols.get(folderId)
+  if (!col) {
+    col = makeCollection<RunningEntry>(folderId === RUNNING_FOLDER_ID ? buildDemoRuns() : [])
+    runEntriesCols.set(folderId, col)
+  }
+  return col
+}
+
 export const demoDb = {
   watchMembers: (cb: Sub<Member[]>) => membersCol.watch(cb),
   watchEvents: (cb: Sub<BandEvent[]>) => eventsCol.watch(cb),
@@ -198,4 +265,14 @@ export const demoDb = {
     delete rest[uid]
     col.upsert({ ...t, participants: rest }, (x) => x.id)
   },
+
+  // 개인 채널: 기록 폴더 + 러닝 데이터
+  watchRecordFolders: (cb: Sub<RecordingFolder[]>) =>
+    recordFoldersCol.watch((list) => cb([...list].sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt)))),
+  saveRecordFolder: (f: RecordingFolder) => recordFoldersCol.upsert(f, (x) => x.id),
+  deleteRecordFolder: (id: string) => recordFoldersCol.remove(id, (x) => x.id),
+  watchRunningEntries: (folderId: string, cb: Sub<RunningEntry[]>) =>
+    runEntriesCol(folderId).watch((list) =>
+      cb([...list].sort((a, b) => (Number(b.startTime) || 0) - (Number(a.startTime) || 0))),
+    ),
 }
