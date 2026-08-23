@@ -456,9 +456,8 @@ function NavIcon({ id }: { id: WorkspaceNavId }) {
  * 아이폰(미설치)은 홈 화면 추가 안내만 보여준다.
  */
 function NotifBanner() {
-  const { user, bandId, isChannelMember } = useAuth()
+  const { user, isChannelMember } = useAuth()
   const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>(notificationPermission())
-  const [registered, setRegistered] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
@@ -478,26 +477,10 @@ function NotifBanner() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!user || !isChannelMember || perm !== 'granted' || !pushConfigured()) return
-    let cancelled = false
-    setRegistered(false)
-    requestNotificationRegistrations()
-      .then(async ({ fcmToken, webPushSubscription }) => {
-        await Promise.all([
-          fcmToken ? saveFcmToken(user.uid, fcmToken) : Promise.resolve(),
-          webPushSubscription ? saveWebPushSubscription(user.uid, webPushSubscription) : Promise.resolve(),
-        ])
-        if (!cancelled) setRegistered(Boolean(fcmToken || webPushSubscription))
-      })
-      .catch(() => {
-        if (!cancelled) setRegistered(false)
-      })
-    return () => { cancelled = true }
-  }, [user, bandId, isChannelMember, perm])
-
   if (!user || !isChannelMember || dismissed) return null
-  if ((perm === 'granted' && registered) || perm === 'unsupported') return null
+  // 배너는 사용자가 제어할 수 있는 웹 알림 권한만 기준으로 삼는다.
+  // 토큰 갱신은 Main의 백그라운드 등록 effect가 담당하며, 실패해도 허용 안내를 반복하지 않는다.
+  if (perm === 'granted' || perm === 'unsupported') return null
   const iosInstall = isApplePwaNeedsInstall()
   if (!iosInstall && !pushConfigured()) return null // 알림 자체가 불가한 환경
   const denied = perm === 'denied'
@@ -511,7 +494,6 @@ function NotifBanner() {
         fcmToken ? saveFcmToken(user.uid, fcmToken) : Promise.resolve(),
         webPushSubscription ? saveWebPushSubscription(user.uid, webPushSubscription) : Promise.resolve(),
       ])
-      setRegistered(Boolean(fcmToken || webPushSubscription))
     } finally {
       const p = notificationPermission()
       setPerm(p)
@@ -527,23 +509,12 @@ function NotifBanner() {
         <span className="notif-banner-text">
           {iosInstall
             ? '아이폰은 홈 화면에 추가한 뒤 알림을 켤 수 있어요 (공유 → 홈 화면에 추가).'
-            : perm === 'granted'
-              ? '알림 권한은 허용됐지만 이 기기를 연결하지 못했어요. 다시 연결해 주세요.'
             : denied
               ? '알림이 차단돼 있어요. 아래 안내대로 허용해 주세요.'
               : '알림을 켜면 새 일정·투표 요청을 바로 받아요.'}
         </span>
         {!iosInstall &&
-          (perm === 'granted' ? (
-            <button
-              type="button"
-              className="btn primary notif-banner-btn"
-              onClick={() => void enable()}
-              disabled={busy}
-            >
-              {busy ? '연결 중…' : '다시 연결'}
-            </button>
-          ) : denied ? (
+          (denied ? (
             // 차단 상태: 브라우저가 권한 팝업 재요청을 막으므로 '알림 켜기'는 눌러도 안 켜진다.
             // 헷갈리지 않게 설정 방법을 펼치는 버튼으로 바꾼다.
             <button
@@ -580,28 +551,22 @@ function NotifBanner() {
 function NotifHelpSteps() {
   const os = mobileOS()
   const standalone = isStandaloneApp()
-  const first =
-    os === 'ios' ? (
-      <>
-        <b>iPhone 설정 → 알림 → Amici</b> → ‘알림 허용’ 켜기
-        <span className="notif-help-sub">(홈 화면에 추가된 앱에서만 알림을 받을 수 있어요)</span>
-      </>
-    ) : os === 'android' ? (
-      standalone ? (
-        <>
-          <b>기기 설정 → 앱 → Amici → 알림</b>을 켠 뒤에도 계속 차단으로 나오면,
-          Chrome에서 amicicalender.web.app의 <b>사이트 설정 → 알림</b>도 허용해 주세요.
-        </>
-      ) : (
-        <>Chrome 주소창 왼쪽 <b>자물쇠(사이트 정보) → 권한 → 알림</b> → 허용</>
-      )
-    ) : (
-      <>주소창 왼쪽 <b>자물쇠(사이트 정보) → 알림</b> → 허용</>
-    )
 
   return (
     <ul className="notif-help-steps">
-      <li>{first}</li>
+      {os === 'ios' ? (
+        <li>
+          <b>iPhone 설정 → 알림 → Amici</b> → ‘알림 허용’ 켜기
+          <span className="notif-help-sub">(홈 화면에 추가된 앱에서만 알림을 받을 수 있어요)</span>
+        </li>
+      ) : os === 'android' ? (
+        <>
+          <li><b>Chrome → amicicalender.web.app → 사이트 설정 → 알림</b> → 허용</li>
+          {standalone && <li><b>기기 설정 → 앱 → Amici → 알림</b> → 알림 허용</li>}
+        </>
+      ) : (
+        <li>주소창 왼쪽 <b>자물쇠(사이트 정보) → 알림</b> → 허용</li>
+      )}
       <li>허용한 뒤 이 화면을 <b>새로고침</b>하면 알림이 켜져요.</li>
     </ul>
   )
