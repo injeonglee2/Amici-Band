@@ -7,6 +7,7 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import FolderModule, { FolderForm, type FolderModuleConfig, type FolderRepository } from './FolderModule'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
+import RunningDashboard from './RunningDashboard'
 
 const RECORD_FOLDER_CONFIG: FolderModuleConfig = {
   labels: { folder: '기록 폴더', empty: '기록 폴더가 없어요.', add: '폴더', createTitle: '새 기록 폴더', editTitle: '기록 폴더 수정', name: '폴더 이름', placeholder: '예) 일상, 공부, 생각 정리', deleteConfirm: (name) => `'${name}' 기록 폴더와 안의 파일을 모두 삭제할까요?` },
@@ -84,20 +85,22 @@ function RunningFolderDetail({ folder, onBack, config }: { folder: RecordingFold
         <button type="button" className="edit-btn" onClick={() => setEditing(true)} aria-label="폴더 수정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg></button>
       </div>
       {loadErr && <div className="banner-err">{loadErr}</div>}
-      {!entries.length && !loadErr ? (
-        <div className="empty-state"><RunIcon /><p>아직 러닝 데이터가 없어요.<br />Health Connect 연동이 추가되면 여기에 전체 데이터가 표시됩니다.</p></div>
-      ) : (
-        <div className="run-dump">
-          {entries.map((entry) => (
-            <article key={entry.id} className="run-entry">
-              {Object.entries(entry)
-                .filter(([k]) => k !== 'id' && k !== 'folderId')
-                .map(([k, v]) => (
-                  <div key={k} className="run-field"><span className="run-k">{k}</span><span className="run-v">{fmtVal(v)}</span></div>
-                ))}
-            </article>
-          ))}
-        </div>
+      {!loadErr && <RunningDashboard entries={entries} />}
+      {!!entries.length && (
+        <details className="run-raw">
+          <summary>원본 데이터 {entries.length}건</summary>
+          <div className="run-dump">
+            {entries.map((entry) => (
+              <article key={entry.id} className="run-entry">
+                {Object.entries(entry)
+                  .filter(([k]) => k !== 'id' && k !== 'folderId')
+                  .map(([k, v]) => (
+                    <div key={k} className="run-field"><span className="run-k">{k}</span><span className="run-v">{fmtVal(v)}</span></div>
+                  ))}
+              </article>
+            ))}
+          </div>
+        </details>
       )}
     </main>
     {editing && <FolderForm config={config} repository={recordFolderRepository} editing={folder} onClose={() => setEditing(false)} />}
