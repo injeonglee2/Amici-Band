@@ -26,7 +26,12 @@ const webPushPublicKey = defineSecret('WEB_PUSH_PUBLIC_KEY')
 const webPushPrivateKey = defineSecret('WEB_PUSH_PRIVATE_KEY')
 const webPushSecrets = [webPushPublicKey, webPushPrivateKey]
 const youtubeApiKey = defineSecret('YOUTUBE_API_KEY')
-const monitoringClient = new MetricServiceClient()
+// 모듈 최상위에서 생성하면 배포 분석(로드) 시 자격증명 탐색으로 멈춰 타임아웃 → 지연 생성.
+let _monitoringClient
+function monitoringClient() {
+  if (!_monitoringClient) _monitoringClient = new MetricServiceClient()
+  return _monitoringClient
+}
 
 // Firestore(서울)와 같은 리전
 setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 })
@@ -52,8 +57,8 @@ exports.getBillingUsageStats = onCall(async (req) => {
   }
 
   async function dailyMetric(metricType, aligner = 'ALIGN_SUM') {
-    const [series] = await monitoringClient.listTimeSeries({
-      name: monitoringClient.projectPath(projectId),
+    const [series] = await monitoringClient().listTimeSeries({
+      name: monitoringClient().projectPath(projectId),
       filter: `metric.type = "${metricType}"`,
       interval: {
         startTime: { seconds: Math.floor(start.getTime() / 1000) },
