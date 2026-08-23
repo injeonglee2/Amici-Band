@@ -26,25 +26,6 @@
         <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
 
-    <!-- Health Connect 러닝 데이터 읽기 권한 -->
-    <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
-    <uses-permission android:name="android.permission.health.READ_DISTANCE"/>
-    <uses-permission android:name="android.permission.health.READ_SPEED"/>
-    <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
-    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED"/>
-    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED"/>
-    <uses-permission android:name="android.permission.health.READ_STEPS"/>
-    <uses-permission android:name="android.permission.health.READ_ELEVATION_GAINED"/>
-
-    <!-- Android 11+ 패키지 가시성: Health Connect 앱 조회 -->
-    <queries>
-        <package android:name="com.google.android.apps.healthdata"/>
-        <intent>
-            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
-        </intent>
-    </queries>
-
-
     
 
     
@@ -190,26 +171,6 @@
                     android:scheme="amicicalender"
                     android:host="calendar"
                     android:pathPrefix="/add" />
-            </intent-filter>
-        </activity>
-
-        <!-- Health Connect 러닝 데이터 진단 리더 (임시 진단용 별도 런처 아이콘) -->
-        <activity
-            android:name=".HealthDiagnosticActivity"
-            android:label="러닝 진단"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <!-- Health Connect 권한 근거 화면 (API 33 이하) -->
-            <intent-filter>
-                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
-            </intent-filter>
-            <!-- Health Connect 권한 근거 화면 (API 34+) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
-                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
         </activity>
 
