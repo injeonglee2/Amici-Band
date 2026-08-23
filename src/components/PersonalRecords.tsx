@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth'
 import { useBackHandler } from '../backnav'
-import { deletePersonalRecordEntry, deletePersonalRecordFolder, newId, savePersonalRecordEntry, savePersonalRecordFolder, uploadPersonalRecordFile, watchPersonalRecordEntries, watchPersonalRecordFolders } from '../data'
-import type { PersonalRecordEntry, RecordingFolder, ScoreFile } from '../types'
+import { deletePersonalRecordEntry, deletePersonalRecordFolder, newId, savePersonalRecordEntry, savePersonalRecordFolder, uploadPersonalRecordFile, watchPersonalRecordEntries, watchPersonalRecordFolders, watchRunningEntries } from '../data'
+import type { PersonalRecordEntry, RecordingFolder, RunningEntry, ScoreFile } from '../types'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import FolderModule, { FolderForm, type FolderModuleConfig, type FolderRepository } from './FolderModule'
 import type { ToastState } from './Toast'
@@ -10,20 +10,34 @@ import { useSheetSwipe } from './useSheetSwipe'
 
 const RECORD_FOLDER_CONFIG: FolderModuleConfig = {
   labels: { folder: '기록 폴더', empty: '기록 폴더가 없어요.', add: '폴더', createTitle: '새 기록 폴더', editTitle: '기록 폴더 수정', name: '폴더 이름', placeholder: '예) 일상, 공부, 생각 정리', deleteConfirm: (name) => `'${name}' 기록 폴더와 안의 파일을 모두 삭제할까요?` },
-  rowIcon: () => <RecordIcon />,
+  rowIcon: (folder) => (folder.templateId === 'running' ? <RunIcon /> : <RecordIcon />),
 }
+// 폴더 종류(템플릿) — 소유자의 개인 채널에서 '러닝' 폴더를 만들 수 있게 함
+const RECORD_TEMPLATES = [
+  { id: 'record', label: '기록', symbol: '📁', description: '이미지·PDF 파일 보관' },
+  { id: 'running', label: '러닝', symbol: '🏃', description: '러닝 데이터를 전체 표시' },
+]
 const recordFolderRepository: FolderRepository<RecordingFolder> = {
   watch: watchPersonalRecordFolders,
-  create: (name, creatorUid) => ({ id: newId(), name, createdBy: creatorUid, createdAt: Date.now(), order: Date.now() }),
+  create: (name, creatorUid, templateId) => ({ id: newId(), name, createdBy: creatorUid, createdAt: Date.now(), order: Date.now(), ...(templateId === 'running' ? { templateId: 'running' as const } : {}) }),
   save: savePersonalRecordFolder,
   remove: (folder) => deletePersonalRecordFolder(folder.id),
 }
 
 export default function PersonalRecords({ toast }: { toast: ToastState }) {
-  return <FolderModule config={RECORD_FOLDER_CONFIG} repository={recordFolderRepository} renderDetail={(folder, onBack) => <RecordFolderDetail folder={folder} onBack={onBack} toast={toast} />} />
+  const { user, workspace } = useAuth()
+  const isOwner = !!user && workspace?.ownerUid === user.uid
+  // 소유자만 '러닝' 폴더 템플릿 선택 가능
+  const config: FolderModuleConfig = isOwner ? { ...RECORD_FOLDER_CONFIG, templates: RECORD_TEMPLATES } : RECORD_FOLDER_CONFIG
+  return <FolderModule config={config} repository={recordFolderRepository} renderDetail={(folder, onBack) => <RecordFolderDetail folder={folder} onBack={onBack} toast={toast} config={config} />} />
 }
 
-function RecordFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder; onBack: () => void; toast: ToastState }) {
+function RecordFolderDetail({ folder, onBack, toast, config }: { folder: RecordingFolder; onBack: () => void; toast: ToastState; config: FolderModuleConfig }) {
+  if (folder.templateId === 'running') return <RunningFolderDetail folder={folder} onBack={onBack} config={config} />
+  return <RecordFilesDetail folder={folder} onBack={onBack} toast={toast} config={config} />
+}
+
+function RecordFilesDetail({ folder, onBack, toast, config }: { folder: RecordingFolder; onBack: () => void; toast: ToastState; config: FolderModuleConfig }) {
   const [entries, setEntries] = useState<PersonalRecordEntry[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [editing, setEditing] = useState(false)
@@ -51,8 +65,50 @@ function RecordFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder
     <button className="fab" onClick={() => setAdding(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>기록 추가</button>
     {adding && <RecordEntryForm folderId={folder.id} toast={toast} onClose={() => setAdding(false)} />}
     {viewing && <RecordViewer entry={viewing} onClose={() => setViewing(null)} />}
-    {editing && <FolderForm config={RECORD_FOLDER_CONFIG} repository={recordFolderRepository} editing={folder} onClose={() => setEditing(false)} />}
+    {editing && <FolderForm config={config} repository={recordFolderRepository} editing={folder} onClose={() => setEditing(false)} />}
   </>
+}
+
+/** 러닝 폴더: 엔트리의 모든 필드를 그대로 덤프해 표시 (Health Connect 연동 시 데이터가 채워짐) */
+function RunningFolderDetail({ folder, onBack, config }: { folder: RecordingFolder; onBack: () => void; config: FolderModuleConfig }) {
+  const [entries, setEntries] = useState<RunningEntry[]>([])
+  const [loadErr, setLoadErr] = useState('')
+  const [editing, setEditing] = useState(false)
+  useBackHandler(onBack)
+  useEffect(() => watchRunningEntries(folder.id, setEntries, () => setLoadErr('러닝 데이터를 불러오지 못했어요.')), [folder.id])
+  return <>
+    <main className="scroll">
+      <div className="detail-bar">
+        <button type="button" className="detail-back" onClick={onBack} aria-label="폴더 목록으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg></button>
+        <b>{folder.name}</b>
+        <button type="button" className="edit-btn" onClick={() => setEditing(true)} aria-label="폴더 수정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg></button>
+      </div>
+      {loadErr && <div className="banner-err">{loadErr}</div>}
+      {!entries.length && !loadErr ? (
+        <div className="empty-state"><RunIcon /><p>아직 러닝 데이터가 없어요.<br />Health Connect 연동이 추가되면 여기에 전체 데이터가 표시됩니다.</p></div>
+      ) : (
+        <div className="run-dump">
+          {entries.map((entry) => (
+            <article key={entry.id} className="run-entry">
+              {Object.entries(entry)
+                .filter(([k]) => k !== 'id' && k !== 'folderId')
+                .map(([k, v]) => (
+                  <div key={k} className="run-field"><span className="run-k">{k}</span><span className="run-v">{fmtVal(v)}</span></div>
+                ))}
+            </article>
+          ))}
+        </div>
+      )}
+    </main>
+    {editing && <FolderForm config={config} repository={recordFolderRepository} editing={folder} onClose={() => setEditing(false)} />}
+  </>
+}
+
+/** 값 표시: 객체/배열은 JSON, 나머지는 문자열 */
+function fmtVal(v: unknown): string {
+  if (v == null) return '-'
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
 }
 
 function RecordEntryForm({ folderId, toast, onClose }: { folderId: string; toast: ToastState; onClose: () => void }) {
@@ -110,4 +166,5 @@ function PdfPages({ url }: { url: string }) {
   return <div className="score-gallery">{pages.map((page, index) => <img key={index} src={page} alt={`${index + 1}페이지`} />)}</div>
 }
 function RecordIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M8 8h8M8 12h8M8 16h5" /></svg> }
+function RunIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="17" cy="5" r="2" /><path d="M14 8l-3 2 2 3 3 1M11 10l-3 1-2 4M13 13l1 5M13 13l-3 2-2 4" /></svg> }
 function PdfIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 2h8l4 4v16H6z" /><path d="M14 2v4h4" /><path d="M8.5 16h7M8.5 12h7" /></svg> }

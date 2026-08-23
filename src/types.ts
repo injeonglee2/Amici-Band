@@ -111,10 +111,22 @@ export interface Recording {
 export interface RecordingFolder {
   id: string
   name: string
-  templateId?: 'video' | 'recipe'
+  templateId?: 'video' | 'recipe' | 'running'
   order?: number
   createdBy: string
   createdAt: number
+}
+
+/**
+ * 러닝 기록 엔트리 (개인 채널 '러닝' 폴더). Health Connect 등에서 넣는 임의 필드를
+ * 전체 덤프로 표시하므로 공통 필드 외에는 자유 형식(index signature).
+ * 경로: bands/{bandId}/recordFolders/{folderId}/entries/{id}
+ */
+export interface RunningEntry {
+  id: string
+  folderId: string
+  createdAt?: number
+  [field: string]: unknown
 }
 
 /** 개인 영상 폴더 안의 유튜브 영상 */

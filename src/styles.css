@@ -255,6 +255,12 @@ button { font-family: inherit; }
 }
 .more-past:hover { color: var(--ink); }
 .more-past:disabled { opacity: 0.5; cursor: default; }
+/* 러닝 폴더: 엔트리 전체 필드 덤프 */
+.run-dump { display: flex; flex-direction: column; gap: 10px; }
+.run-entry { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.run-field { display: flex; gap: 10px; font-size: 12.5px; align-items: baseline; }
+.run-k { flex: none; min-width: 96px; color: var(--ink-soft); font-weight: 700; }
+.run-v { min-width: 0; color: var(--ink); word-break: break-word; font-variant-numeric: tabular-nums; }
 
 .hero {
   margin: 12px 0 8px; border-radius: var(--radius); padding: 20px; position: relative; overflow: hidden;

@@ -23,7 +23,7 @@ import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'fi
 import { db, fbApp, storage } from './firebase'
 import { getCurrentBand, bandCol, bandDoc, bandStoragePath } from './band'
 import { DEMO, demoDb } from './demo'
-import type { Band, Attendance, BandEvent, Feedback, Member, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Band, Attendance, BandEvent, Feedback, Member, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -487,6 +487,18 @@ export function watchPersonalRecordEntries(folderId: string, cb: (entries: Perso
   return onSnapshot(bandCol('recordFolders', folderId, 'entries'), (snap) => {
     const entries = snap.docs.map((item) => ({ id: item.id, folderId, ...(item.data() as Omit<PersonalRecordEntry, 'id' | 'folderId'>) }))
     entries.sort((a, b) => b.createdAt - a.createdAt)
+    cb(entries)
+  }, (error) => onError?.(error))
+}
+
+/** 러닝 폴더 엔트리 전체 조회 — 저장된 모든 필드를 그대로 반환(전체 덤프용). 경로는 recordFolders 재사용. */
+export function watchRunningEntries(folderId: string, cb: (entries: RunningEntry[]) => void, onError?: (e: Error) => void): () => void {
+  if (DEMO) { cb([]); return () => {} }
+  return onSnapshot(bandCol('recordFolders', folderId, 'entries'), (snap) => {
+    const entries: RunningEntry[] = snap.docs.map((item) => ({ id: item.id, folderId, ...(item.data() as Record<string, unknown>) }))
+    // 최신순: startTime → createdAt → date(문자열을 시각으로) 순으로 타임스탬프 산출
+    const ts = (e: RunningEntry) => Number(e.startTime) || Number(e.createdAt) || Date.parse(String(e.date ?? '')) || 0
+    entries.sort((a, b) => ts(b) - ts(a))
     cb(entries)
   }, (error) => onError?.(error))
 }
