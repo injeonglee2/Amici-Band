@@ -1142,9 +1142,13 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .score-viewer-sheet .setlist-head { flex: none; }
 /* 악보 제목: 미리보기에서 인라인 수정 */
 .score-title-row { display: flex; align-items: center; gap: 8px; }
-.score-title-edit-btn { flex: none; appearance: none; border: none; background: transparent; cursor: pointer; color: var(--ink-faint); padding: 2px; display: inline-flex; }
-.score-title-edit-btn svg { width: 16px; height: 16px; }
-.score-title-edit-btn:hover { color: var(--ink); }
+.score-title-text { flex: 1; min-width: 0; }
+.score-title-actions { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+.score-title-edit-btn { flex: none; appearance: none; border: none; background: transparent; cursor: pointer; color: var(--ink-faint); padding: 6px; border-radius: 9px; display: inline-flex; transition: background .14s, color .14s; }
+.score-title-edit-btn svg { width: 18px; height: 18px; }
+.score-title-edit-btn:hover { color: var(--ink); background: var(--surface-2); }
+.score-title-edit-btn:disabled { opacity: 0.4; cursor: default; }
+.score-title-edit-btn.danger:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .score-title-edit { display: flex; align-items: center; gap: 6px; }
 .score-title-edit input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 10px; }
 .score-viewer-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -20px; padding: 4px 20px 4px; }
