@@ -16,6 +16,7 @@
 
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
 }
 
 import groovy.xml.MarkupBuilder
@@ -66,7 +67,7 @@ android {
     namespace "app.web.amicicalender.twa"
     defaultConfig {
         applicationId "app.web.amicicalender.twa"
-        minSdkVersion 23
+        minSdkVersion 26
         targetSdkVersion 35
         versionCode 5
         versionName "0.9.3"
@@ -183,6 +184,9 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
     lintOptions {
         checkReleaseBuilds false
     }
@@ -231,7 +235,12 @@ repositories {
 
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
-    
+
         implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
-    
+
+    // Health Connect 러닝 데이터 진단 리더 (Android Studio에서 버전 해석 안 되면 최신으로 조정)
+    implementation 'androidx.health.connect:connect-client:1.1.0-rc02'
+    implementation 'androidx.activity:activity-ktx:1.9.3'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 }
