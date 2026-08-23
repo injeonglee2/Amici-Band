@@ -181,6 +181,21 @@ const runSpecs: [number, number, number, number, number][] = [
   [2, 6.5, 37, 154, 169],
   [1, 5.2, 29, 152, 168],
 ]
+// 러닝 중 실시간(구간) 샘플 합성 — 페이스↔심박이 상관되도록(빠를수록·시간 지날수록 심박↑)
+function genSamples(avgPaceSec: number, avgHr: number, maxHr: number): { hr: number; paceSec: number }[] {
+  const N = 22
+  const out: { hr: number; paceSec: number }[] = []
+  for (let i = 0; i < N; i++) {
+    const f = i / (N - 1)
+    const wobble = 0.06 * Math.sin(f * Math.PI * 3) + 0.03 * Math.sin(f * 17)
+    const paceSec = avgPaceSec * (1 + wobble - 0.02 * Math.sin(f * Math.PI)) // 중반 살짝 빠르게
+    const drift = (maxHr - avgHr) * (0.35 + 0.5 * f) // 카디악 드리프트
+    const intensity = ((avgPaceSec - paceSec) / avgPaceSec) * avgHr * 0.6 // 빠를수록 심박↑
+    const hr = Math.max(avgHr - 12, Math.min(maxHr, avgHr - (maxHr - avgHr) * 0.35 + drift + intensity))
+    out.push({ hr: Math.round(hr), paceSec: Math.round(paceSec) })
+  }
+  return out
+}
 function buildDemoRuns(): RunningEntry[] {
   return runSpecs.map(([daysAgo, km, min, avgHr, maxHr], i) => {
     const startTime = now - daysAgo * 86400000
@@ -197,6 +212,7 @@ function buildDemoRuns(): RunningEntry[] {
       maxHr,
       calories: Math.round(km * 65),
       steps: Math.round(km * 1450),
+      samples: genSamples(durationSec / km, avgHr, maxHr),
       createdAt: startTime,
     }
   })

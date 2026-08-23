@@ -52,7 +52,7 @@ function RecordFilesDetail({ folder, onBack, toast, config }: { folder: Recordin
   }
   return <>
     <main className="scroll">
-      <div className="detail-bar">
+      <div className="detail-bar rec-folder-bar">
         <button type="button" className="detail-back" onClick={onBack} aria-label="폴더 목록으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg></button>
         <b>{folder.name}</b>
         <button type="button" className="edit-btn" onClick={() => setEditing(true)} aria-label="폴더 수정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg></button>
@@ -79,7 +79,7 @@ function RunningFolderDetail({ folder, onBack, config }: { folder: RecordingFold
   useEffect(() => watchRunningEntries(folder.id, setEntries, () => setLoadErr('러닝 데이터를 불러오지 못했어요.')), [folder.id])
   return <>
     <main className="scroll">
-      <div className="detail-bar">
+      <div className="detail-bar rec-folder-bar">
         <button type="button" className="detail-back" onClick={onBack} aria-label="폴더 목록으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg></button>
         <b>{folder.name}</b>
         <button type="button" className="edit-btn" onClick={() => setEditing(true)} aria-label="폴더 수정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg></button>

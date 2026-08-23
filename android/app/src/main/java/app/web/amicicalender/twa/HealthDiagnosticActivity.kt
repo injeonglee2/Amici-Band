@@ -13,6 +13,7 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.SpeedRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.request.AggregateRequest
@@ -36,6 +37,7 @@ class HealthDiagnosticActivity : ComponentActivity() {
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HealthPermission.getReadPermission(DistanceRecord::class),
         HealthPermission.getReadPermission(HeartRateRecord::class),
+        HealthPermission.getReadPermission(SpeedRecord::class),
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(StepsRecord::class),
     )
@@ -127,6 +129,19 @@ class HealthDiagnosticActivity : ComponentActivity() {
                     log("  심박 평균=${agg[HeartRateRecord.BPM_AVG]}  최대=${agg[HeartRateRecord.BPM_MAX]} bpm")
                     log("  칼로리=${agg[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories} kcal")
                     log("  걸음=${agg[StepsRecord.COUNT_TOTAL]}")
+
+                    // 실시간(구간) 데이터 — 평균이 아닌 원시 샘플. 이게 있으면 러닝 세부의 페이스↔심박 그래프를 그릴 수 있다.
+                    val hrRecs = client.readRecords(
+                        ReadRecordsRequest(HeartRateRecord::class, TimeRangeFilter.between(r.startTime, r.endTime)),
+                    ).records
+                    val hrSamples = hrRecs.sumOf { it.samples.size }
+                    val spdRecs = client.readRecords(
+                        ReadRecordsRequest(SpeedRecord::class, TimeRangeFilter.between(r.startTime, r.endTime)),
+                    ).records
+                    val spdSamples = spdRecs.sumOf { it.samples.size }
+                    log("  ▸ 실시간 심박 샘플=${hrSamples}개  속도(페이스) 샘플=${spdSamples}개")
+                    val hrPreview = hrRecs.flatMap { it.samples }.take(3).joinToString(", ") { "${it.beatsPerMinute}bpm" }
+                    if (hrPreview.isNotEmpty()) log("  ▸ 심박 예: $hrPreview …")
                     log("")
                 }
             } catch (e: Exception) {
