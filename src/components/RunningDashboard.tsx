@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { RunningEntry, RunningSplit } from '../types'
 import { useBackHandler } from '../backnav'
 import { fullKmSplits, paceDeltaLabel, runningSplits } from '../runningSplits'
@@ -344,6 +344,7 @@ export default function RunningDashboard({ entries }: { entries: RunningEntry[] 
   const [period, setPeriod] = useState<Period>('week')
   const [yearScope, setYearScope] = useState<YearScope>(() => String(new Date().getFullYear()) as YearScope)
   const [selected, setSelected] = useState<string | null>(null)
+  const activeYearRef = useRef<HTMLButtonElement>(null)
   const runs = useMemo(() => entries.map(normRun).sort((a, b) => b.startMs - a.startMs), [entries])
 
   const now = useDailyNow()
@@ -367,6 +368,12 @@ export default function RunningDashboard({ entries }: { entries: RunningEntry[] 
     years.add(new Date().getFullYear())
     return [...years].sort((a, b) => b - a).map((year) => ({ value: String(year), label: `${year}년` }))
   }, [runs])
+
+  useEffect(() => {
+    if (period !== 'year') return
+    const frame = window.requestAnimationFrame(() => activeYearRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [period, yearScope])
 
   // 거리 추세는 연간 탭에서만 월별로 표시한다.
   const trendUnit: Unit | null = period === 'year' ? 'month' : null
@@ -407,7 +414,23 @@ export default function RunningDashboard({ entries }: { entries: RunningEntry[] 
       {period === 'year' && (
         <div className="run-year-scope">
           <span>조회 기간</span>
-          <ThemeSelect value={yearScope} options={yearOptions} onChange={(value) => setYearScope(value as YearScope)} title="연간 기록 기준" variant="pill" />
+          <div className="run-year-strip" role="group" aria-label="연간 조회 기간">
+            {yearOptions.map((option) => {
+              const selectedYear = yearScope === option.value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  ref={selectedYear ? activeYearRef : undefined}
+                  className={selectedYear ? 'on' : ''}
+                  aria-pressed={selectedYear}
+                  onClick={() => setYearScope(option.value as YearScope)}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
