@@ -11,6 +11,7 @@ import com.google.gson.Gson;
 import com.samsung.android.sdk.health.data.HealthDataService;
 import com.samsung.android.sdk.health.data.HealthDataStore;
 import com.samsung.android.sdk.health.data.data.HealthDataPoint;
+import com.samsung.android.sdk.health.data.data.entries.ExerciseLog;
 import com.samsung.android.sdk.health.data.data.entries.ExerciseSession;
 import com.samsung.android.sdk.health.data.error.ResolvablePlatformException;
 import com.samsung.android.sdk.health.data.permission.AccessType;
@@ -42,6 +43,8 @@ import java.util.Set;
 /** Reads Samsung Health exercise sessions and sends normalized running summaries to Amici. */
 public final class SamsungHealthDataSyncActivity extends Activity {
     private static final int PAGE_SIZE = 100;
+    // 한 운동당 최대 600개 시점을 균등 보존한다. 1시간 러닝이면 약 6초 간격이다.
+    private static final int MAX_DETAIL_SAMPLES = 600;
     private static final long EARLIEST_SYNC_TIME = 946684800000L; // 2000-01-01T00:00:00Z
 
     private HealthDataStore store;
@@ -170,7 +173,45 @@ public final class SamsungHealthDataSyncActivity extends Activity {
         put(run, "maxCadence", session.getMaxCadence());
         put(run, "altitudeGain", session.getAltitudeGain());
         put(run, "vo2Max", session.getVo2Max());
+        List<Map<String, Object>> samples = normalizeLogs(
+                session.getLog(),
+                session.getStartTime().toEpochMilli(),
+                session.getEndTime().toEpochMilli());
+        if (!samples.isEmpty()) run.put("samples", samples);
         return run;
+    }
+
+    /** Samsung 운동 상세 로그를 실제 측정 시각 기반 표본으로 정규화한다. */
+    private List<Map<String, Object>> normalizeLogs(List<ExerciseLog> logs, long sessionStart, long sessionEnd) {
+        if (logs == null || logs.isEmpty()) return Collections.emptyList();
+        List<ExerciseLog> usable = new ArrayList<>();
+        for (ExerciseLog log : logs) {
+            if (log == null || log.getTimestamp() == null) continue;
+            long time = log.getTimestamp().toEpochMilli();
+            if (time < sessionStart - 60_000L || time > sessionEnd + 60_000L) continue;
+            if (!finite(log.getHeartRate()) && !finite(log.getSpeed()) && !finite(log.getCadence())) continue;
+            usable.add(log);
+        }
+        if (usable.isEmpty()) return Collections.emptyList();
+
+        int count = Math.min(MAX_DETAIL_SAMPLES, usable.size());
+        List<Map<String, Object>> samples = new ArrayList<>(count);
+        int previousIndex = -1;
+        for (int position = 0; position < count; position++) {
+            int index = count == 1
+                    ? 0
+                    : (int) Math.round(position * (usable.size() - 1.0) / (count - 1.0));
+            if (index == previousIndex) continue;
+            previousIndex = index;
+            ExerciseLog log = usable.get(index);
+            Map<String, Object> sample = new HashMap<>();
+            sample.put("t", log.getTimestamp().toEpochMilli());
+            putFinite(sample, "hr", log.getHeartRate());
+            putFinite(sample, "speed", log.getSpeed());
+            putFinite(sample, "cadence", log.getCadence());
+            samples.add(sample);
+        }
+        return samples;
     }
 
     private boolean postPayload(Map<String, Object> payload) {
@@ -248,7 +289,16 @@ public final class SamsungHealthDataSyncActivity extends Activity {
     }
 
     private static void put(Map<String, Object> target, String key, Object value) {
+        if (value instanceof Number && !finite((Number) value)) return;
         if (value != null) target.put(key, value);
+    }
+
+    private static void putFinite(Map<String, Object> target, String key, Number value) {
+        if (finite(value)) target.put(key, value);
+    }
+
+    private static boolean finite(Number value) {
+        return value != null && Double.isFinite(value.doubleValue());
     }
 
     private static void consume(InputStream stream) {

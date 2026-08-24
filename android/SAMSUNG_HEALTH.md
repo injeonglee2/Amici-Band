@@ -19,7 +19,9 @@
 `amici://samsung-health/sync?token=...&uploadUrl=...&folderId=...&days=90`
 
 SDK 리더는 사용자에게 `DataTypes.EXERCISE` 읽기 권한을 요청하고 RUNNING,
-TRACK_RUNNING, TREADMILL 세션만 읽는다. 결과는 `uploadUrl`에 다음 JSON으로 POST한다.
+TRACK_RUNNING, TREADMILL 세션만 읽는다. `ExerciseSession.log`의 실제 측정 시각별
+심박·속도·케이던스도 운동당 최대 600개를 균등 추출한다. 결과는 `uploadUrl`에
+다음 JSON으로 POST한다.
 
 ```json
 {

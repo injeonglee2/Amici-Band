@@ -344,6 +344,32 @@ button { font-family: inherit; }
 .run-bar-x { font-size: 10px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .run-scatter { width: 100%; height: auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; }
 .run-scatter-wrap { display: flex; flex-direction: column; gap: 5px; }
+.run-realtime-section { margin-top: 5px; }
+.run-realtime-chart-wrap { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.run-realtime-chart { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: pan-y; }
+.run-realtime-chart text { fill: var(--ink-faint); font-size: 8px; font-variant-numeric: tabular-nums; pointer-events: none; }
+.run-realtime-chart text.pace-axis { fill: color-mix(in srgb, var(--accent) 78%, var(--ink-soft)); font-weight: 700; }
+.run-realtime-chart text.heart-axis { fill: color-mix(in srgb, var(--no) 78%, var(--ink-soft)); font-weight: 700; }
+.run-realtime-chart .grid { stroke: color-mix(in srgb, var(--line-strong) 62%, transparent); stroke-width: 1; }
+.run-realtime-chart .time-grid { stroke: color-mix(in srgb, var(--line) 55%, transparent); stroke-width: .8; stroke-dasharray: 2 3; }
+.run-realtime-chart polyline { fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+.run-realtime-chart .pace-line { stroke: var(--accent); }
+.run-realtime-chart .heart-line { stroke: var(--no); }
+.run-realtime-chart .cursor { stroke: var(--ink-soft); stroke-width: 1; stroke-dasharray: 3 3; }
+.run-realtime-chart .pace-dot { fill: var(--surface-solid); stroke: var(--accent); stroke-width: 2.2; }
+.run-realtime-chart .heart-dot { fill: var(--surface-solid); stroke: var(--no); stroke-width: 2.2; }
+.run-realtime-legend { display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 32px; padding: 5px 10px; border-top: 1px solid var(--line); font-size: 10.5px; font-weight: 750; color: var(--ink-soft); }
+.run-realtime-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.run-realtime-legend i { width: 14px; height: 3px; border-radius: 999px; }
+.run-realtime-legend .pace i { background: var(--accent); }
+.run-realtime-legend .heart i { background: var(--no); }
+.run-realtime-legend small { color: var(--ink-faint); font-size: 9px; font-weight: 600; }
+.run-realtime-readout { display: grid; grid-template-columns: 1.2fr 1fr .8fr; gap: 7px; margin-top: 8px; }
+.run-realtime-readout > span { min-width: 0; display: grid; grid-template-columns: auto auto; align-items: baseline; justify-content: start; column-gap: 4px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.run-realtime-readout small { grid-column: 1 / -1; margin-bottom: 2px; color: var(--ink-faint); font-size: 9px; font-weight: 700; }
+.run-realtime-readout strong { overflow: hidden; color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; text-overflow: ellipsis; }
+.run-realtime-readout em { color: var(--ink-faint); font-size: 9px; font-style: normal; white-space: nowrap; }
+.run-realtime-guide { margin: 6px 2px 0; color: var(--ink-faint); font-size: 10.5px; line-height: 1.5; text-align: center; }
 .run-prism-key { display: grid; grid-template-columns: auto minmax(90px, 150px) auto; justify-content: end; align-items: center; gap: 7px; padding: 0 5px; color: var(--ink-faint); font-size: 9.5px; font-weight: 650; }
 .run-prism-key i { display: block; height: 4px; border-radius: 999px; background: linear-gradient(90deg, #7c3aed 0%, #2563eb 18%, #06b6d4 35%, #10b981 52%, #eab308 68%, #f97316 84%, #ec4899 100%); }
 .run-analysis { display: flex; flex-direction: column; gap: 6px; }

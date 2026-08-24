@@ -120,12 +120,19 @@ function cleanSamsungRun(run) {
   }
   if (run.title) cleaned.title = String(run.title).slice(0, 100)
   if (Array.isArray(run.samples)) {
-    cleaned.samples = run.samples.slice(0, 5000).map((sample) => ({
-      t: cleanFinite(sample && sample.t),
-      hr: cleanFinite(sample && sample.hr),
-      speed: cleanFinite(sample && sample.speed),
-      cadence: cleanFinite(sample && sample.cadence),
-    })).filter((sample) => Object.values(sample).some((value) => value !== undefined))
+    const samples = run.samples.slice(0, 1200).map((sample) => {
+      const t = cleanFinite(sample && sample.t)
+      if (t === undefined || t < startTime - 60000 || t > endTime + 60000) return null
+      const cleanedSample = { t }
+      const hr = cleanFinite(sample && sample.hr)
+      const speed = cleanFinite(sample && sample.speed)
+      const cadence = cleanFinite(sample && sample.cadence)
+      if (hr !== undefined && hr >= 30 && hr <= 260) cleanedSample.hr = hr
+      if (speed !== undefined && speed >= 0 && speed <= 20) cleanedSample.speed = speed
+      if (cadence !== undefined && cadence >= 0 && cadence <= 300) cleanedSample.cadence = cadence
+      return Object.keys(cleanedSample).length > 1 ? cleanedSample : null
+    }).filter(Boolean)
+    if (samples.length) cleaned.samples = samples
   }
   return cleaned
 }

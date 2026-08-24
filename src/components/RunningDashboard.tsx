@@ -8,7 +8,7 @@ import ThemeSelect from './ThemeSelect'
  * 러닝 대시보드 — 러닝 폴더 엔트리를 가공해 KPI·추세·페이스↔심박 산점도·목록으로 표시.
  * Samsung Health 동기화가 쓸 표준 필드(아래)를 읽되, 이름이 조금 달라도 관대하게 파싱한다.
  *   startTime(ms), endTime(ms), date, distanceM, durationSec, avgHr, maxHr, calories, steps
- *   samples: [{ hr, paceSec | speed(m/s), t? }]  ← 러닝 중 실시간(구간) 데이터. 있으면 세부에서 상관 산점도로 표시.
+ *   samples: [{ t, hr, paceSec | speed(m/s) }]  ← 러닝 중 실제 측정 시각별 데이터. 세부에서 시간 흐름으로 표시.
  *
  * 탭 구성:
  *   주간 — 오늘을 포함한 최근 7일 기록.
@@ -30,7 +30,12 @@ interface InsightCandidate extends RunInsight {
   score: number
 }
 
-interface Sample { hr: number; paceSec: number }
+interface Sample {
+  elapsedSec: number
+  timeMs: number
+  hr?: number
+  paceSec?: number
+}
 interface Run {
   id: string
   startMs: number
@@ -56,19 +61,44 @@ function pick(e: Record<string, unknown>, keys: string[]): number | undefined {
   }
   return undefined
 }
-function normSamples(raw: unknown): Sample[] {
+function normSamples(raw: unknown, startMs: number, durationSec?: number): Sample[] {
   if (!Array.isArray(raw)) return []
   const out: Sample[] = []
-  for (const s of raw as Record<string, unknown>[]) {
+  const source = raw as Record<string, unknown>[]
+  source.forEach((s, index) => {
     const hr = pick(s, ['hr', 'heartRate', 'bpm'])
     let paceSec = pick(s, ['paceSec', 'pace'])
     if (paceSec === undefined) {
       const spd = pick(s, ['speed', 'speedMps'])
       if (spd && spd > 0) paceSec = 1000 / spd
     }
-    if (hr !== undefined && paceSec !== undefined) out.push({ hr, paceSec })
-  }
-  return out
+    const validHr = hr !== undefined && hr >= 30 && hr <= 260 ? hr : undefined
+    const validPace = paceSec !== undefined && paceSec >= 120 && paceSec <= 1200 ? paceSec : undefined
+    if (validHr === undefined && validPace === undefined) return
+
+    let elapsedSec = pick(s, ['elapsedSec', 'offsetSec', 'seconds'])
+    const rawTime = pick(s, ['timeMs', 'timestampMs', 'time', 'timestamp', 't'])
+    if (elapsedSec === undefined && rawTime !== undefined) {
+      if (rawTime > 1e12) elapsedSec = (rawTime - startMs) / 1000
+      else if (rawTime > 1e9) elapsedSec = (rawTime * 1000 - startMs) / 1000
+      else elapsedSec = rawTime
+    }
+    if (elapsedSec === undefined) {
+      elapsedSec = source.length > 1 && durationSec
+        ? index / (source.length - 1) * durationSec
+        : index
+    }
+    const maxElapsed = Math.max(60, (durationSec ?? elapsedSec) + 60)
+    if (!Number.isFinite(elapsedSec) || elapsedSec < -60 || elapsedSec > maxElapsed) return
+    const normalizedElapsed = Math.max(0, elapsedSec)
+    out.push({
+      elapsedSec: normalizedElapsed,
+      timeMs: startMs + normalizedElapsed * 1000,
+      hr: validHr,
+      paceSec: validPace,
+    })
+  })
+  return out.sort((a, b) => a.elapsedSec - b.elapsedSec)
 }
 function normRun(e: RunningEntry): Run {
   const startMs =
@@ -92,7 +122,7 @@ function normRun(e: RunningEntry): Run {
     maxHr: pick(e, ['maxHr', 'heartRateMax', 'hrMax', 'bpmMax']),
     calories: pick(e, ['calories', 'kcal', 'energyKcal']),
     steps: pick(e, ['steps', 'stepCount']),
-    samples: normSamples((e as Record<string, unknown>).samples),
+    samples: normSamples((e as Record<string, unknown>).samples, startMs, durationSec),
     splits: runningSplits(e),
   }
 }
@@ -747,11 +777,12 @@ function WeeklySplitPaceChart({ runs }: { runs: Run[] }) {
   )
 }
 
-/** 러닝 세부: 요약 + 이번 러닝의 페이스↔심박(실시간 구간 데이터). 없으면 전체 러닝 중 이 러닝 위치. */
+/** 러닝 세부: 요약 + 실제 측정 시각별 페이스·심박. 없으면 전체 러닝 중 이 러닝 위치. */
 function RunDetail({ run, allRuns, onBack }: { run: Run; allRuns: Run[]; onBack: () => void }) {
   useBackHandler(onBack)
   const d = new Date(run.startMs)
-  const hasSamples = run.samples.length >= 3
+  const hasSamples = run.samples.filter((sample) => sample.paceSec !== undefined).length >= 2 ||
+    run.samples.filter((sample) => sample.hr !== undefined).length >= 2
   const comparisonRuns = useMemo(() => allRuns
     .filter((candidate) => candidate.id !== run.id && fullKmSplits(candidate.splits).length >= 1)
     .sort((a, b) => Math.abs((a.distanceKm ?? 0) - (run.distanceKm ?? 0)) - Math.abs((b.distanceKm ?? 0) - (run.distanceKm ?? 0))), [allRuns, run])
@@ -801,14 +832,155 @@ function RunDetail({ run, allRuns, onBack }: { run: Run; allRuns: Run[]; onBack:
       )}
 
       {hasSamples ? (
-        <>
-          <div className="run-sec-t">페이스 ↔ 심박 <span className="run-sec-hint">이번 러닝 구간별 · 빠를수록 오른쪽</span></div>
-          <Scatter points={run.samples.map((s) => ({ paceSec: s.paceSec, hr: s.hr }))} radius={3.5} legendStart="시작" legendEnd="끝" />
-        </>
+        <RealtimePaceHeartChart
+          samples={run.samples}
+          startMs={run.startMs}
+          durationSec={run.durationSec}
+        />
       ) : (
         <RunInHistory run={run} allRuns={allRuns} />
       )}
     </div>
+  )
+}
+
+/** Samsung Health가 운동 중 기록한 실제 시각을 X축으로 쓰는 페이스·심박 이중 선 그래프. */
+function RealtimePaceHeartChart({ samples, startMs, durationSec }: {
+  samples: Sample[]
+  startMs: number
+  durationSec?: number
+}) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  useEffect(() => setSelectedIndex(null), [startMs])
+
+  const points = useMemo(() => samples
+    .filter((sample) => Number.isFinite(sample.elapsedSec) && sample.elapsedSec >= 0)
+    .sort((a, b) => a.elapsedSec - b.elapsedSec), [samples])
+  const pacePoints = points.filter((sample): sample is Sample & { paceSec: number } => sample.paceSec !== undefined)
+  const heartPoints = points.filter((sample): sample is Sample & { hr: number } => sample.hr !== undefined)
+  if (pacePoints.length < 2 && heartPoints.length < 2) return null
+
+  const W = 340, H = 210, padL = 47, padR = 39, padT = 19, padB = 31
+  const plotW = W - padL - padR
+  const plotH = H - padT - padB
+  const measuredEnd = points[points.length - 1]?.elapsedSec ?? 0
+  const timeMax = Math.max(60, durationSec ?? 0, measuredEnd)
+
+  const rawPaces = pacePoints.map((sample) => sample.paceSec)
+  const paceMin = rawPaces.length ? Math.min(...rawPaces) : 300
+  const paceMax = rawPaces.length ? Math.max(...rawPaces) : 600
+  const pacePadding = Math.max(8, (paceMax - paceMin) * 0.08)
+  let fastest = Math.max(120, paceMin - pacePadding)
+  let slowest = Math.min(1200, paceMax + pacePadding)
+  if (slowest - fastest < 20) {
+    const center = (slowest + fastest) / 2
+    fastest = Math.max(120, center - 10)
+    slowest = Math.min(1200, center + 10)
+  }
+
+  const rawHearts = heartPoints.map((sample) => sample.hr)
+  const heartMin = rawHearts.length ? Math.min(...rawHearts) : 90
+  const heartMax = rawHearts.length ? Math.max(...rawHearts) : 170
+  const heartPadding = Math.max(3, (heartMax - heartMin) * 0.08)
+  let heartLow = Math.max(30, heartMin - heartPadding)
+  let heartHigh = Math.min(260, heartMax + heartPadding)
+  if (heartHigh - heartLow < 10) {
+    const center = (heartHigh + heartLow) / 2
+    heartLow = Math.max(30, center - 5)
+    heartHigh = Math.min(260, center + 5)
+  }
+
+  const x = (elapsed: number) => padL + Math.min(timeMax, elapsed) / timeMax * plotW
+  const paceY = (pace: number) => padT + (pace - fastest) / (slowest - fastest) * plotH
+  const heartY = (heart: number) => padT + (heartHigh - heart) / (heartHigh - heartLow) * plotH
+  const paceLine = pacePoints.map((sample) => `${x(sample.elapsedSec)},${paceY(sample.paceSec)}`).join(' ')
+  const heartLine = heartPoints.map((sample) => `${x(sample.elapsedSec)},${heartY(sample.hr)}`).join(' ')
+  const selected = selectedIndex === null ? null : points[selectedIndex]
+
+  const graphTime = (seconds: number) => {
+    const rounded = Math.max(0, Math.round(seconds))
+    const hours = Math.floor(rounded / 3600)
+    const minutes = Math.floor((rounded % 3600) / 60)
+    const rest = rounded % 60
+    return hours
+      ? `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+      : `${minutes}:${String(rest).padStart(2, '0')}`
+  }
+  const clockTime = (timeMs: number) => new Date(timeMs).toLocaleTimeString('ko-KR', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  })
+  const selectAt = (clientX: number, element: SVGSVGElement) => {
+    const rect = element.getBoundingClientRect()
+    const svgX = (clientX - rect.left) / rect.width * W
+    const target = Math.max(0, Math.min(1, (svgX - padL) / plotW)) * timeMax
+    let nearest = 0
+    let distance = Number.POSITIVE_INFINITY
+    points.forEach((point, index) => {
+      const gap = Math.abs(point.elapsedSec - target)
+      if (gap < distance) { distance = gap; nearest = index }
+    })
+    setSelectedIndex(nearest)
+  }
+  const moveSelection = (step: number) => {
+    setSelectedIndex((current) => Math.max(0, Math.min(points.length - 1, (current ?? 0) + step)))
+  }
+
+  return (
+    <section className="run-realtime-section">
+      <div className="run-sec-t">실시간 페이스·심박 <span className="run-sec-hint">Samsung Health 측정 시각 기준</span></div>
+      <div className="run-realtime-chart-wrap">
+        <svg
+          className="run-realtime-chart"
+          viewBox={`0 0 ${W} ${H}`}
+          role="button"
+          tabIndex={0}
+          aria-label="운동 경과 시간에 따른 페이스와 심박 변화. 그래프를 누르면 측정값을 확인할 수 있습니다."
+          onPointerDown={(event) => selectAt(event.clientX, event.currentTarget)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') { event.preventDefault(); moveSelection(-1) }
+            if (event.key === 'ArrowRight') { event.preventDefault(); moveSelection(1) }
+            if (event.key === 'Home') { event.preventDefault(); setSelectedIndex(0) }
+            if (event.key === 'End') { event.preventDefault(); setSelectedIndex(points.length - 1) }
+          }}
+        >
+          {[0, 0.5, 1].map((ratio) => (
+            <g key={`y-${ratio}`}>
+              <line x1={padL} y1={padT + ratio * plotH} x2={W - padR} y2={padT + ratio * plotH} className="grid" />
+              {pacePoints.length >= 2 && <text x={padL - 5} y={padT + ratio * plotH + 3} textAnchor="end" className="pace-axis">{fmtPace(fastest + ratio * (slowest - fastest))}</text>}
+              {heartPoints.length >= 2 && <text x={W - padR + 5} y={padT + ratio * plotH + 3} className="heart-axis">{Math.round(heartHigh - ratio * (heartHigh - heartLow))}</text>}
+            </g>
+          ))}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
+            <g key={`x-${ratio}`}>
+              <line x1={padL + ratio * plotW} y1={padT} x2={padL + ratio * plotW} y2={H - padB} className="time-grid" />
+              <text x={padL + ratio * plotW} y={H - 10} textAnchor={ratio === 0 ? 'start' : ratio === 1 ? 'end' : 'middle'} className="time-axis">{graphTime(timeMax * ratio)}</text>
+            </g>
+          ))}
+          {pacePoints.length >= 2 && <polyline points={paceLine} className="pace-line" />}
+          {heartPoints.length >= 2 && <polyline points={heartLine} className="heart-line" />}
+          {selected && (
+            <g className="selected-measure" aria-hidden="true">
+              <line x1={x(selected.elapsedSec)} y1={padT} x2={x(selected.elapsedSec)} y2={H - padB} className="cursor" />
+              {selected.paceSec !== undefined && <circle cx={x(selected.elapsedSec)} cy={paceY(selected.paceSec)} r="4.5" className="pace-dot" />}
+              {selected.hr !== undefined && <circle cx={x(selected.elapsedSec)} cy={heartY(selected.hr)} r="4.5" className="heart-dot" />}
+            </g>
+          )}
+        </svg>
+        <div className="run-realtime-legend">
+          {pacePoints.length >= 2 && <span className="pace"><i />페이스 <small>왼쪽 축</small></span>}
+          {heartPoints.length >= 2 && <span className="heart"><i />심박 <small>오른쪽 축</small></span>}
+        </div>
+      </div>
+      {selected ? (
+        <div className="run-realtime-readout" aria-live="polite">
+          <span><small>측정 시각</small><strong>{clockTime(selected.timeMs)}</strong><em>+{graphTime(selected.elapsedSec)}</em></span>
+          <span><small>페이스</small><strong>{fmtPace(selected.paceSec)}</strong><em>/km</em></span>
+          <span><small>심박</small><strong>{selected.hr === undefined ? '−' : Math.round(selected.hr)}</strong><em>bpm</em></span>
+        </div>
+      ) : (
+        <p className="run-realtime-guide">그래프를 누르면 해당 시각의 페이스와 심박을 확인할 수 있어요.</p>
+      )}
+    </section>
   )
 }
 
