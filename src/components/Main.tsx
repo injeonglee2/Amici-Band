@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
 import { loadOlderEvents, saveFcmToken, saveWebPushSubscription, watchEvents, watchMembers, watchPlaces } from '../data'
 import { TYPE_META, type BandEvent, type EventType, type Member, type Place } from '../types'
@@ -21,7 +21,7 @@ import EventForm from './EventForm'
 import { TypeGlyph } from './TypeGlyph'
 import Settings from './Settings'
 import PlacesView from './Places'
-import MusicView from './Music'
+import MusicView, { SharedTrackImport } from './Music'
 import RecordingsView from './Recordings'
 import ScoresView from './Scores'
 import Toast, { useToast } from './Toast'
@@ -34,8 +34,10 @@ import PersonalVideos from './PersonalVideos'
 import Onboarding from './Onboarding'
 import PersonalRecords from './PersonalRecords'
 import { useWorkspaceTheme } from '../useWorkspaceTheme'
+import { clearShareRequest, readShareRequest } from '../shareTarget'
 
 type Filter = 'all' | EventType
+const SHARED_TRACK_SAVED_KEY = 'amici.sharedTrackSaved'
 
 /** 오늘부터 1년 전 날짜(YYYY-MM-DD) — 지난 일정 기본 조회 창의 하한 */
 function oneYearAgoStr(): string {
@@ -66,7 +68,14 @@ export default function Main() {
     return { y: t.getFullYear(), m: t.getMonth() }
   })
   const [calSelected, setCalSelected] = useState(() => todayStr())
-  const [nav, setNav] = useState<WorkspaceNavId>(() => workspaceTemplate.navigation[0]?.id ?? 'home')
+  const [nav, setNav] = useState<WorkspaceNavId>(() => {
+    const requested = typeof window === 'undefined'
+      ? null
+      : new URLSearchParams(window.location.search).get('nav') as WorkspaceNavId | null
+    return requested && workspaceTemplate.navigation.some((item) => item.id === requested)
+      ? requested
+      : workspaceTemplate.navigation[0]?.id ?? 'home'
+  })
   const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -74,7 +83,46 @@ export default function Main() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [channelOnboarding, setChannelOnboarding] = useState(false)
   const [loadErr, setLoadErr] = useState('')
+  const [shareRequest, setShareRequest] = useState(() => readShareRequest())
+  const [sharedTrackSaved] = useState(() => {
+    try {
+      return sessionStorage.getItem(SHARED_TRACK_SAVED_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const shareHandled = useRef(false)
   const toast = useToast()
+
+  useEffect(() => {
+    const next = new URL(window.location.href)
+    if (next.searchParams.has('nav')) {
+      next.searchParams.delete('nav')
+      window.history.replaceState(window.history.state, '', `${next.pathname}${next.search}${next.hash}`)
+    }
+    if (sharedTrackSaved) {
+      try { sessionStorage.removeItem(SHARED_TRACK_SAVED_KEY) } catch { /* 저장소가 막힌 환경 */ }
+    }
+    // 개발 StrictMode와 TWA의 초기 히스토리 정리가 끝난 뒤에도 음악 탭을 확실히 유지한다.
+    const navTimer = sharedTrackSaved ? window.setTimeout(() => setNav('music'), 250) : undefined
+    return () => window.clearTimeout(navTimer)
+  }, [sharedTrackSaved])
+
+  useEffect(() => {
+    if (!shareRequest || shareHandled.current) return
+    shareHandled.current = true
+    clearShareRequest()
+    if (!shareRequest.youtubeUrl) {
+      toast.show('공유된 내용에서 유튜브 링크를 찾지 못했어요')
+      setShareRequest(null)
+      return
+    }
+    if (workspaceTemplate.id !== 'band') {
+      toast.show('밴드 채널에서만 재생목록에 추가할 수 있어요')
+      setShareRequest(null)
+      return
+    }
+  }, [shareRequest, toast, workspaceTemplate.id])
 
   // 템플릿별 활성 탭만 허용한다. 이후 개인 기록 모듈도 navigation 설정만 추가하면 진입 가능하다.
   useEffect(() => {
@@ -131,7 +179,7 @@ export default function Main() {
   }, [])
   // 앱 시작 시 현재 배포된 버전·빌드 시각을 안내 (배포 확인용)
   useEffect(() => {
-    toast.show(versionLabel())
+    toast.show(sharedTrackSaved ? '곡을 담았어요' : versionLabel())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   // 기본 켜기: 로그인하면 자동으로 알림 권한 요청 + 토큰 등록 (허용된 기기는 조용히 갱신)
@@ -434,6 +482,24 @@ export default function Main() {
 
       {formOpen && (
         <EventForm editing={editing} places={places} onClose={() => setFormOpen(false)} />
+      )}
+
+      {workspaceTemplate.id === 'band' && shareRequest?.youtubeUrl && (
+        <SharedTrackImport
+          initialUrl={shareRequest.youtubeUrl}
+          toast={toast}
+          onClose={() => setShareRequest(null)}
+          onSaved={() => {
+            try { sessionStorage.setItem(SHARED_TRACK_SAVED_KEY, '1') } catch { /* 저장소가 막힌 환경 */ }
+            const next = new URL(window.location.href)
+            next.pathname = '/'
+            next.searchParams.delete('title')
+            next.searchParams.delete('text')
+            next.searchParams.delete('url')
+            next.searchParams.set('nav', 'music')
+            window.location.replace(`${next.pathname}${next.search}${next.hash}`)
+          }}
+        />
       )}
 
       <Toast state={toast} />

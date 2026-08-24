@@ -15,6 +15,7 @@
  */
 package app.web.amicicalender.twa;
 
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Build;
@@ -44,11 +45,22 @@ public class LauncherActivity
 
     @Override
     protected Uri getLaunchingUrl() {
-        // Get the original launch Url.
-        Uri uri = super.getLaunchingUrl();
+        Intent intent = getIntent();
+        if (Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+            CharSequence sharedText = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+            CharSequence sharedTitle = intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT);
+            String text = sharedText == null ? null : sharedText.toString();
+            String title = sharedTitle == null ? null : sharedTitle.toString();
+            Uri.Builder sharedUrl = Uri.parse("https://amicicalender.web.app/share").buildUpon();
+            if (text != null && !text.trim().isEmpty()) {
+                sharedUrl.appendQueryParameter("text", text);
+            }
+            if (title != null && !title.trim().isEmpty()) {
+                sharedUrl.appendQueryParameter("title", title);
+            }
+            return sharedUrl.build();
+        }
 
-        
-
-        return uri;
+        return super.getLaunchingUrl();
     }
 }

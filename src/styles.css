@@ -1816,6 +1816,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
   padding: 14px 14px; color: inherit; font: inherit;
 }
 .picker-row:hover { border-color: var(--line-strong); }
+.share-import-hint { margin: -2px 0 14px; }
 .picker-name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 700; letter-spacing: -0.01em;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn.picker-add { flex: 0 0 auto; width: auto; padding: 8px 14px; font-size: 13px; border-radius: 10px; }

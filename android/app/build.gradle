@@ -69,8 +69,8 @@ android {
         // Samsung Health Data SDK 1.1.0 supports Android 10 (API 29) or later.
         minSdkVersion 29
         targetSdkVersion 35
-        versionCode 6
-        versionName "0.9.4"
+        versionCode 7
+        versionName "0.9.5"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name

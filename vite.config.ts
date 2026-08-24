@@ -32,6 +32,12 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         scope: '/',
+        // Android에 설치된 PWA도 시스템 공유 목록에서 유튜브 링크를 받을 수 있게 한다.
+        share_target: {
+          action: '/share',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
         related_applications: [
           {
             platform: 'play',

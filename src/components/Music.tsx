@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useAuth } from '../auth'
 import {
   deletePlaylist,
@@ -33,6 +33,7 @@ import { DEMO } from '../demo'
 import { exportErrorMessage, exportPlaylistToYouTube, YouTubeExportError, type ExportResult } from '../ytexport'
 import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
 import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
+import Sheet from './Sheet'
 
 const MUSIC_FOLDER_CONFIG: FolderModuleConfig = {
   labels: {
@@ -56,6 +57,61 @@ const playlistRepository: FolderRepository<Playlist> = {
 export default function MusicView({ toast }: { toast: ToastState }) {
   return <FolderModule config={MUSIC_FOLDER_CONFIG} repository={playlistRepository}
     renderDetail={(playlist, onBack) => <PlaylistDetail playlist={playlist} toast={toast} onBack={onBack} />} />
+}
+
+/** Android 공유 목록에서 받은 유튜브 링크를 담을 밴드 재생목록을 먼저 고른다. */
+export function SharedTrackImport({
+  initialUrl,
+  toast,
+  onClose,
+  onSaved,
+}: {
+  initialUrl: string
+  toast: ToastState
+  onClose: () => void
+  onSaved?: () => void
+}) {
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [selected, setSelected] = useState<Playlist | null>(null)
+
+  useEffect(() => watchPlaylists(setPlaylists), [])
+  // 곡 추가 시트가 열리면 그 시트가 먼저 처리하고, 목록 단계에서는 공유 흐름 전체를 닫는다.
+  useBackHandler(onClose)
+
+  if (selected) {
+    return (
+      <TrackForm
+        playlistId={selected.id}
+        initialUrl={initialUrl}
+        toast={toast}
+        onClose={() => setSelected(null)}
+        onSaved={onSaved ?? onClose}
+      />
+    )
+  }
+
+  return (
+    <Sheet onClose={onClose}>
+      <h2>공유 영상 담기</h2>
+      <p className="hint share-import-hint">이 영상을 담을 재생목록을 골라주세요.</p>
+      <div className="picker-list">
+        {playlists.length === 0 && (
+          <p className="setlist-empty">재생목록이 없어요. 음악 탭에서 먼저 만들어 주세요.</p>
+        )}
+        {playlists.map((playlist) => (
+          <button key={playlist.id} type="button" className="picker-row" onClick={() => setSelected(playlist)}>
+            <span className="track-info">
+              <h3>{playlist.name}</h3>
+            </span>
+            <svg className="track-open-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
+        ))}
+      </div>
+      <div className="actions">
+        <button type="button" className="btn subtle block" onClick={onClose}>취소</button>
+      </div>
+    </Sheet>
+  )
 }
 
 /* ---------------- 재생목록 상세 (곡 목록) ---------------- */
@@ -675,19 +731,25 @@ function importErrorMessage(code: string): string {
 /* ---------------- 곡 추가 시트 (유튜브 링크 → 제목·가수 자동 입력 / 재생목록 일괄 가져오기) ---------------- */
 function TrackForm({
   playlistId,
+  initialUrl,
   toast,
   onClose,
+  onSaved,
 }: {
   playlistId: string
+  initialUrl?: string
   toast: ToastState
   onClose: () => void
+  onSaved?: () => void
 }) {
   const { member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose) // 뒤로가기로 곡 추가 시트 닫기
-  const [url, setUrl] = useState('')
-  const [videoId, setVideoId] = useState<string | null>(null)
-  const [listId, setListId] = useState<string | null>(null)
+  const closeAfterSave = onSaved ?? onClose
+  const sharedUrl = initialUrl?.trim() ?? ''
+  const [url, setUrl] = useState(sharedUrl)
+  const [videoId, setVideoId] = useState<string | null>(() => parseVideoId(sharedUrl))
+  const [listId, setListId] = useState<string | null>(() => parsePlaylistId(sharedUrl))
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
   const [fetching, setFetching] = useState(false)
@@ -705,7 +767,7 @@ function TrackForm({
   const lastFetchedId = useRef<string | null>(null)
   const reqSeq = useRef(0)
 
-  async function loadMeta(id: string) {
+  const loadMeta = useCallback(async (id: string) => {
     if (lastFetchedId.current === id) return
     lastFetchedId.current = id
     const seq = ++reqSeq.current
@@ -722,7 +784,12 @@ function TrackForm({
     } finally {
       if (seq === reqSeq.current) setFetching(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const id = parseVideoId(initialUrl ?? '')
+    if (id) void loadMeta(id)
+  }, [initialUrl, loadMeta])
 
   // 유튜브 검색 (버튼/엔터로만 — 할당량 절약)
   async function runSearch() {
@@ -806,7 +873,7 @@ function TrackForm({
         setImportMsg(`${done} / ${songs.length}곡 담는 중…`)
       }
       toast.show(`${done}곡을 담았어요`)
-      onClose()
+      closeAfterSave()
     } catch (e) {
       const code = e instanceof PlaylistImportError ? e.code : (e as { code?: string })?.code ?? ''
       setImportMsg('')
@@ -847,7 +914,7 @@ function TrackForm({
       }
       await saveTrack(playlistId, t)
       toast.show('곡을 담았어요')
-      onClose()
+      closeAfterSave()
     } catch (e) {
       const code = (e as { code?: string })?.code ?? ''
       setErr(
@@ -880,7 +947,7 @@ function TrackForm({
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runSearch() } }}
               placeholder="곡 제목·가수로 검색"
               maxLength={80}
-              autoFocus
+              autoFocus={!initialUrl}
             />
             <button type="button" className="btn primary yt-search-btn" onClick={() => void runSearch()} disabled={!query.trim() || searching}>
               {searching ? '…' : '검색'}
