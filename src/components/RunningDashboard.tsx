@@ -884,6 +884,32 @@ function quantile(values: number[], ratio: number): number {
   return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower)
 }
 
+interface PaceHeartPoint {
+  paceSec: number
+  hr: number
+}
+
+/** 센서 오류와 한두 건의 극단값이 전체 축을 늘리지 않도록 양쪽 IQR 이상치를 제거한다. */
+function withoutPaceHeartOutliers<T extends PaceHeartPoint>(points: T[]): T[] {
+  const valid = points.filter(({ paceSec, hr }) =>
+    Number.isFinite(paceSec) && paceSec >= 120 && paceSec <= 1200 &&
+    Number.isFinite(hr) && hr >= 40 && hr <= 230)
+  if (valid.length < 4) return valid
+
+  const fence = (values: number[]): [number, number] | null => {
+    const q1 = quantile(values, 0.25)
+    const q3 = quantile(values, 0.75)
+    const iqr = q3 - q1
+    if (iqr <= 0) return null
+    return [q1 - iqr * 1.5, q3 + iqr * 1.5]
+  }
+  const paceFence = fence(valid.map((point) => point.paceSec))
+  const heartFence = fence(valid.map((point) => point.hr))
+  return valid.filter(({ paceSec, hr }) =>
+    (!paceFence || (paceSec >= paceFence[0] && paceSec <= paceFence[1])) &&
+    (!heartFence || (hr >= heartFence[0] && hr <= heartFence[1])))
+}
+
 function AllRunAnalysis({ runs, onSelect }: { runs: Run[]; onSelect: (id: string) => void }) {
   return (
     <div className="run-analysis">
@@ -896,16 +922,19 @@ function AllRunAnalysis({ runs, onSelect }: { runs: Run[]; onSelect: (id: string
 
 /** 전체 러닝 평균값의 페이스↔심박 상관. */
 function AllRunCorrelation({ runs }: { runs: Run[] }) {
-  const pts = runs
+  const rawPoints = runs
     .filter((r) => r.paceSecPerKm !== undefined && r.avgHr !== undefined)
     .sort((a, b) => a.startMs - b.startMs)
+    .map((r) => ({ paceSec: r.paceSecPerKm as number, hr: r.avgHr as number }))
+  const points = withoutPaceHeartOutliers(rawPoints)
+  const excluded = rawPoints.length - points.length
   return (
     <section className="run-analysis-section">
-      <div className="run-sec-t">페이스 ↔ 심박 <span className="run-sec-hint">같은 페이스·낮은 심박 = 향상</span></div>
-      {pts.length >= 3 ? (
-        <Scatter points={pts.map((r) => ({ paceSec: r.paceSecPerKm as number, hr: r.avgHr as number }))} />
+      <div className="run-sec-t">페이스 ↔ 심박 <span className="run-sec-hint">같은 페이스·낮은 심박 = 향상{excluded > 0 ? ` · 이상치 ${excluded}건 제외` : ''}</span></div>
+      {points.length >= 3 ? (
+        <Scatter points={points} />
       ) : (
-        <p className="hint" style={{ margin: '0 2px' }}>러닝 3건 이상 쌓이면 상관관계 그래프가 표시돼요.</p>
+        <p className="hint" style={{ margin: '0 2px' }}>이상치를 제외한 유효한 러닝 3건 이상부터 상관관계 그래프가 표시돼요.</p>
       )}
     </section>
   )
@@ -1000,16 +1029,20 @@ function Scatter({ points, highlightIdx, radius = 5, legendStart = '과거', leg
   const hrs = points.map((p) => p.hr)
   const pMin = Math.min(...paces), pMax = Math.max(...paces)
   const hMin = Math.min(...hrs), hMax = Math.max(...hrs)
-  const px = (p: number) => padL + (pMax === pMin ? 0.5 : (pMax - p) / (pMax - pMin)) * (W - padL - padR)
-  const py = (h: number) => padT + (hMax === hMin ? 0.5 : (hMax - h) / (hMax - hMin)) * (H - padT - padB)
+  const paceGap = pMax === pMin ? 10 : Math.max(5, (pMax - pMin) * 0.06)
+  const heartGap = hMax === hMin ? 3 : Math.max(2, (hMax - hMin) * 0.08)
+  const paceLow = pMin - paceGap, paceHigh = pMax + paceGap
+  const heartLow = Math.max(30, hMin - heartGap), heartHigh = Math.min(240, hMax + heartGap)
+  const px = (p: number) => padL + (paceHigh - p) / (paceHigh - paceLow) * (W - padL - padR)
+  const py = (h: number) => padT + (heartHigh - h) / (heartHigh - heartLow) * (H - padT - padB)
   const n = points.length
   return (
     <div className="run-scatter-wrap">
       <svg className="run-scatter" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`페이스 대 심박 산점도, ${legendStart}부터 ${legendEnd}까지 프리즘 색상`}>
         <line x1={padL} y1={H - padB} x2={W - padR} y2={H - padB} stroke="var(--line-strong)" strokeWidth="1" />
         <line x1={padL} y1={padT} x2={padL} y2={H - padB} stroke="var(--line-strong)" strokeWidth="1" />
-        <text x={4} y={padT + 8} className="run-ax">{Math.round(hMax)}</text>
-        <text x={4} y={H - padB} className="run-ax">{Math.round(hMin)}</text>
+        <text x={4} y={padT + 8} className="run-ax">{Math.round(heartHigh)}</text>
+        <text x={4} y={H - padB} className="run-ax">{Math.round(heartLow)}</text>
         <text x={padL} y={H - 6} className="run-ax">느림</text>
         <text x={W - padR - 24} y={H - 6} className="run-ax">빠름</text>
         {points.map((p, i) => {
