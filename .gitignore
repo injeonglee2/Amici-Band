@@ -35,6 +35,7 @@ firebase-adminsdk*.json
 
 # Android (PWABuilder/TWA source is kept under android/)
 android/.gradle/
+android/.gradle-user-home/
 android/**/build/
 android/local.properties
 android/keystore.properties
@@ -43,3 +44,12 @@ android/*.jks
 android/*.apk
 android/*.aab
 android/*.idsig
+# Samsung Health Data SDK is distributed under Samsung's download terms.
+# Keep the vendor binary local and follow android/SAMSUNG_HEALTH.md when setting up a build.
+android/app/libs/*.aar
+
+# Local Codex attachments and generated artifacts
+.codex-remote-attachments/
+output/
+tmp/
+public/downloads/*.apk

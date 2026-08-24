@@ -24,6 +24,7 @@
 
 
         <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+        <uses-permission android:name="android.permission.INTERNET"/>
 
 
     
@@ -42,6 +43,27 @@
         
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Translucent.NoTitleBar">
+
+        <meta-data
+            android:name="com.samsung.android.sdk.health.data.MIGRATION_COMPLETED"
+            android:value="true" />
+
+        <activity
+            android:name=".SamsungHealthSyncActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="amici" android:host="samsung-health" android:pathPrefix="/sync" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".shealth.SamsungHealthDataSyncActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
 
         <meta-data
             android:name="asset_statements"

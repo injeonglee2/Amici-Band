@@ -35,6 +35,25 @@ export interface BillingDailyUsage {
   storageBytes: number
 }
 
+export type SamsungHealthSyncRange = '90d' | '1y' | 'all'
+
+export interface SamsungHealthSyncSession {
+  token: string
+  uploadUrl: string
+  startTime: number
+  endTime: number
+  incremental: boolean
+}
+
+export async function createSamsungHealthSyncSession(folderId: string, range: SamsungHealthSyncRange): Promise<SamsungHealthSyncSession> {
+  const call = httpsCallable<{ bandId: string; folderId: string; range: SamsungHealthSyncRange }, SamsungHealthSyncSession>(
+    requireFunctions(),
+    'createSamsungHealthSyncSession',
+  )
+  const result = await call({ bandId: getCurrentBand(), folderId, range })
+  return result.data
+}
+
 export async function getBillingUsageStats(days = 30): Promise<{ rows: BillingDailyUsage[]; generatedAt: number; timezone: string; storageAvailable: boolean }> {
   const call = httpsCallable<{ days: number }, { rows: BillingDailyUsage[]; generatedAt: number; timezone: string; storageAvailable: boolean }>(requireFunctions(), 'getBillingUsageStats')
   const result = await call({ days })

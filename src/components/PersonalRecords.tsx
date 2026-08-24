@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth'
 import { useBackHandler } from '../backnav'
-import { deletePersonalRecordEntry, deletePersonalRecordFolder, newId, savePersonalRecordEntry, savePersonalRecordFolder, uploadPersonalRecordFile, watchPersonalRecordEntries, watchPersonalRecordFolders, watchRunningEntries } from '../data'
+import { createSamsungHealthSyncSession, deletePersonalRecordEntry, deletePersonalRecordFolder, newId, savePersonalRecordEntry, savePersonalRecordFolder, uploadPersonalRecordFile, watchPersonalRecordEntries, watchPersonalRecordFolders, watchRunningEntries, type SamsungHealthSyncRange } from '../data'
 import type { PersonalRecordEntry, RecordingFolder, RunningEntry, ScoreFile } from '../types'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import FolderModule, { FolderForm, type FolderModuleConfig, type FolderRepository } from './FolderModule'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import RunningDashboard from './RunningDashboard'
+import { isSamsungHealthSyncEnvironment, launchSamsungHealthSync } from '../samsungHealth'
 
 const RECORD_FOLDER_CONFIG: FolderModuleConfig = {
   labels: { folder: '기록 폴더', empty: '기록 폴더가 없어요.', add: '폴더', createTitle: '새 기록 폴더', editTitle: '기록 폴더 수정', name: '폴더 이름', placeholder: '예) 일상, 공부, 생각 정리', deleteConfirm: (name) => `'${name}' 기록 폴더와 안의 파일을 모두 삭제할까요?` },
@@ -34,7 +35,7 @@ export default function PersonalRecords({ toast }: { toast: ToastState }) {
 }
 
 function RecordFolderDetail({ folder, onBack, toast, config }: { folder: RecordingFolder; onBack: () => void; toast: ToastState; config: FolderModuleConfig }) {
-  if (folder.templateId === 'running') return <RunningFolderDetail folder={folder} onBack={onBack} config={config} />
+  if (folder.templateId === 'running') return <RunningFolderDetail folder={folder} onBack={onBack} config={config} toast={toast} />
   return <RecordFilesDetail folder={folder} onBack={onBack} toast={toast} config={config} />
 }
 
@@ -71,12 +72,42 @@ function RecordFilesDetail({ folder, onBack, toast, config }: { folder: Recordin
 }
 
 /** 러닝 폴더: 엔트리의 모든 필드를 그대로 덤프해 표시 (Health Connect 연동 시 데이터가 채워짐) */
-function RunningFolderDetail({ folder, onBack, config }: { folder: RecordingFolder; onBack: () => void; config: FolderModuleConfig }) {
+function RunningFolderDetail({ folder, onBack, config, toast }: { folder: RecordingFolder; onBack: () => void; config: FolderModuleConfig; toast: ToastState }) {
   const [entries, setEntries] = useState<RunningEntry[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [editing, setEditing] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncRange, setSyncRange] = useState<SamsungHealthSyncRange>('90d')
+  const canSync = isSamsungHealthSyncEnvironment()
   useBackHandler(onBack)
   useEffect(() => watchRunningEntries(folder.id, setEntries, () => setLoadErr('러닝 데이터를 불러오지 못했어요.')), [folder.id])
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const result = url.searchParams.get('healthSync')
+    const imported = Number(url.searchParams.get('healthImported'))
+    if (!result) return
+    url.searchParams.delete('healthSync')
+    url.searchParams.delete('healthImported')
+    window.history.replaceState({}, '', url)
+    if (result === 'success') toast.show(`삼성 헬스 러닝 기록 ${Number.isFinite(imported) ? imported : 0}건을 확인했어요`)
+    else if (result === 'permission-denied') toast.show('삼성 헬스에서 운동 데이터 읽기를 허용해 주세요')
+    else if (result === 'sdk-missing') toast.show('Samsung Health Data SDK가 포함된 최신 앱이 필요해요')
+    else toast.show('삼성 헬스 동기화를 시작하려면 Android 앱을 업데이트해 주세요')
+  }, [toast])
+
+  async function syncSamsungHealth() {
+    if (!canSync || syncing) return
+    setSyncing(true)
+    try {
+      const session = await createSamsungHealthSyncSession(folder.id, syncRange)
+      launchSamsungHealthSync({ ...session, folderId: folder.id })
+    } catch (error) {
+      const message = (error as { message?: string })?.message
+      toast.show(message || '동기화 준비에 실패했어요')
+      setSyncing(false)
+    }
+  }
   return <>
     <main className="scroll">
       <div className="detail-bar rec-folder-bar">
@@ -84,6 +115,21 @@ function RunningFolderDetail({ folder, onBack, config }: { folder: RecordingFold
         <b>{folder.name}</b>
         <button type="button" className="edit-btn" onClick={() => setEditing(true)} aria-label="폴더 수정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg></button>
       </div>
+      <section className="run-sync-card">
+        <div className="run-sync-copy">
+          <b>Samsung Health</b>
+          <p>{syncRange === 'all' ? '전체 기록을 처음 가져온 뒤에는 변경분만 빠르게 동기화합니다.' : `${syncRange === '1y' ? '최근 1년' : '최근 90일'} 러닝 기록을 가져옵니다.`}</p>
+        </div>
+        <button type="button" className="btn primary" onClick={() => void syncSamsungHealth()} disabled={!canSync || syncing}>
+          {syncing ? '연결 중…' : '동기화'}
+        </button>
+        <div className="run-sync-ranges" role="radiogroup" aria-label="동기화 기간">
+          {([['90d', '90일'], ['1y', '1년'], ['all', '전체']] as const).map(([value, label]) => (
+            <button key={value} type="button" role="radio" aria-checked={syncRange === value} className={syncRange === value ? 'on' : ''} onClick={() => setSyncRange(value)} disabled={syncing}>{label}</button>
+          ))}
+        </div>
+        {!canSync && <p className="run-sync-note">삼성 헬스 동기화는 Android Amici 앱에서 사용할 수 있어요.</p>}
+      </section>
       {loadErr && <div className="banner-err">{loadErr}</div>}
       {!loadErr && <RunningDashboard entries={entries} />}
       {!!entries.length && (

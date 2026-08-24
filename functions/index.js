@@ -9,7 +9,7 @@
  * 배포: firebase deploy --only functions   (Blaze 요금제 필요)
  */
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
-const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https')
 const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { setGlobalOptions } = require('firebase-functions/v2')
 const { defineSecret } = require('firebase-functions/params')
@@ -18,6 +18,7 @@ const { FieldValue, getFirestore } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
 const { MetricServiceClient } = require('@google-cloud/monitoring')
 const webpush = require('web-push')
+const crypto = require('crypto')
 
 initializeApp()
 const db = getFirestore()
@@ -38,6 +39,132 @@ setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 })
 
 /** 밴드 문서 참조 */
 const bandRef = (bandId) => db.collection('bands').doc(bandId)
+
+const healthSyncSessionRef = (hash) => db.collection('healthSyncSessions').doc(hash)
+const healthSyncHash = (token) => crypto.createHash('sha256').update(token).digest('hex')
+
+/** Samsung Health 네이티브 리더가 사용할 10분짜리 일회용 업로드 세션. */
+exports.createSamsungHealthSyncSession = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
+  const bandId = String(req.data && req.data.bandId || '')
+  const folderId = String(req.data && req.data.folderId || '')
+  const range = String(req.data && req.data.range || '90d')
+  if (!bandId || !folderId) throw new HttpsError('invalid-argument', '채널과 러닝 폴더가 필요해요.')
+  if (!['90d', '1y', 'all'].includes(range)) throw new HttpsError('invalid-argument', '지원하지 않는 동기화 기간이에요.')
+
+  const [bandSnap, folderSnap] = await Promise.all([
+    bandRef(bandId).get(),
+    bandRef(bandId).collection('recordFolders').doc(folderId).get(),
+  ])
+  if (!bandSnap.exists || bandSnap.get('ownerUid') !== req.auth.uid) {
+    throw new HttpsError('permission-denied', '개인 채널 소유자만 동기화할 수 있어요.')
+  }
+  if (!folderSnap.exists || folderSnap.get('templateId') !== 'running') {
+    throw new HttpsError('failed-precondition', '러닝 폴더를 찾을 수 없어요.')
+  }
+
+  const now = Date.now()
+  let startTime = now - (range === '1y' ? 365 : 90) * 86400000
+  let incremental = false
+  if (range === 'all') {
+    const latest = await bandRef(bandId).collection('recordFolders').doc(folderId)
+      .collection('entries').orderBy('startTime', 'desc').limit(1).get()
+    if (folderSnap.get('samsungHealthFullSyncAt') && !latest.empty) {
+      // 수정되거나 늦게 들어온 운동을 놓치지 않도록 마지막 기록과 7일 겹친다.
+      startTime = Math.max(Date.UTC(2000, 0, 1), Number(latest.docs[0].get('startTime')) - 7 * 86400000)
+      incremental = true
+    } else {
+      startTime = Date.UTC(2000, 0, 1)
+    }
+  }
+
+  const token = crypto.randomBytes(32).toString('base64url')
+  await healthSyncSessionRef(healthSyncHash(token)).set({
+    uid: req.auth.uid,
+    bandId,
+    folderId,
+    range,
+    uploadedCount: 0,
+    createdAt: now,
+    expiresAt: now + 30 * 60 * 1000,
+  })
+  return {
+    token,
+    uploadUrl: 'https://asia-northeast3-amicicalender.cloudfunctions.net/uploadSamsungHealthRuns',
+    startTime,
+    endTime: now,
+    incremental,
+  }
+})
+
+function cleanFinite(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : undefined
+}
+
+function cleanSamsungRun(run) {
+  const startTime = cleanFinite(run && run.startTime)
+  const endTime = cleanFinite(run && run.endTime)
+  if (!run || !run.sourceId || !startTime || !endTime || endTime <= startTime) return null
+  const cleaned = {
+    source: 'samsung-health',
+    sourceId: String(run.sourceId).slice(0, 200),
+    startTime,
+    endTime,
+    durationSec: cleanFinite(run.durationSec) || Math.round((endTime - startTime) / 1000),
+    syncedAt: Date.now(),
+  }
+  for (const key of ['distanceM', 'avgHr', 'maxHr', 'calories', 'steps', 'avgCadence', 'maxCadence', 'altitudeGain', 'vo2Max']) {
+    const value = cleanFinite(run[key])
+    if (value !== undefined) cleaned[key] = value
+  }
+  if (run.title) cleaned.title = String(run.title).slice(0, 100)
+  if (Array.isArray(run.samples)) {
+    cleaned.samples = run.samples.slice(0, 5000).map((sample) => ({
+      t: cleanFinite(sample && sample.t),
+      hr: cleanFinite(sample && sample.hr),
+      speed: cleanFinite(sample && sample.speed),
+      cadence: cleanFinite(sample && sample.cadence),
+    })).filter((sample) => Object.values(sample).some((value) => value !== undefined))
+  }
+  return cleaned
+}
+
+/** Android Samsung Health Data SDK 리더가 선택한 러닝 요약을 Firestore에 저장한다. */
+exports.uploadSamsungHealthRuns = onRequest(async (req, res) => {
+  if (req.method !== 'POST') { res.status(405).json({ error: 'method-not-allowed' }); return }
+  const token = String(req.body && req.body.token || '')
+  const sessionRef = healthSyncSessionRef(healthSyncHash(token))
+  const sessionSnap = token ? await sessionRef.get() : null
+  if (!sessionSnap || !sessionSnap.exists || sessionSnap.get('expiresAt') < Date.now()) {
+    res.status(401).json({ error: 'expired-session' }); return
+  }
+  const runs = Array.isArray(req.body && req.body.runs)
+    ? req.body.runs.slice(0, 100).map(cleanSamsungRun).filter(Boolean)
+    : []
+  const complete = req.body && req.body.complete === true
+  const { bandId, folderId, uid, range } = sessionSnap.data()
+  const batch = db.batch()
+  runs.forEach((run) => {
+    const id = crypto.createHash('sha256').update(`${uid}:${run.sourceId}`).digest('hex').slice(0, 32)
+    batch.set(bandRef(bandId).collection('recordFolders').doc(folderId).collection('entries').doc(id), run, { merge: true })
+  })
+  if (complete) {
+    if (range === 'all') {
+      batch.set(bandRef(bandId).collection('recordFolders').doc(folderId), {
+        samsungHealthFullSyncAt: Date.now(),
+      }, { merge: true })
+    }
+    batch.delete(sessionRef)
+  } else {
+    batch.update(sessionRef, {
+      uploadedCount: FieldValue.increment(runs.length),
+      expiresAt: Date.now() + 30 * 60 * 1000,
+    })
+  }
+  await batch.commit()
+  res.status(200).json({ imported: runs.length, complete })
+})
 
 // 소유자 전용: Cloud Monitoring의 Firestore 과금 기준 지표를 최근 N일 일별로 집계한다.
 exports.getBillingUsageStats = onCall(async (req) => {

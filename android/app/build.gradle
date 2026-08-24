@@ -66,7 +66,8 @@ android {
     namespace "app.web.amicicalender.twa"
     defaultConfig {
         applicationId "app.web.amicicalender.twa"
-        minSdkVersion 23
+        // Samsung Health Data SDK 1.1.0 supports Android 10 (API 29) or later.
+        minSdkVersion 29
         targetSdkVersion 35
         versionCode 5
         versionName "0.9.3"
@@ -180,8 +181,9 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        // Samsung Health Data SDK 1.1.0 requires Java 17 or later.
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
     lintOptions {
         checkReleaseBuilds false
@@ -230,7 +232,14 @@ repositories {
 }
 
 dependencies {
-    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    // Samsung 공식 패키지의 samsung-health-data-api-*.aar 를 app/libs 에 두면 자동 포함된다.
+    implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
+    implementation 'com.google.code.gson:gson:2.13.2'
+    // The SDK itself is Kotlin/coroutine based even though Amici uses its Java async API.
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
+    // ReadDataRequest is Parcelable and references kotlinx.parcelize.Parceler at runtime.
+    implementation 'org.jetbrains.kotlin:kotlin-parcelize-runtime:2.1.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
 
         implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
 
