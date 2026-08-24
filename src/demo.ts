@@ -196,6 +196,25 @@ function genSamples(avgPaceSec: number, avgHr: number, maxHr: number): { hr: num
   }
   return out
 }
+function genSplits(km: number, durationSec: number, avgHr: number): RunningEntry['splits'] {
+  const distances: number[] = Array.from({ length: Math.floor(km) }, () => 1000)
+  const remainder = Math.round((km - Math.floor(km)) * 1000)
+  if (remainder >= 200) distances.push(remainder)
+  const weights = distances.map((distanceM, index) => (distanceM / 1000) * (1 + 0.045 * Math.sin(index * 1.7) - 0.025 * Math.cos(index * 0.9)))
+  const scale = durationSec / weights.reduce((sum, weight) => sum + weight, 0)
+  return distances.map((distanceM, index) => {
+    const splitDuration = weights[index] * scale
+    return {
+      index: index + 1,
+      distanceM,
+      durationSec: Math.round(splitDuration),
+      paceSecPerKm: splitDuration / (distanceM / 1000),
+      avgHr: Math.round(avgHr - 5 + index * 1.8 + Math.sin(index) * 2),
+      avgCadence: Math.round(158 + index * 1.2 + Math.cos(index) * 2),
+      partial: distanceM < 950,
+    }
+  })
+}
 function buildDemoRuns(): RunningEntry[] {
   return runSpecs.map(([daysAgo, km, min, avgHr, maxHr], i) => {
     const startTime = now - daysAgo * 86400000
@@ -213,6 +232,7 @@ function buildDemoRuns(): RunningEntry[] {
       calories: Math.round(km * 65),
       steps: Math.round(km * 1450),
       samples: genSamples(durationSec / km, avgHr, maxHr),
+      splits: genSplits(km, durationSec, avgHr),
       createdAt: startTime,
     }
   })

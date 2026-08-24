@@ -9,7 +9,7 @@
  * 배포: firebase deploy --only functions   (Blaze 요금제 필요)
  */
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
-const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https')
 const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { setGlobalOptions } = require('firebase-functions/v2')
 const { defineSecret } = require('firebase-functions/params')
@@ -17,6 +17,7 @@ const { initializeApp } = require('firebase-admin/app')
 const { FieldValue, getFirestore } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
 const { MetricServiceClient } = require('@google-cloud/monitoring')
+const { createHash, randomBytes } = require('crypto')
 const webpush = require('web-push')
 
 initializeApp()
@@ -793,3 +794,171 @@ exports.syncRecordingsFromPlaylist = onSchedule(
     console.info('recordings auto-sync 완료', { bands: bands.size, added: totalAdded })
   },
 )
+
+/* ---------------- Android Health Connect → 개인 러닝 기록 ---------------- */
+const HEALTH_SYNC_TTL_MS = 10 * 60 * 1000
+const HEALTH_SYNC_MAX_RECORDS = 400
+const healthTokenHash = (token) => createHash('sha256').update(String(token)).digest('hex')
+const finiteNumber = (value) => {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : undefined
+}
+const boundedNumber = (value, min, max) => {
+  const number = finiteNumber(value)
+  return number !== undefined && number >= min && number <= max ? number : undefined
+}
+
+function sanitizeHealthSplit(raw, position) {
+  if (!raw || typeof raw !== 'object') return null
+  const distanceM = boundedNumber(raw.distanceM, 50, 5000)
+  const durationSec = boundedNumber(raw.durationSec, 5, 7200)
+  let paceSecPerKm = boundedNumber(raw.paceSecPerKm, 120, 1800)
+  if (paceSecPerKm === undefined && distanceM && durationSec) paceSecPerKm = durationSec / (distanceM / 1000)
+  if (!distanceM || !durationSec || !paceSecPerKm || paceSecPerKm < 120 || paceSecPerKm > 1800) return null
+  const split = {
+    index: Math.max(1, Math.round(boundedNumber(raw.index, 1, 200) || position + 1)),
+    distanceM,
+    durationSec,
+    paceSecPerKm,
+    partial: raw.partial === true || distanceM < 950,
+  }
+  const avgHr = boundedNumber(raw.avgHr, 20, 260)
+  const avgCadence = boundedNumber(raw.avgCadence, 20, 300)
+  const startTimeMs = boundedNumber(raw.startTimeMs, 946684800000, Date.now() + 86400000)
+  const endTimeMs = boundedNumber(raw.endTimeMs, 946684800000, Date.now() + 86400000)
+  if (avgHr !== undefined) split.avgHr = avgHr
+  if (avgCadence !== undefined) split.avgCadence = avgCadence
+  if (startTimeMs !== undefined) split.startTimeMs = startTimeMs
+  if (endTimeMs !== undefined) split.endTimeMs = endTimeMs
+  return split
+}
+
+function sanitizeHealthRecord(raw, folderId, now) {
+  if (!raw || typeof raw !== 'object') return null
+  const sourceId = String(raw.sourceId || '').trim().slice(0, 300)
+  const startTime = boundedNumber(raw.startTime, 946684800000, now + 86400000)
+  const endTime = boundedNumber(raw.endTime, 946684800000, now + 2 * 86400000)
+  const distanceM = boundedNumber(raw.distanceM, 100, 500000)
+  let durationSec = boundedNumber(raw.durationSec, 10, 7 * 86400)
+  if (durationSec === undefined && startTime && endTime && endTime > startTime) durationSec = (endTime - startTime) / 1000
+  if (!sourceId || !startTime || !distanceM || !durationSec) return null
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.date || ''))
+    ? String(raw.date)
+    : new Date(startTime).toISOString().slice(0, 10)
+  const splits = Array.isArray(raw.splits)
+    ? raw.splits.slice(0, 200).map(sanitizeHealthSplit).filter(Boolean)
+    : []
+  const record = {
+    folderId,
+    source: 'health-connect',
+    sourceId,
+    date,
+    startTime,
+    endTime: endTime && endTime > startTime ? endTime : startTime + durationSec * 1000,
+    distanceM,
+    durationSec,
+    splits,
+    createdAt: startTime,
+    syncedAt: now,
+  }
+  const optional = {
+    title: typeof raw.title === 'string' ? raw.title.trim().slice(0, 160) : '',
+    avgHr: boundedNumber(raw.avgHr, 20, 260),
+    maxHr: boundedNumber(raw.maxHr, 20, 280),
+    avgCadence: boundedNumber(raw.avgCadence, 20, 300),
+    maxCadence: boundedNumber(raw.maxCadence, 20, 350),
+    calories: boundedNumber(raw.calories, 0, 100000),
+    steps: boundedNumber(raw.steps, 0, 1000000),
+  }
+  Object.entries(optional).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') record[key] = value
+  })
+  return record
+}
+
+// 웹 로그인 사용자가 소유한 러닝 폴더에만 쓸 수 있는 10분짜리 일회용 토큰을 발급한다.
+exports.createSamsungHealthSyncSession = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
+  const bandId = String((req.data && req.data.bandId) || '')
+  const folderId = String((req.data && req.data.folderId) || '')
+  const range = String((req.data && req.data.range) || '90')
+  if (!bandId || !folderId) throw new HttpsError('invalid-argument', '채널과 러닝 폴더가 필요해요.')
+  const [band, folder] = await Promise.all([
+    bandRef(bandId).get(),
+    bandRef(bandId).collection('recordFolders').doc(folderId).get(),
+  ])
+  if (!band.exists || band.get('ownerUid') !== req.auth.uid) {
+    throw new HttpsError('permission-denied', '개인 채널 소유자만 동기화할 수 있어요.')
+  }
+  if (!folder.exists || folder.get('templateId') !== 'running') {
+    throw new HttpsError('failed-precondition', '러닝 폴더를 찾을 수 없어요.')
+  }
+  const rangeDays = range === 'all' ? 3650 : range === '365' ? 365 : 90
+  const token = randomBytes(32).toString('base64url')
+  const now = Date.now()
+  await db.collection('healthSyncSessions').doc(healthTokenHash(token)).set({
+    uid: req.auth.uid,
+    bandId,
+    folderId,
+    rangeDays,
+    status: 'ready',
+    createdAt: now,
+    expiresAt: now + HEALTH_SYNC_TTL_MS,
+  })
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'amicicalender'
+  const endpoint = `https://asia-northeast3-${projectId}.cloudfunctions.net/uploadSamsungHealthRuns`
+  const launchUrl = `amicicalender://health/sync?token=${encodeURIComponent(token)}&days=${rangeDays}&endpoint=${encodeURIComponent(endpoint)}`
+  return { launchUrl, expiresAt: now + HEALTH_SYNC_TTL_MS }
+})
+
+// Android 앱이 Health Connect에서 읽고 요약한 기록을 일회성 토큰으로 전달한다.
+exports.uploadSamsungHealthRuns = onRequest(async (req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'POST only' })
+    return
+  }
+  const authorization = String(req.get('authorization') || '')
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
+  if (!token || token.length > 200) {
+    res.status(401).json({ error: 'invalid token' })
+    return
+  }
+  const sessionRef = db.collection('healthSyncSessions').doc(healthTokenHash(token))
+  const now = Date.now()
+  let session
+  try {
+    session = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(sessionRef)
+      if (!snap.exists) throw new Error('TOKEN')
+      const data = snap.data()
+      if (Number(data.expiresAt) < now || data.status === 'used') throw new Error('TOKEN')
+      if (data.status === 'processing' && Number(data.processingAt) > now - 2 * 60 * 1000) throw new Error('BUSY')
+      tx.update(sessionRef, { status: 'processing', processingAt: now })
+      return data
+    })
+  } catch (error) {
+    res.status(error && error.message === 'BUSY' ? 409 : 401).json({ error: error && error.message === 'BUSY' ? 'sync in progress' : 'expired token' })
+    return
+  }
+  const rawRecords = req.body && Array.isArray(req.body.records) ? req.body.records : []
+  if (rawRecords.length > HEALTH_SYNC_MAX_RECORDS) {
+    await sessionRef.update({ status: 'ready', processingAt: FieldValue.delete() })
+    res.status(413).json({ error: 'too many records' })
+    return
+  }
+  const records = rawRecords.map((record) => sanitizeHealthRecord(record, session.folderId, now)).filter(Boolean)
+  try {
+    const batch = db.batch()
+    for (const record of records) {
+      const id = `hc_${createHash('sha256').update(record.sourceId).digest('hex').slice(0, 36)}`
+      batch.set(bandRef(session.bandId).collection('recordFolders').doc(session.folderId).collection('entries').doc(id), record, { merge: true })
+    }
+    batch.update(sessionRef, { status: 'used', usedAt: now, recordCount: records.length, processingAt: FieldValue.delete() })
+    await batch.commit()
+    res.status(200).json({ ok: true, count: records.length })
+  } catch (error) {
+    console.error('Health Connect ingest failed', error)
+    await sessionRef.update({ status: 'ready', processingAt: FieldValue.delete() }).catch(() => {})
+    res.status(500).json({ error: 'save failed' })
+  }
+})

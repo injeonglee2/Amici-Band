@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth'
 import { useBackHandler } from '../backnav'
-import { deletePersonalRecordEntry, deletePersonalRecordFolder, newId, savePersonalRecordEntry, savePersonalRecordFolder, uploadPersonalRecordFile, watchPersonalRecordEntries, watchPersonalRecordFolders, watchRunningEntries } from '../data'
+import { createRunningHealthSyncSession, deletePersonalRecordEntry, deletePersonalRecordFolder, newId, savePersonalRecordEntry, savePersonalRecordFolder, uploadPersonalRecordFile, watchPersonalRecordEntries, watchPersonalRecordFolders, watchRunningEntries } from '../data'
 import type { PersonalRecordEntry, RecordingFolder, RunningEntry, ScoreFile } from '../types'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import FolderModule, { FolderForm, type FolderModuleConfig, type FolderRepository } from './FolderModule'
+import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
+import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import RunningDashboard from './RunningDashboard'
+import Sheet from './Sheet'
 
 const RECORD_FOLDER_CONFIG: FolderModuleConfig = {
   labels: { folder: '기록 폴더', empty: '기록 폴더가 없어요.', add: '폴더', createTitle: '새 기록 폴더', editTitle: '기록 폴더 수정', name: '폴더 이름', placeholder: '예) 일상, 공부, 생각 정리', deleteConfirm: (name) => `'${name}' 기록 폴더와 안의 파일을 모두 삭제할까요?` },
@@ -30,33 +32,34 @@ export default function PersonalRecords({ toast }: { toast: ToastState }) {
   const isOwner = !!user && workspace?.ownerUid === user.uid
   // 소유자만 '러닝' 폴더 템플릿 선택 가능
   const config: FolderModuleConfig = isOwner ? { ...RECORD_FOLDER_CONFIG, templates: RECORD_TEMPLATES } : RECORD_FOLDER_CONFIG
-  return <FolderModule config={config} repository={recordFolderRepository} renderDetail={(folder, onBack) => <RecordFolderDetail folder={folder} onBack={onBack} toast={toast} config={config} />} />
+  return <FolderModule config={config} repository={recordFolderRepository} renderDetail={(folder, onBack) => <RecordFolderDetail folder={folder} onBack={onBack} toast={toast} />} />
 }
 
-function RecordFolderDetail({ folder, onBack, toast, config }: { folder: RecordingFolder; onBack: () => void; toast: ToastState; config: FolderModuleConfig }) {
-  if (folder.templateId === 'running') return <RunningFolderDetail folder={folder} onBack={onBack} config={config} />
-  return <RecordFilesDetail folder={folder} onBack={onBack} toast={toast} config={config} />
+function RecordFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder; onBack: () => void; toast: ToastState }) {
+  if (folder.templateId === 'running') return <RunningFolderDetail folder={folder} onBack={onBack} />
+  return <RecordFilesDetail folder={folder} onBack={onBack} toast={toast} />
 }
 
-function RecordFilesDetail({ folder, onBack, toast, config }: { folder: RecordingFolder; onBack: () => void; toast: ToastState; config: FolderModuleConfig }) {
+function RecordFilesDetail({ folder, onBack, toast }: { folder: RecordingFolder; onBack: () => void; toast: ToastState }) {
   const [entries, setEntries] = useState<PersonalRecordEntry[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(folder.name)
   const [adding, setAdding] = useState(false)
   const [viewing, setViewing] = useState<PersonalRecordEntry | null>(null)
-  useBackHandler(onBack)
+  useBackHandler(() => editing ? setEditing(false) : onBack())
   useEffect(() => watchPersonalRecordEntries(folder.id, setEntries, () => setLoadErr('기록을 불러오지 못했어요.')), [folder.id])
   async function remove(entry: PersonalRecordEntry) {
     if (!confirm(`'${entry.title}' 기록과 첨부 파일을 삭제할까요?`)) return
     try { await deletePersonalRecordEntry(entry); toast.show('기록을 삭제했어요') } catch { toast.show('기록을 삭제하지 못했어요') }
   }
+  async function done() { const name = draft.trim(); if (name && name !== folder.name) await recordFolderRepository.save({ ...folder, name }); setEditing(false) }
+  async function removeFolder() { if (!confirm(RECORD_FOLDER_CONFIG.labels.deleteConfirm(folder.name))) return; await recordFolderRepository.remove(folder); onBack() }
   return <>
     <main className="scroll">
-      <div className="detail-bar rec-folder-bar">
-        <button type="button" className="detail-back" onClick={onBack} aria-label="폴더 목록으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg></button>
-        <b>{folder.name}</b>
-        <button type="button" className="edit-btn" onClick={() => setEditing(true)} aria-label="폴더 수정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg></button>
-      </div>
+      <FolderDetailHeader className="rec-folder-bar" title={folder.name} editing={editing} draft={draft} editable onBack={onBack}
+        onEdit={() => { setDraft(folder.name); setEditing(true) }} onDraftChange={setDraft} onDone={() => void done()}
+        editActions={<FolderDeleteButton onClick={() => void removeFolder()} />} />
       {loadErr && <div className="banner-err">{loadErr}</div>}
       {!entries.length && !loadErr ? <div className="empty-state"><RecordIcon /><p>아직 기록이 없어요.<br />아래 <b>+ 기록 추가</b>로 이미지나 PDF를 올려보세요.</p></div> : <div className="rec-grid">{entries.map((entry) => <article key={entry.id} className="rec-card personal-video-card">
         <button type="button" className="personal-video-open" onClick={() => setViewing(entry)}><div className="rec-thumb">{entry.kind === 'images' && entry.files[0]?.url ? <img src={entry.files[0].url} alt="" loading="lazy" /> : <span className="rec-thumb-none"><PdfIcon /></span>}</div><div className="rec-meta"><h3>{entry.title}</h3><p>{entry.kind === 'pdf' ? 'PDF' : `이미지 ${entry.files.length}장`}</p></div></button>
@@ -66,24 +69,25 @@ function RecordFilesDetail({ folder, onBack, toast, config }: { folder: Recordin
     <button className="fab" onClick={() => setAdding(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>기록 추가</button>
     {adding && <RecordEntryForm folderId={folder.id} toast={toast} onClose={() => setAdding(false)} />}
     {viewing && <RecordViewer entry={viewing} onClose={() => setViewing(null)} />}
-    {editing && <FolderForm config={config} repository={recordFolderRepository} editing={folder} onClose={() => setEditing(false)} />}
   </>
 }
 
 /** 러닝 폴더: 엔트리의 모든 필드를 그대로 덤프해 표시 (Health Connect 연동 시 데이터가 채워짐) */
-function RunningFolderDetail({ folder, onBack, config }: { folder: RecordingFolder; onBack: () => void; config: FolderModuleConfig }) {
+function RunningFolderDetail({ folder, onBack }: { folder: RecordingFolder; onBack: () => void }) {
   const [entries, setEntries] = useState<RunningEntry[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [editing, setEditing] = useState(false)
-  useBackHandler(onBack)
+  const [syncOpen, setSyncOpen] = useState(false)
+  const [draft, setDraft] = useState(folder.name)
+  useBackHandler(() => editing ? setEditing(false) : onBack())
   useEffect(() => watchRunningEntries(folder.id, setEntries, () => setLoadErr('러닝 데이터를 불러오지 못했어요.')), [folder.id])
   return <>
     <main className="scroll">
-      <div className="detail-bar rec-folder-bar">
-        <button type="button" className="detail-back" onClick={onBack} aria-label="폴더 목록으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg></button>
-        <b>{folder.name}</b>
-        <button type="button" className="edit-btn" onClick={() => setEditing(true)} aria-label="폴더 수정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg></button>
-      </div>
+      <FolderDetailHeader className="rec-folder-bar" title={folder.name} editing={editing} draft={draft} editable onBack={onBack}
+        onEdit={() => { setDraft(folder.name); setEditing(true) }} onDraftChange={setDraft}
+        onSync={() => setSyncOpen(true)} syncLabel="Samsung Health 동기화"
+        onDone={() => void (async () => { const name = draft.trim(); if (name && name !== folder.name) await recordFolderRepository.save({ ...folder, name }); setEditing(false) })()}
+        editActions={<FolderDeleteButton onClick={() => void (async () => { if (!confirm(RECORD_FOLDER_CONFIG.labels.deleteConfirm(folder.name))) return; await recordFolderRepository.remove(folder); onBack() })()} />} />
       {loadErr && <div className="banner-err">{loadErr}</div>}
       {!loadErr && <RunningDashboard entries={entries} />}
       {!!entries.length && (
@@ -103,8 +107,39 @@ function RunningFolderDetail({ folder, onBack, config }: { folder: RecordingFold
         </details>
       )}
     </main>
-    {editing && <FolderForm config={config} repository={recordFolderRepository} editing={folder} onClose={() => setEditing(false)} />}
+    {syncOpen && <RunningSyncSheet folderId={folder.id} onClose={() => setSyncOpen(false)} />}
   </>
+}
+
+function RunningSyncSheet({ folderId, onClose }: { folderId: string; onClose: () => void }) {
+  const [range, setRange] = useState<'90' | '365' | 'all'>('90')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const android = /Android/i.test(navigator.userAgent)
+  async function sync() {
+    if (!android || busy) return
+    setBusy(true); setError('')
+    try {
+      const session = await createRunningHealthSyncSession(folderId, range)
+      window.location.assign(session.launchUrl)
+    } catch (reason) {
+      console.error('Health Connect sync session', reason)
+      setError('동기화를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.')
+      setBusy(false)
+    }
+  }
+  return <Sheet onClose={onClose}>
+    <h2>Samsung Health 동기화</h2>
+    <p className="hint run-sync-intro">Health Connect에 공유된 러닝과 1km 구간을 가져옵니다.</p>
+    <div className="segmented run-sync-range" role="radiogroup" aria-label="동기화 기간">
+      <button type="button" className={range === '90' ? 'on' : ''} onClick={() => setRange('90')}>90일</button>
+      <button type="button" className={range === '365' ? 'on' : ''} onClick={() => setRange('365')}>1년</button>
+      <button type="button" className={range === 'all' ? 'on' : ''} onClick={() => setRange('all')}>전체</button>
+    </div>
+    <p className="hint">삼성 헬스에서 먼저 Health Connect 공유를 허용해 주세요. 동기화는 Android Amici 앱에서 사용할 수 있어요.</p>
+    {error && <p className="form-error">{error}</p>}
+    <div className="actions"><button type="button" className="btn subtle" onClick={onClose}>닫기</button><button type="button" className="btn primary" disabled={!android || busy} title={android ? undefined : 'Android 앱에서 사용할 수 있어요'} onClick={() => void sync()}>{busy ? '연결 중…' : '동기화'}</button></div>
+  </Sheet>
 }
 
 /** 값 표시: 객체/배열은 JSON, 나머지는 문자열 */

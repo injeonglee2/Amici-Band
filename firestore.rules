@@ -90,6 +90,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Android Health Connect 일회용 업로드 토큰. 발급·사용은 Cloud Functions에서만 수행한다.
+    match /healthSyncSessions/{sessionId} {
+      allow read, write: if false;
+    }
+
     // 음악 재생목록: 로그인한 멤버는 읽기/쓰기 가능 (공동 관리)
     match /playlists/{playlistId} {
       allow read, write: if signedIn();

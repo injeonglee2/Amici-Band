@@ -9,6 +9,7 @@ import {
   savePersonalVideo,
   saveRecipeIngredient,
   saveVideoFolder,
+  updatePersonalVideoTitles,
   watchPersonalVideos,
   watchRecipeIngredients,
   watchVideoFolders,
@@ -16,9 +17,15 @@ import {
 import type { PersonalVideo, RecipeIngredient, RecordingFolder } from '../types'
 import { fetchVideoDescription, fetchYouTubeMeta, parseVideoId, thumbnailUrl, watchUrl } from '../youtube'
 import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlaylistTitle } from '../playlistImport'
-import FolderModule, { FolderForm, type FolderModuleConfig, type FolderRepository } from './FolderModule'
+import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
+import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
+import MediaListRow from './MediaListRow'
+import { compactYouTubeDescription } from '../youtubeDescription'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
+import { cleanPersonalVideoTitle } from '../videoTitle'
+
+const MACHINE_LEARNING_FOLDER = '혼자 공부하는 머신러닝+딥러닝'
 
 const VIDEO_FOLDER_CONFIG: FolderModuleConfig = {
   labels: {
@@ -50,9 +57,9 @@ const videoFolderRepository: FolderRepository<RecordingFolder> = {
         folderId: folder.id,
         videoId: song.videoId,
         url: song.url,
-        title: song.title || '제목 없는 영상',
+        title: cleanPersonalVideoTitle(song.title) || '제목 없는 영상',
         thumbnail: song.thumbnail,
-        note: song.description || undefined,
+        note: compactYouTubeDescription(song.description) || undefined,
         order: index,
         addedBy: folder.createdBy,
         createdAt: Date.now() + index,
@@ -76,13 +83,31 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
   const [adding, setAdding] = useState(false)
   const [addingIngredient, setAddingIngredient] = useState(false)
   const [editingFolder, setEditingFolder] = useState(false)
+  const [folderDraft, setFolderDraft] = useState(folder.name)
   const [playing, setPlaying] = useState<PersonalVideo | null>(null)
-  useBackHandler(onBack)
+  const titleCleanupStarted = useRef(false)
+  useBackHandler(() => editingFolder ? setEditingFolder(false) : onBack())
 
   useEffect(() => watchPersonalVideos(folder.id, setVideos, () => setLoadErr('영상을 불러오지 못했어요.')), [folder.id])
   useEffect(() => folder.templateId === 'recipe'
     ? watchRecipeIngredients(folder.id, setIngredients, () => setLoadErr('재료를 불러오지 못했어요.'))
     : undefined, [folder.id, folder.templateId])
+
+  useEffect(() => {
+    if (titleCleanupStarted.current || folder.name !== MACHINE_LEARNING_FOLDER || !videos.length) return
+    const updates = videos
+      .map((video) => ({ id: video.id, title: cleanPersonalVideoTitle(video.title), previous: video.title }))
+      .filter((video) => video.title && video.title !== video.previous)
+      .map(({ id, title }) => ({ id, title }))
+    if (!updates.length) return
+    titleCleanupStarted.current = true
+    void updatePersonalVideoTitles(folder.id, updates)
+      .then(() => toast.show(`영상 제목 ${updates.length}개를 정리했어요`))
+      .catch(() => {
+        titleCleanupStarted.current = false
+        toast.show('영상 제목을 정리하지 못했어요')
+      })
+  }, [folder.id, folder.name, toast, videos])
 
   const isRecipe = folder.templateId === 'recipe'
   const visibleVideos = ingredientFilter === 'all'
@@ -104,19 +129,15 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
       toast.show('삭제하지 못했어요')
     }
   }
+  async function finishFolderEdit() { const name = folderDraft.trim(); if (name && name !== folder.name) await videoFolderRepository.save({ ...folder, name }); setEditingFolder(false) }
+  async function removeFolder() { if (!confirm(VIDEO_FOLDER_CONFIG.labels.deleteConfirm(folder.name))) return; await videoFolderRepository.remove(folder); onBack() }
 
   return (
     <>
       <main className="scroll">
-        <div className="detail-bar rec-folder-bar">
-          <button type="button" className="detail-back" onClick={onBack} aria-label="폴더 목록으로">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-          </button>
-          <b>{folder.name}</b>
-          <button type="button" className="edit-btn" onClick={() => setEditingFolder(true)} aria-label="폴더 수정">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg>
-          </button>
-        </div>
+        <FolderDetailHeader className="rec-folder-bar" title={folder.name} editing={editingFolder} draft={folderDraft} editable onBack={onBack}
+          onEdit={() => { setFolderDraft(folder.name); setEditingFolder(true) }} onDraftChange={setFolderDraft}
+          onDone={() => void finishFolderEdit()} editActions={<FolderDeleteButton onClick={() => void removeFolder()} />} />
         {isRecipe && <div className="segmented recipe-sections" role="tablist" aria-label="레시피 폴더 메뉴">
           <button type="button" className={section === 'videos' ? 'on' : ''} onClick={() => setSection('videos')}>영상</button>
           <button type="button" className={section === 'ingredients' ? 'on' : ''} onClick={() => setSection('ingredients')}>재료 <span>{ingredients.length}</span></button>
@@ -139,15 +160,11 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
               return <button key={ingredient.id} type="button" className="chip" aria-pressed={ingredientFilter === ingredient.id} onClick={() => setIngredientFilter(ingredient.id)}>{ingredient.name} <span>{count}</span></button>
             })}
           </div>}
-          {visibleVideos.length === 0 ? <div className="empty-state compact"><span className="ingredient-empty-icon">🥕</span><p>이 재료가 포함된 영상이 없어요.</p></div> : <div className="rec-grid personal-video-grid">
+          {visibleVideos.length === 0 ? <div className="empty-state compact"><span className="ingredient-empty-icon">🥕</span><p>이 재료가 포함된 영상이 없어요.</p></div> : <div className="media-list personal-video-list">
             {visibleVideos.map((video) => (
-              <article key={video.id} className="rec-card personal-video-card">
-                <button type="button" className="personal-video-open" onClick={() => setPlaying(video)}>
-                  <div className="rec-thumb"><img src={video.thumbnail || thumbnailUrl(video.videoId)} alt="" loading="lazy" /><span className="personal-play"><VideoIcon /></span></div>
-                  <div className="rec-meta"><h3>{video.title}</h3>{(video.recipe || video.note) && <p>{video.recipe || video.note}</p>}</div>
-                </button>
-                <button type="button" className="personal-video-delete" onClick={() => void remove(video)} aria-label="영상 삭제">×</button>
-              </article>
+              <MediaListRow key={video.id} thumbnail={video.thumbnail || thumbnailUrl(video.videoId)} title={video.title}
+                subtitle={video.recipe || video.note} onOpen={() => setPlaying(video)}
+                trailing={<button type="button" className="media-list-delete" onClick={() => void remove(video)} aria-label="영상 삭제">×</button>} />
             ))}
           </div>}
           </>
@@ -158,7 +175,6 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
         <button className="fab" onClick={() => setAdding(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>영상 추가</button>}
       {adding && <VideoForm folderId={folder.id} ingredients={ingredients} isRecipe={isRecipe} nextOrder={videos.length ? Math.max(...videos.map((v) => v.order)) + 1 : 0} onClose={() => setAdding(false)} />}
       {addingIngredient && <IngredientForm folderId={folder.id} nextOrder={ingredients.length ? Math.max(...ingredients.map((v) => v.order)) + 1 : 0} onClose={() => setAddingIngredient(false)} />}
-      {editingFolder && <FolderForm config={VIDEO_FOLDER_CONFIG} repository={videoFolderRepository} editing={folder} onClose={() => setEditingFolder(false)} />}
       {playing && <VideoPlayer video={playing} ingredients={ingredients} onClose={() => setPlaying(null)} />}
     </>
   )
@@ -201,8 +217,9 @@ function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { fo
         if (request !== metaRequest.current) return
         if (meta.title) setTitle((current) => {
           if (current.trim() && current !== autoTitle.current) return current
-          autoTitle.current = meta.title
-          return meta.title
+          const cleaned = cleanPersonalVideoTitle(meta.title)
+          autoTitle.current = cleaned
+          return cleaned
         })
         if (description) {
           if (isRecipe && !recipeEdited.current) setRecipe((current) => {
@@ -212,8 +229,9 @@ function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { fo
           })
           if (!isRecipe && !noteEdited.current) setNote((current) => {
             if (current.trim() && current !== autoNote.current) return current
-            autoNote.current = description
-            return description
+            const compact = compactYouTubeDescription(description)
+            autoNote.current = compact
+            return compact
           })
         }
       })
@@ -231,8 +249,8 @@ function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { fo
       const [meta, description] = await Promise.all([fetchYouTubeMeta(videoId), fetchVideoDescription(videoId)])
       const video: PersonalVideo = {
         id: videoId, folderId, videoId, url: watchUrl(videoId),
-        title: title.trim() || meta.title || '제목 없는 영상', thumbnail: meta.thumbnail || thumbnailUrl(videoId),
-        note: isRecipe ? undefined : (noteEdited.current ? (note || undefined) : (note || description || undefined)),
+        title: cleanPersonalVideoTitle(title.trim() || meta.title) || '제목 없는 영상', thumbnail: meta.thumbnail || thumbnailUrl(videoId),
+        note: isRecipe ? undefined : (noteEdited.current ? (note || undefined) : (note || compactYouTubeDescription(description) || undefined)),
         ingredientIds: isRecipe ? ingredientIds : undefined,
         recipe: isRecipe ? (recipeEdited.current ? (recipe || undefined) : (recipe || description || undefined)) : undefined,
         order: nextOrder, addedBy: member?.uid ?? '', createdAt: Date.now(),
@@ -292,7 +310,7 @@ function VideoPlayer({ video, ingredients, onClose }: { video: PersonalVideo; in
     <h2>{video.title}</h2>
     {selectedIngredients.length > 0 && <section className="recipe-detail"><h3>재료</h3><div className="ingredient-picker">{selectedIngredients.map((ingredient) => <span className="chip" key={ingredient.id}>{ingredient.name}</span>)}</div></section>}
     {video.recipe && <section className="recipe-detail"><h3>레시피</h3><p>{video.recipe}</p></section>}
-    {video.note && <p className="muted recipe-copy">{video.note}</p>}<div className="actions"><button className="btn subtle block" onClick={onClose}>닫기</button></div>
+    {video.note && <p className="muted recipe-copy">{compactYouTubeDescription(video.note)}</p>}<div className="actions"><button className="btn subtle block" onClick={onClose}>닫기</button></div>
   </div></div>
 }
 

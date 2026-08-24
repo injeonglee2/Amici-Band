@@ -15,6 +15,7 @@ import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
 import { BAND_RECORDING_MODULE, compareRecordings, type RecordingModuleConfig, type RecordingSortId } from '../recordingModules'
+import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
 
 function fmtDate(date: string): string {
   const d = parseDate(date)
@@ -111,6 +112,8 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
   const [openNamedFolder, setOpenNamedFolder] = useState<string | null>(null)
   const [folderForm, setFolderForm] = useState<RecordingFolder | 'new' | null>(null)
   const [syncOpen, setSyncOpen] = useState(false)
+  const [folderEditMode, setFolderEditMode] = useState(false)
+  const [folderDraft, setFolderDraft] = useState('')
   const migrated = useRef(false)
   const useFolders = config.grouping.type === 'date'
 
@@ -156,6 +159,20 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
     [items, recFolders, openNamedFolder],
   )
   const currentNamedFolder = openNamedFolder ? recFolders.find((f) => f.id === openNamedFolder) ?? null : null
+  useBackHandler(() => setFolderEditMode(false), folderEditMode)
+
+  async function finishFolderEdit() {
+    if (!currentNamedFolder) return setFolderEditMode(false)
+    const name = folderDraft.trim()
+    if (name && name !== currentNamedFolder.name) await saveRecordingFolder({ ...currentNamedFolder, name })
+    setFolderEditMode(false)
+  }
+  async function removeCurrentFolder() {
+    if (!currentNamedFolder || !confirm(`'${currentNamedFolder.name}' 폴더를 삭제할까요? 폴더 안 기록은 '미분류'로 이동합니다.`)) return
+    await deleteRecordingFolder(currentNamedFolder.id)
+    setFolderEditMode(false)
+    setOpenNamedFolder(null)
+  }
 
   const open = openId ? items.find((r) => r.id === openId) ?? null : null
 
@@ -315,22 +332,11 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
         ) : (
           <>
             {useFolders && !currentFolder && !filtering && (
-              <div className="detail-bar rec-folder-bar">
-                <button type="button" className="detail-back" onClick={() => { setOpenNamedFolder(null); setOpenFolder(null) }} aria-label="폴더 목록으로">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-                </button>
-                <b style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentNamedFolder?.name ?? '미분류'}</b>
-                {currentNamedFolder && (
-                  <>
-                    <button type="button" className="edit-btn" onClick={() => setSyncOpen(true)} aria-label="재생목록·동기화">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></svg>
-                    </button>
-                    <button type="button" className="edit-btn" onClick={() => setFolderForm(currentNamedFolder)} aria-label="폴더 수정">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg>
-                    </button>
-                  </>
-                )}
-              </div>
+              <FolderDetailHeader className="rec-folder-bar" title={currentNamedFolder?.name ?? '미분류'} editing={folderEditMode}
+                draft={folderDraft} editable={!!currentNamedFolder} onBack={() => { setFolderEditMode(false); setOpenNamedFolder(null); setOpenFolder(null) }}
+                onEdit={() => { setFolderDraft(currentNamedFolder?.name ?? ''); setFolderEditMode(true) }} onDraftChange={setFolderDraft}
+                onDone={() => void finishFolderEdit()} onSync={currentNamedFolder ? () => setSyncOpen(true) : undefined} syncLabel="재생목록·동기화"
+                editActions={<FolderDeleteButton onClick={() => void removeCurrentFolder()} />} />
             )}
             {!currentFolder && (
             <div className="rec-toolbar">
@@ -390,12 +396,7 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
             ) : config.grouping.type === 'date' && currentFolder ? (
               // 폴더 열림 — 재생목록과 같은 형식(구분선 있는 헤더) + 그 날의 기록들
               <>
-                <div className="detail-bar rec-folder-bar">
-                  <button type="button" className="detail-back" onClick={() => setOpenFolder(null)} aria-label="폴더 목록으로">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-                  </button>
-                  <b>{currentFolder.title}</b>
-                </div>
+                <FolderDetailHeader className="rec-folder-bar" title={currentFolder.title} onBack={() => setOpenFolder(null)} />
                 <div className="rec-grid">{currentFolder.recs.map(recCard)}</div>
               </>
             ) : config.grouping.type === 'date' ? (

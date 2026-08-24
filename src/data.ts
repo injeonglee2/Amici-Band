@@ -534,6 +534,13 @@ export function watchRunningEntries(folderId: string, cb: (entries: RunningEntry
   }, (error) => onError?.(error))
 }
 
+export async function createRunningHealthSyncSession(folderId: string, range: '90' | '365' | 'all'): Promise<{ launchUrl: string; expiresAt: number }> {
+  if (DEMO) throw new Error('데모에서는 Health Connect를 동기화할 수 없어요.')
+  const call = httpsCallable<{ bandId: string; folderId: string; range: string }, { launchUrl: string; expiresAt: number }>(requireFunctions(), 'createSamsungHealthSyncSession')
+  const result = await call({ bandId: getCurrentBand(), folderId, range })
+  return result.data
+}
+
 export async function uploadPersonalRecordFile(folderId: string, entryId: string, file: File, index: number): Promise<ScoreFile> {
   const safe = file.name.replace(/[^\w.-]+/g, '_').slice(-60)
   const path = bandStoragePath('recordFolders', folderId, 'entries', entryId, `${index}-${safe}`)
@@ -575,6 +582,17 @@ export async function savePersonalVideo(video: PersonalVideo): Promise<void> {
   if (DEMO) return
   const { id, folderId, ...data } = video
   await setDoc(bandDoc('videoFolders', folderId, 'videos', id), data, { merge: true })
+}
+
+export async function updatePersonalVideoTitles(folderId: string, updates: { id: string; title: string }[]): Promise<void> {
+  if (DEMO || !updates.length) return
+  for (let offset = 0; offset < updates.length; offset += 400) {
+    const batch = writeBatch(db)
+    updates.slice(offset, offset + 400).forEach(({ id, title }) => {
+      batch.set(bandDoc('videoFolders', folderId, 'videos', id), { title }, { merge: true })
+    })
+    await batch.commit()
+  }
 }
 
 export async function deletePersonalVideo(folderId: string, videoId: string): Promise<void> {

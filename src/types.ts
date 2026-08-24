@@ -118,14 +118,54 @@ export interface RecordingFolder {
   playlistIds?: string[] // 밴드 영상 이름 폴더에 연결된 유튜브 재생목록(수동/자동 동기화 대상)
 }
 
+/** 러닝 중 한 시점의 세부 표본. 누적 거리나 속도가 있으면 실제 1km 구간을 계산할 수 있다. */
+export interface RunningSample {
+  timeMs?: number
+  elapsedSec?: number
+  distanceM?: number
+  speedMps?: number
+  hr?: number
+  cadence?: number
+  paceSec?: number
+  [field: string]: unknown
+}
+
+/** 한 운동의 1km 구간(마지막 구간은 1km 미만일 수 있음). */
+export interface RunningSplit {
+  index: number
+  distanceM: number
+  durationSec: number
+  paceSecPerKm: number
+  avgHr?: number
+  avgCadence?: number
+  partial?: boolean
+  startTimeMs?: number
+  endTimeMs?: number
+}
+
 /**
- * 러닝 기록 엔트리 (개인 채널 '러닝' 폴더). Health Connect 등에서 넣는 임의 필드를
- * 전체 덤프로 표시하므로 공통 필드 외에는 자유 형식(index signature).
+ * 러닝 기록 엔트리 (개인 채널 '러닝' 폴더). 표준 필드는 아래처럼 저장하고,
+ * 이전 동기화 데이터와의 호환을 위해 그 밖의 필드도 허용한다.
  * 경로: bands/{bandId}/recordFolders/{folderId}/entries/{id}
  */
 export interface RunningEntry {
   id: string
   folderId: string
+  source?: 'health-connect' | 'samsung-health' | string
+  sourceId?: string
+  date?: string
+  startTime?: number
+  endTime?: number
+  distanceM?: number
+  durationSec?: number
+  avgHr?: number
+  maxHr?: number
+  avgCadence?: number
+  maxCadence?: number
+  calories?: number
+  steps?: number
+  splits?: RunningSplit[]
+  samples?: RunningSample[]
   createdAt?: number
   [field: string]: unknown
 }
