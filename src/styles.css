@@ -350,24 +350,24 @@ button { font-family: inherit; }
 .run-analysis-count { align-self: flex-end; margin: -3px 2px 0; color: var(--ink-faint); font-size: 10.5px; font-weight: 700; }
 .run-analysis-section .run-sec-t { margin-top: 12px; }
 .run-analysis-section + .run-analysis-section { margin-top: 8px; }
-.run-month-line-section { margin-top: 2px; }
-.run-month-line { display: block; width: 100%; height: auto; overflow: visible; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); touch-action: manipulation; }
-.run-month-line text { fill: var(--ink-faint); font-size: 8.5px; font-variant-numeric: tabular-nums; }
-.run-month-line .axis { stroke: var(--line-strong); stroke-width: 1; }
-.run-month-line .grid { stroke: color-mix(in srgb, var(--line) 70%, transparent); stroke-width: 1; }
-.run-month-line polyline.line { fill: none; stroke: var(--accent); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
-.run-month-line .point { cursor: pointer; }
-.run-month-line .point:focus { outline: none; }
-.run-month-line .point .dot { fill: var(--surface-2); stroke: var(--accent); stroke-width: 2; }
-.run-month-line .point.selected .dot { fill: var(--accent); stroke: var(--surface-2); }
-.run-month-line .point .halo { fill: color-mix(in srgb, var(--accent) 18%, transparent); }
-.run-month-line .point .hit { fill: transparent; stroke: transparent; }
-.run-month-line .point:focus .hit { stroke: var(--accent); stroke-width: 1; }
-.run-month-line .tooltip rect { fill: color-mix(in srgb, var(--ink) 88%, transparent); stroke: color-mix(in srgb, var(--surface-2) 35%, transparent); stroke-width: .7; }
-.run-month-line .tooltip text { fill: var(--surface); font-size: 8.5px; font-weight: 650; }
-.run-month-line .tooltip text.value { font-size: 9.5px; font-weight: 800; }
-.run-month-line-axis { display: flex; justify-content: space-between; margin: -1px 4px 0; color: var(--ink-faint); font-size: 9.5px; font-weight: 650; }
-.run-month-line-section > p { margin: 3px 3px 0; color: var(--ink-faint); font-size: 10.5px; line-height: 1.5; word-break: keep-all; }
+.run-pace-heart-line-section { margin-top: 2px; }
+.run-pace-heart-line { display: block; width: 100%; height: auto; overflow: visible; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); touch-action: manipulation; }
+.run-pace-heart-line text { fill: var(--ink-faint); font-size: 8.5px; font-variant-numeric: tabular-nums; }
+.run-pace-heart-line .axis { stroke: var(--line-strong); stroke-width: 1; }
+.run-pace-heart-line .grid { stroke: color-mix(in srgb, var(--line) 70%, transparent); stroke-width: 1; }
+.run-pace-heart-line polyline.line { fill: none; stroke: var(--accent); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.run-pace-heart-line .point { cursor: pointer; }
+.run-pace-heart-line .point:focus { outline: none; }
+.run-pace-heart-line .point .dot { fill: var(--surface-2); stroke: var(--accent); stroke-width: 2; }
+.run-pace-heart-line .point.selected .dot { fill: var(--accent); stroke: var(--surface-2); }
+.run-pace-heart-line .point .halo { fill: color-mix(in srgb, var(--accent) 18%, transparent); }
+.run-pace-heart-line .point .hit { fill: transparent; stroke: transparent; }
+.run-pace-heart-line .point:focus .hit { stroke: var(--accent); stroke-width: 1; }
+.run-pace-heart-line .tooltip rect { fill: color-mix(in srgb, var(--ink) 88%, transparent); stroke: color-mix(in srgb, var(--surface-2) 35%, transparent); stroke-width: .7; }
+.run-pace-heart-line .tooltip text { fill: var(--surface); font-size: 8.5px; font-weight: 650; }
+.run-pace-heart-line .tooltip text.value { font-size: 9.5px; font-weight: 800; }
+.run-pace-heart-line-axis { display: flex; justify-content: space-between; margin: -1px 4px 0; color: var(--ink-faint); font-size: 9.5px; font-weight: 650; }
+.run-pace-heart-line-section > p { margin: 3px 3px 0; color: var(--ink-faint); font-size: 10.5px; line-height: 1.5; word-break: keep-all; }
 .run-week-split-section { margin-top: 2px; }
 .run-week-picks { display: flex; gap: 6px; margin: -1px 0 7px; padding: 1px 0; overflow-x: auto; scrollbar-width: none; }
 .run-week-picks::-webkit-scrollbar { display: none; }

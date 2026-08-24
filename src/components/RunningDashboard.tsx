@@ -449,7 +449,7 @@ export default function RunningDashboard({ entries }: { entries: RunningEntry[] 
       )}
 
       {period === 'week' && <WeeklySplitPaceChart runs={curRuns} />}
-      {period === 'month' && <MonthlyPaceHeartLine runs={curRuns} />}
+      {period === 'year' && <YearlyPaceHeartLine runs={curRuns} />}
 
       {trendUnit && (
         <>
@@ -507,8 +507,8 @@ function RunInsightCard({ insight }: { insight: RunInsight }) {
   )
 }
 
-/** 이번 달 러닝을 느린 페이스→빠른 페이스 순으로 연결해 평균 심박 변화를 보여준다. */
-function MonthlyPaceHeartLine({ runs }: { runs: Run[] }) {
+/** 선택한 연도의 러닝을 느린 페이스→빠른 페이스 순으로 연결해 평균 심박 변화를 보여준다. */
+function YearlyPaceHeartLine({ runs }: { runs: Run[] }) {
   const points = runs
     .filter((run) => run.paceSecPerKm !== undefined && run.avgHr !== undefined)
     .sort((a, b) => (b.paceSecPerKm as number) - (a.paceSecPerKm as number) || a.startMs - b.startMs)
@@ -519,8 +519,8 @@ function MonthlyPaceHeartLine({ runs }: { runs: Run[] }) {
   }, [points, selectedId])
 
   if (points.length < 2) return (
-    <section className="run-month-line-section">
-      <div className="run-sec-t">페이스별 심박 변화 <span className="run-sec-hint">이번 달 운동별 평균</span></div>
+    <section className="run-pace-heart-line-section">
+      <div className="run-sec-t">페이스별 심박 변화 <span className="run-sec-hint">선택 연도 운동별 평균</span></div>
       <p className="hint" style={{ margin: '0 2px' }}>페이스와 심박이 있는 러닝 2건 이상부터 표시돼요.</p>
     </section>
   )
@@ -545,9 +545,9 @@ function MonthlyPaceHeartLine({ runs }: { runs: Run[] }) {
   const tipY = Math.max(5, Math.min(H - padB - tipH - 3, selectedY - tipH / 2))
 
   return (
-    <section className="run-month-line-section">
-      <div className="run-sec-t">페이스별 심박 변화 <span className="run-sec-hint">이번 달 운동별 평균</span></div>
-      <svg className="run-month-line" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="이번 달 페이스별 평균 심박 선 그래프">
+    <section className="run-pace-heart-line-section">
+      <div className="run-sec-t">페이스별 심박 변화 <span className="run-sec-hint">선택 연도 운동별 평균</span></div>
+      <svg className="run-pace-heart-line" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="선택 연도 페이스별 평균 심박 선 그래프">
         {[0, 0.5, 1].map((ratio) => {
           const heartRate = Math.round(heartMax - (heartMax - heartMin) * ratio)
           const lineY = padT + ratio * (H - padT - padB)
@@ -585,7 +585,7 @@ function MonthlyPaceHeartLine({ runs }: { runs: Run[] }) {
           </g>
         )}
       </svg>
-      <div className="run-month-line-axis"><span>느린 페이스</span><span>빠른 페이스</span></div>
+      <div className="run-pace-heart-line-axis"><span>느린 페이스</span><span>빠른 페이스</span></div>
       <p>점을 누르면 해당 운동의 날짜·페이스·평균 심박을 확인할 수 있어요.</p>
     </section>
   )
