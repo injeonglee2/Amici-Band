@@ -6,7 +6,7 @@ import ThemeSelect from './ThemeSelect'
 
 /**
  * 러닝 대시보드 — 러닝 폴더 엔트리를 가공해 KPI·추세·페이스↔심박 산점도·목록으로 표시.
- * Health Connect 동기화가 쓸 표준 필드(아래)를 읽되, 이름이 조금 달라도 관대하게 파싱한다.
+ * Samsung Health 동기화가 쓸 표준 필드(아래)를 읽되, 이름이 조금 달라도 관대하게 파싱한다.
  *   startTime(ms), endTime(ms), date, distanceM, durationSec, avgHr, maxHr, calories, steps
  *   samples: [{ hr, paceSec | speed(m/s), t? }]  ← 러닝 중 실시간(구간) 데이터. 있으면 세부에서 상관 산점도로 표시.
  *
@@ -386,7 +386,7 @@ export default function RunningDashboard({ entries }: { entries: RunningEntry[] 
   if (!entries.length) {
     return (
       <div className="empty-state">
-        <p>아직 러닝 데이터가 없어요.<br />Health Connect 연동이 추가되면 여기에 통계·기록이 표시됩니다.</p>
+        <p>아직 러닝 데이터가 없어요.<br />위 Samsung Health 동기화로 최근 러닝을 가져와 보세요.</p>
       </div>
     )
   }

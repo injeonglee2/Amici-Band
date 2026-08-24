@@ -35,6 +35,25 @@ export interface BillingDailyUsage {
   storageBytes: number
 }
 
+export type SamsungHealthSyncRange = '90d' | '1y' | 'all'
+
+export interface SamsungHealthSyncSession {
+  token: string
+  uploadUrl: string
+  startTime: number
+  endTime: number
+  incremental: boolean
+}
+
+export async function createSamsungHealthSyncSession(folderId: string, range: SamsungHealthSyncRange): Promise<SamsungHealthSyncSession> {
+  const call = httpsCallable<{ bandId: string; folderId: string; range: SamsungHealthSyncRange }, SamsungHealthSyncSession>(
+    requireFunctions(),
+    'createSamsungHealthSyncSession',
+  )
+  const result = await call({ bandId: getCurrentBand(), folderId, range })
+  return result.data
+}
+
 export async function getBillingUsageStats(days = 30): Promise<{ rows: BillingDailyUsage[]; generatedAt: number; timezone: string; storageAvailable: boolean }> {
   const call = httpsCallable<{ days: number }, { rows: BillingDailyUsage[]; generatedAt: number; timezone: string; storageAvailable: boolean }>(requireFunctions(), 'getBillingUsageStats')
   const result = await call({ days })
@@ -532,13 +551,6 @@ export function watchRunningEntries(folderId: string, cb: (entries: RunningEntry
     entries.sort((a, b) => ts(b) - ts(a))
     cb(entries)
   }, (error) => onError?.(error))
-}
-
-export async function createRunningHealthSyncSession(folderId: string, range: '90' | '365' | 'all'): Promise<{ launchUrl: string; expiresAt: number }> {
-  if (DEMO) throw new Error('데모에서는 Health Connect를 동기화할 수 없어요.')
-  const call = httpsCallable<{ bandId: string; folderId: string; range: string }, { launchUrl: string; expiresAt: number }>(requireFunctions(), 'createSamsungHealthSyncSession')
-  const result = await call({ bandId: getCurrentBand(), folderId, range })
-  return result.data
 }
 
 export async function uploadPersonalRecordFile(folderId: string, entryId: string, file: File, index: number): Promise<ScoreFile> {

@@ -7,6 +7,14 @@
       {
         "source": "/.well-known/assetlinks.json",
         "headers": [{ "key": "Content-Type", "value": "application/json" }]
+      },
+      {
+        "source": "/downloads/**",
+        "headers": [
+          { "key": "Content-Type", "value": "application/vnd.android.package-archive" },
+          { "key": "Content-Disposition", "value": "attachment" },
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
       }
     ]
   },

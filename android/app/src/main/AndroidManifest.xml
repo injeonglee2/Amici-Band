@@ -24,16 +24,7 @@
 
 
         <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-        <uses-permission android:name="android.permission.INTERNET" />
-        <uses-permission android:name="android.permission.health.READ_EXERCISE" />
-        <uses-permission android:name="android.permission.health.READ_DISTANCE" />
-        <uses-permission android:name="android.permission.health.READ_SPEED" />
-        <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
-        <uses-permission android:name="android.permission.health.READ_STEPS" />
-        <uses-permission android:name="android.permission.health.READ_STEPS_CADENCE" />
-        <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
-        <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
-        <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
+        <uses-permission android:name="android.permission.INTERNET"/>
 
 
     
@@ -52,6 +43,27 @@
         
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Translucent.NoTitleBar">
+
+        <meta-data
+            android:name="com.samsung.android.sdk.health.data.MIGRATION_COMPLETED"
+            android:value="true" />
+
+        <activity
+            android:name=".SamsungHealthSyncActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="amici" android:host="samsung-health" android:pathPrefix="/sync" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".shealth.SamsungHealthDataSyncActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
 
         <meta-data
             android:name="asset_statements"
@@ -184,40 +196,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".HealthSyncActivity"
-            android:exported="true"
-            android:theme="@android:style/Theme.Material.NoActionBar">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="amicicalender"
-                    android:host="health"
-                    android:pathPrefix="/sync" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".PermissionsRationaleActivity"
-            android:exported="true"
-            android:theme="@android:style/Theme.Material.NoActionBar">
-            <intent-filter>
-                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
-            </intent-filter>
-        </activity>
-        <activity-alias
-            android:name=".ViewPermissionUsageActivity"
-            android:exported="true"
-            android:targetActivity=".PermissionsRationaleActivity"
-            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
-                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
-            </intent-filter>
-        </activity-alias>
-
         <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
 
         <activity android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"
@@ -257,7 +235,4 @@
         
     </application>
 
-    <queries>
-        <package android:name="com.google.android.apps.healthdata" />
-    </queries>
 </manifest>
