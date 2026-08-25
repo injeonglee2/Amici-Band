@@ -381,25 +381,23 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
           const self = m.uid === myUid
           return (
             <li key={m.uid}>
-              <div className="mm-info">
-                <span className="mm-name">
-                  {m.name || '(이름 설정 전)'}
-                  {isOwner && <em className="mm-tag owner">소유자</em>}
-                  {m.admin && !isOwner && <em className="mm-tag admin">관리자</em>}
-                </span>
-                <span className="mm-sep" aria-hidden="true">·</span>
-                <span className="mm-part">{PART_META[m.part as Part]?.label ?? '파트 미정'}</span>
-                <span className="mm-sep" aria-hidden="true">·</span>
-                <em className="mm-practice-count" title="참석·늦참·조퇴 포함">
-                  이번 달 {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}
-                </em>
-              </div>
-              {editing && !self && !isOwner && (
+              <span className="mm-name">
+                {m.name || '(이름 설정 전)'}
+                {isOwner && <em className="mm-tag owner">소유자</em>}
+                {m.admin && !isOwner && <em className="mm-tag admin">관리자</em>}
+              </span>
+              {editing && !self && !isOwner ? (
                 <div className="mm-actions">
                   <button type="button" className="btn subtle sm" disabled={busy === m.uid} onClick={() => void toggleAdmin(m)}>
                     {m.admin ? '관리자 해제' : '관리자 지정'}
                   </button>
                   <button type="button" className="btn danger sm" disabled={busy === m.uid} onClick={() => setConfirmKick(m)}>내보내기</button>
+                </div>
+              ) : (
+                <div className="mm-meta">
+                  <span className="mm-part">{PART_META[m.part as Part]?.label ?? '파트 미정'}</span>
+                  <span className="mm-sep" aria-hidden="true">·</span>
+                  <em className="mm-practice-count" title="참석·늦참·조퇴 포함">이번 달 {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}</em>
                 </div>
               )}
             </li>
