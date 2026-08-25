@@ -52,6 +52,13 @@ export default function EventCard({
   const d = parseDate(ev.date)
   const past = dayDiff(ev.date) < 0
   const isAdmin = !!member?.admin
+  // 관리자 전용 일정은 관리자만 참석 대상이다. 과거에 남은 일반 멤버 투표도 집계에서 제외한다.
+  const eligibleMembers = useMemo(
+    () => (ev.adminOnly ? members.filter((m) => m.admin) : members),
+    [ev.adminOnly, members],
+  )
+  const eligibleUids = useMemo(() => new Set(eligibleMembers.map((m) => m.uid)), [eligibleMembers])
+  const eligibleAtt = useMemo(() => att.filter((a) => eligibleUids.has(a.uid)), [att, eligibleUids])
   const canDelete = !!user && (ev.createdBy === user.uid || isAdmin)
   // 곡이 필요한 유형: 합주=합주곡(곡 하나씩), 공연=재생목록(통째로 연결)
   const hasSetlist = ev.type === 'practice' || ev.type === 'show'
@@ -83,7 +90,7 @@ export default function EventCard({
     if (!el || noteOpen) return
     setNoteOverflow(el.scrollHeight > el.clientHeight + 1)
   }, [ev.note, noteOpen])
-  const mine = useMemo(() => att.find((a) => a.uid === user?.uid), [att, user])
+  const mine = useMemo(() => eligibleAtt.find((a) => a.uid === user?.uid), [eligibleAtt, user])
 
   async function doDelete() {
     setConfirmDelete(false)
@@ -194,7 +201,7 @@ export default function EventCard({
       </div>
 
       {modal && (
-        <AttendanceModal ev={ev} list={att} members={members} initialMode={modal} readOnly={past} onClose={() => setModal(null)} />
+        <AttendanceModal ev={ev} list={eligibleAtt} members={eligibleMembers} initialMode={modal} readOnly={past} onClose={() => setModal(null)} />
       )}
 
       {setlistOpen &&
@@ -202,7 +209,7 @@ export default function EventCard({
           <ShowPlaylistSheet
             ev={ev}
             place={place}
-            members={members}
+            members={eligibleMembers}
             toast={toast}
             onClose={() => setSetlistOpen(false)}
           />
@@ -210,7 +217,7 @@ export default function EventCard({
           <SetlistSheet
             ev={ev}
             place={place}
-            members={members}
+            members={eligibleMembers}
             toast={toast}
             onClose={() => setSetlistOpen(false)}
           />
