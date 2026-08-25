@@ -123,7 +123,7 @@ export default function FolderModule<TFolder extends FolderEntity>({
 }
 
 export function FolderForm<TFolder extends FolderEntity>({
-  config, repository, editing, onClose, tags = [],
+  config, repository, editing, onClose, tags: propTags,
 }: {
   config: FolderModuleConfig
   repository: FolderRepository<TFolder>
@@ -134,6 +134,10 @@ export function FolderForm<TFolder extends FolderEntity>({
   const { member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
+  // 기존 폴더 수정(상세 화면)에서도 태그를 달 수 있도록, 넘겨받지 못하면 직접 구독한다.
+  const [watchedTags, setWatchedTags] = useState<CustomEventType[]>([])
+  useEffect(() => (propTags ? undefined : watchEventTypes(setWatchedTags, () => {})), [propTags])
+  const tags = propTags ?? watchedTags
   const [name, setName] = useState(editing?.name ?? '')
   const [templateId, setTemplateId] = useState(editing?.templateId ?? config.templates?.[0]?.id)
   const [tagId, setTagId] = useState(editing?.tagId ?? '')

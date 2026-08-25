@@ -806,7 +806,7 @@ button { font-family: inherit; }
   background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line-strong); border-radius: 10px;
   padding: 9px 11px; resize: none;
 }
-.note-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.note-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .note-input::placeholder { color: var(--ink-faint); }
 .muted { color: var(--ink-faint); }
 
@@ -902,21 +902,21 @@ button { font-family: inherit; }
   background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line-strong);
   border-radius: 9px; padding: 8px 5px; appearance: none; text-align: center;
 }
-.sched-end:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.sched-end:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .sched-end:disabled { opacity: 0.5; }
 .sched-builder .sched-input {
   flex: 1; min-width: 0; width: auto; font: inherit; font-size: 14px; color: var(--ink);
   background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line-strong);
   border-radius: 9px; padding: 9px 10px;
 }
-.sched-builder .sched-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.sched-builder .sched-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .sched-builder .sched-add {
   flex: none; display: grid; place-items: center; padding: 0 11px; height: auto; min-height: 0;
   font-size: 18px; font-weight: 700; line-height: 1; border-radius: 8px; white-space: nowrap;
 }
 .sched-builder .sched-add:disabled { opacity: 0.5; cursor: not-allowed; }
 .field input:focus, .field textarea:focus, .time-pick select:focus, .place-select:focus {
-  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22);
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .field input::placeholder, .field textarea::placeholder { color: var(--ink-faint); }
 .time-range { display: flex; align-items: center; gap: 10px; }
@@ -935,7 +935,7 @@ button { font-family: inherit; }
   background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line-strong); border-radius: 12px;
   padding: 12px 13px; cursor: pointer; text-align: left; appearance: none;
 }
-.theme-select:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.theme-select:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .theme-select-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .theme-select-chev { flex: none; width: 18px; height: 18px; color: var(--ink-faint); }
 .theme-select.pill {
@@ -1584,7 +1584,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
   width: 100%; font: inherit; font-size: 18px; text-align: center; color: var(--ink);
   background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line-strong); border-radius: 13px; padding: 14px; margin-top: 4px;
 }
-.name-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.name-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .name-reused {
   width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 13px; padding: 13px 14px;
@@ -1852,7 +1852,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
   background: rgba(255, 255, 255, 0.05); border: 1.5px solid var(--line-strong);
   border-radius: 10px; padding: 0 12px;
 }
-.part-custom-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.part-custom-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .part-custom-input::placeholder { color: var(--ink-faint); font-weight: 400; }
 /* 적용 버튼 = 파트 칩 한 칸과 같은 너비(--part-col) · 같은 글자·모서리. 높이는 stretch로 정렬 */
 .btn.part-custom-apply {
@@ -2021,7 +2021,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
   color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line-strong);
   border-radius: 10px; padding: 6px 10px;
 }
-.detail-title-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 93, 162, 0.22); }
+.detail-title-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .edit-btn.done { color: var(--accent); }
 .edit-btn.done:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
 .edit-btn.danger-ico:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
