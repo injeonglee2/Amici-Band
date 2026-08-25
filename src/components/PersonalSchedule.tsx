@@ -371,7 +371,7 @@ function TypeForm({ editing, nextOrder, creatorUid, toast, onSaved, onDeleted, o
                   <EventIcon id={item.id} className="type-ico" />
                 </button>
               ))}
-              {results.length === 0 && <p className="hint" style={{ margin: '4px 2px' }}>검색 결과가 없어요.</p>}
+              {results.length === 0 && <p className="hint" style={{ margin: '4px 2px', gridColumn: '1 / -1', whiteSpace: 'nowrap' }}>검색 결과가 없어요.</p>}
             </div>
           </div>
           <div className="actions">
