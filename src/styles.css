@@ -1033,10 +1033,16 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .ftp-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
 .ftp-badge { font-size: 11px; font-weight: 700; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 3px 9px; border-radius: 999px; }
 /* 레시피 재료: 아이콘 없이 뱃지 나열 */
+.ingredient-cats { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+.ingredient-cat-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--ink-soft); margin-bottom: 8px; }
+.ingredient-cat-title span { font-size: 11px; font-weight: 700; color: var(--ink-faint); }
 .ingredient-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-.ingredient-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); padding: 6px 8px 6px 13px; border-radius: 999px; }
-.ingredient-badge button { appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink-faint); font-size: 15px; line-height: 1; padding: 0 2px; }
-.ingredient-badge button:hover { color: var(--accent); }
+.ingredient-badge { appearance: none; cursor: pointer; font: inherit; display: inline-flex; align-items: center; font-size: 13px; font-weight: 700; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); padding: 7px 14px; border-radius: 999px; transition: border-color .14s, background .14s; }
+.ingredient-badge.tappable:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
+/* 재료 폼: 카테고리 선택 칩 */
+.ingredient-cat-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.cat-chip { appearance: none; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink-soft); }
+.cat-chip[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .recipe-sections { margin: 2px 0 14px; }
 .recipe-sections button span { margin-left: 3px; color: var(--ink-faint); font-size: 10px; }
 .ingredient-empty-icon { font-size: 38px; }

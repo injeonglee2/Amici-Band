@@ -14,7 +14,7 @@ import {
   watchRecipeIngredients,
   watchVideoFolders,
 } from '../data'
-import type { PersonalVideo, RecipeIngredient, RecordingFolder } from '../types'
+import { INGREDIENT_CATEGORIES, type PersonalVideo, type RecipeIngredient, type RecordingFolder } from '../types'
 import { fetchVideoDescription, fetchYouTubeMeta, parseVideoId, thumbnailUrl, watchUrl } from '../youtube'
 import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlaylistTitle } from '../playlistImport'
 import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
@@ -103,6 +103,7 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
   const [ingredientFilter, setIngredientFilter] = useState<string>('all')
   const [adding, setAdding] = useState(false)
   const [addingIngredient, setAddingIngredient] = useState(false)
+  const [editingIngredient, setEditingIngredient] = useState<RecipeIngredient | null>(null)
   const [editingFolder, setEditingFolder] = useState(false)
   const [folderDraft, setFolderDraft] = useState(folder.name)
   const [playing, setPlaying] = useState<PersonalVideo | null>(null)
@@ -166,10 +167,14 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
         {loadErr && <div className="banner-err">{loadErr}</div>}
         {isRecipe && section === 'ingredients' ? (
           ingredients.length === 0 ? <div className="empty-state"><span className="ingredient-empty-icon">🥕</span><p>등록된 재료가 없어요.<br />아래 <b>+ 재료 추가</b>로 시작하세요.</p></div> :
-            <div className="ingredient-badges">{ingredients.map((ingredient) => <span className="ingredient-badge" key={ingredient.id}>
-              {ingredient.name}
-              <button type="button" aria-label={`${ingredient.name} 삭제`} onClick={() => void removeIngredient(folder.id, ingredient)}>×</button>
-            </span>)}</div>
+            <div className="ingredient-cats">{INGREDIENT_CATEGORIES.map((cat) => {
+              const items = ingredients.filter((i) => (i.category ?? '기타') === cat)
+              if (!items.length) return null
+              return <div key={cat} className="ingredient-cat-group">
+                <div className="ingredient-cat-title">{cat}<span>{items.length}</span></div>
+                <div className="ingredient-badges">{items.map((ing) => <button type="button" className="ingredient-badge tappable" key={ing.id} onClick={() => setEditingIngredient(ing)}>{ing.name}</button>)}</div>
+              </div>
+            })}</div>
         ) : videos.length === 0 && !loadErr ? (
           <div className="empty-state"><VideoIcon /><p>이 폴더에 영상이 없어요.<br />아래 <b>+ 영상 추가</b>로 유튜브 링크를 저장하세요.</p></div>
         ) : (
@@ -197,15 +202,11 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
         <button className="fab" onClick={() => setAddingIngredient(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>재료 추가</button> :
         <button className="fab" onClick={() => setAdding(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>영상 추가</button>}
       {adding && <VideoForm folderId={folder.id} ingredients={ingredients} isRecipe={isRecipe} nextOrder={videos.length ? Math.max(...videos.map((v) => v.order)) + 1 : 0} onClose={() => setAdding(false)} />}
-      {addingIngredient && <IngredientForm folderId={folder.id} nextOrder={ingredients.length ? Math.max(...ingredients.map((v) => v.order)) + 1 : 0} onClose={() => setAddingIngredient(false)} />}
+      {addingIngredient && <IngredientForm folderId={folder.id} editing={null} nextOrder={ingredients.length ? Math.max(...ingredients.map((v) => v.order)) + 1 : 0} toast={toast} onClose={() => setAddingIngredient(false)} />}
+      {editingIngredient && <IngredientForm folderId={folder.id} editing={editingIngredient} nextOrder={editingIngredient.order} toast={toast} onClose={() => setEditingIngredient(null)} />}
       {playing && <VideoPlayer video={playing} ingredients={ingredients} onClose={() => setPlaying(null)} />}
     </>
   )
-}
-
-async function removeIngredient(folderId: string, ingredient: RecipeIngredient) {
-  if (!confirm(`'${ingredient.name}' 재료를 삭제할까요? 기존 레시피의 선택에서도 표시되지 않게 됩니다.`)) return
-  await deleteRecipeIngredient(folderId, ingredient.id)
 }
 
 function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { folderId: string; ingredients: RecipeIngredient[]; isRecipe: boolean; nextOrder: number; onClose: () => void }) {
@@ -304,10 +305,11 @@ function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { fo
   </div></div>
 }
 
-function IngredientForm({ folderId, nextOrder, onClose }: { folderId: string; nextOrder: number; onClose: () => void }) {
+function IngredientForm({ folderId, editing, nextOrder, toast, onClose }: { folderId: string; editing: RecipeIngredient | null; nextOrder: number; toast: ToastState; onClose: () => void }) {
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
-  const [name, setName] = useState('')
+  const [name, setName] = useState(editing?.name ?? '')
+  const [category, setCategory] = useState(editing?.category ?? '기타')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -315,15 +317,27 @@ function IngredientForm({ folderId, nextOrder, onClose }: { folderId: string; ne
     if (!name.trim() || busy) return
     setBusy(true); setErr('')
     try {
-      await saveRecipeIngredient({ id: newId(), folderId, name: name.trim(), order: nextOrder, createdAt: Date.now() })
+      await saveRecipeIngredient({ id: editing?.id ?? newId(), folderId, name: name.trim(), category, order: editing?.order ?? nextOrder, createdAt: editing?.createdAt ?? Date.now() })
       onClose()
     } catch { setErr('재료를 저장하지 못했어요.'); setBusy(false) }
   }
+  async function doDelete() {
+    if (!editing || busy) return
+    if (!confirm(`'${editing.name}' 재료를 삭제할까요? 기존 레시피 선택에서도 사라져요.`)) return
+    setBusy(true)
+    try { await deleteRecipeIngredient(folderId, editing.id); toast.show('재료를 삭제했어요'); onClose() } catch { toast.show('삭제하지 못했어요'); setBusy(false) }
+  }
 
   return <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}><div className="sheet" ref={sheetRef}>
-    <div className="grab-zone" {...grabHandlers}><div className="grab" /></div><h2>재료 추가</h2>
+    <div className="grab-zone" {...grabHandlers}><div className="grab" /></div><h2>{editing ? '재료 수정' : '재료 추가'}</h2>
     <div className="field"><label htmlFor="ingredient-name">재료 이름</label><input id="ingredient-name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit() }} placeholder="예) 양파, 올리브오일" maxLength={50} autoFocus /></div>
-    {err && <p className="err small">{err}</p>}<div className="actions"><button className="btn subtle" onClick={onClose} disabled={busy}>취소</button><button className="btn primary" onClick={() => void submit()} disabled={!name.trim() || busy}>{busy ? '저장 중…' : '추가'}</button></div>
+    <div className="field"><label>카테고리</label><div className="ingredient-cat-pick">{INGREDIENT_CATEGORIES.map((c) => <button key={c} type="button" className="cat-chip" aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}</div></div>
+    {err && <p className="err small">{err}</p>}
+    <div className="actions">
+      {editing && <button className="btn danger" onClick={() => void doDelete()} disabled={busy}>삭제</button>}
+      <button className="btn subtle grow" onClick={onClose} disabled={busy}>취소</button>
+      <button className="btn primary" onClick={() => void submit()} disabled={!name.trim() || busy}>{busy ? '저장 중…' : (editing ? '저장' : '추가')}</button>
+    </div>
   </div></div>
 }
 

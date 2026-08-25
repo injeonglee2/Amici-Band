@@ -225,9 +225,13 @@ export interface RecipeIngredient {
   id: string
   folderId: string
   name: string
+  category?: string // 육류·채소류 등 분류
   order: number
   createdAt: number
 }
+
+/** 레시피 재료 카테고리(고정 목록) */
+export const INGREDIENT_CATEGORIES = ['육류', '해산물', '채소류', '과일', '곡물', '유제품', '양념', '기타'] as const
 
 /** 버그 제보·개선 의견 — feedback/{id}. 작성은 로그인 멤버, 열람·관리는 관리자만 */
 export interface Feedback {
