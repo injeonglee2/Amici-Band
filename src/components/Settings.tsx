@@ -308,6 +308,8 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   const [busy, setBusy] = useState('')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [partFilter, setPartFilter] = useState<Part | 'all'>('all')
+  const [monthOffset, setMonthOffset] = useState(0) // 0=이번 달, -1=지난 달 …
   const [practiceCounts, setPracticeCounts] = useState<Record<string, number> | null>(null)
   useEffect(() => watchMembers(setMembers), [])
   useEffect(() => {
@@ -316,19 +318,26 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   useEffect(() => {
     if (!open) return
     const now = new Date()
-    const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-    const endDate = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`
+    const start = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+    const end = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 1)
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
     let active = true
     setPracticeCounts(null)
-    getMonthlyPracticeParticipation(startDate, endDate)
+    getMonthlyPracticeParticipation(fmt(start), fmt(end))
       .then((counts) => { if (active) setPracticeCounts(counts) })
       .catch(() => { if (active) setPracticeCounts({}) })
     return () => { active = false }
-  }, [bandId, open])
+  }, [bandId, open, monthOffset])
+  const viewMonth = new Date(new Date().getFullYear(), new Date().getMonth() + monthOffset, 1)
+  const monthShort = monthOffset === 0 ? '이번 달' : `${viewMonth.getMonth() + 1}월`
   const sorted = [...members].sort(
     (a, b) => (b.admin ? 1 : 0) - (a.admin ? 1 : 0) || (a.name ?? '').localeCompare(b.name ?? '', 'ko'),
   )
+  // 파트별 필터: 실제로 멤버가 있는 파트만 칩으로 노출
+  const partChips = (['drum', 'bass', 'guitar', 'keyboard', 'vocal'] as Part[])
+    .map((p) => [p, members.filter((m) => m.part === p).length] as const)
+    .filter(([, count]) => count > 0)
+  const visible = partFilter === 'all' ? sorted : sorted.filter((m) => m.part === partFilter)
   async function toggleAdmin(m: Member) {
     setBusy(m.uid)
     try {
@@ -375,8 +384,27 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
         </button>
       </div>
       {open && (
+        <div className="mm-month">
+          <button type="button" className="mm-month-nav" onClick={() => setMonthOffset((o) => o - 1)} aria-label="이전 달">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+          <b>{viewMonth.getFullYear()}년 {viewMonth.getMonth() + 1}월 참여</b>
+          <button type="button" className="mm-month-nav" onClick={() => setMonthOffset((o) => Math.min(0, o + 1))} disabled={monthOffset >= 0} aria-label="다음 달">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
+        </div>
+      )}
+      {open && partChips.length > 1 && (
+        <div className="mm-filter" role="tablist" aria-label="파트별 필터">
+          <button type="button" className="chip" aria-pressed={partFilter === 'all'} onClick={() => setPartFilter('all')}>전체 <span>{members.length}</span></button>
+          {partChips.map(([part, count]) => (
+            <button key={part} type="button" className="chip" aria-pressed={partFilter === part} onClick={() => setPartFilter(part)}>{PART_META[part].label} <span>{count}</span></button>
+          ))}
+        </div>
+      )}
+      {open && (
       <ul className={'mm-list' + (editing ? ' editing' : '')}>
-        {sorted.map((m) => {
+        {visible.map((m) => {
           const isOwner = m.uid === ownerUid
           const self = m.uid === myUid
           return (
@@ -397,7 +425,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
                 <div className="mm-meta">
                   <span className="mm-part">{PART_META[m.part as Part]?.label ?? '파트 미정'}</span>
                   <span className="mm-sep" aria-hidden="true">·</span>
-                  <em className="mm-practice-count" title="참석·늦참·조퇴 포함">이번 달 {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}</em>
+                  <em className="mm-practice-count" title="참석·늦참·조퇴 포함">{monthShort} {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}</em>
                 </div>
               )}
             </li>
