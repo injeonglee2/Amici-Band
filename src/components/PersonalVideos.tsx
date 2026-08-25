@@ -15,6 +15,7 @@ import {
   watchVideoFolders,
 } from '../data'
 import { INGREDIENT_CATEGORIES, type PersonalVideo, type RecipeIngredient, type RecordingFolder } from '../types'
+import { FolderTagEditor } from './FolderTagEditor'
 import { fetchVideoDescription, fetchYouTubeMeta, parseVideoId, thumbnailUrl, watchUrl } from '../youtube'
 import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlaylistTitle } from '../playlistImport'
 import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
@@ -106,6 +107,7 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
   const [editingIngredient, setEditingIngredient] = useState<RecipeIngredient | null>(null)
   const [editingFolder, setEditingFolder] = useState(false)
   const [folderDraft, setFolderDraft] = useState(folder.name)
+  const [folderTagDraft, setFolderTagDraft] = useState(folder.tagId ?? '')
   const [playing, setPlaying] = useState<PersonalVideo | null>(null)
   const titleCleanupStarted = useRef(false)
   useBackHandler(() => editingFolder ? setEditingFolder(false) : onBack())
@@ -151,15 +153,20 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
       toast.show('삭제하지 못했어요')
     }
   }
-  async function finishFolderEdit() { const name = folderDraft.trim(); if (name && name !== folder.name) await videoFolderRepository.save({ ...folder, name }); setEditingFolder(false) }
+  async function finishFolderEdit() {
+    const name = folderDraft.trim() || folder.name
+    if (name !== folder.name || folderTagDraft !== (folder.tagId ?? '')) await videoFolderRepository.save({ ...folder, name, tagId: folderTagDraft })
+    setEditingFolder(false)
+  }
   async function removeFolder() { if (!confirm(VIDEO_FOLDER_CONFIG.labels.deleteConfirm(folder.name))) return; await videoFolderRepository.remove(folder); onBack() }
 
   return (
     <>
       <main className="scroll">
         <FolderDetailHeader className="rec-folder-bar" title={folder.name} editing={editingFolder} draft={folderDraft} editable onBack={onBack}
-          onEdit={() => { setFolderDraft(folder.name); setEditingFolder(true) }} onDraftChange={setFolderDraft}
+          onEdit={() => { setFolderDraft(folder.name); setFolderTagDraft(folder.tagId ?? ''); setEditingFolder(true) }} onDraftChange={setFolderDraft}
           onDone={() => void finishFolderEdit()} editActions={<FolderDeleteButton onClick={() => void removeFolder()} />} />
+        {editingFolder && <FolderTagEditor tagId={folderTagDraft} onChange={setFolderTagDraft} />}
         {isRecipe && <div className="segmented recipe-sections" role="tablist" aria-label="레시피 폴더 메뉴">
           <button type="button" className={section === 'videos' ? 'on' : ''} onClick={() => setSection('videos')}>영상</button>
           <button type="button" className={section === 'ingredients' ? 'on' : ''} onClick={() => setSection('ingredients')}>재료 <span>{ingredients.length}</span></button>

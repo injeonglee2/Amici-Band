@@ -1572,6 +1572,9 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .ps-manage-btn svg { width: 18px; height: 18px; }
 /* 폴더에 적용된 일정 유형 태그 */
 .folder-tag { display: inline-flex; align-items: center; gap: 3px; margin-top: 4px; font-size: 10.5px; font-weight: 700; color: var(--k); background: color-mix(in srgb, var(--k) 15%, transparent); padding: 1px 8px 1px 5px; border-radius: 999px; }
+/* 폴더 상세 인라인 편집: 태그 선택 */
+.folder-tag-edit { margin: 0 0 12px; padding: 12px; background: var(--surface-2); border-radius: 12px; }
+.folder-tag-edit-label { display: block; font-size: 11px; font-weight: 800; color: var(--ink-soft); margin-bottom: 8px; }
 .folder-tag .type-ico { width: 12px; height: 12px; filter: none; }
 .tf-preview { display: flex; justify-content: center; margin: 2px 0 12px; }
 .tf-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 800; padding: 8px 16px; border-radius: 999px; background: color-mix(in srgb, var(--k) 30%, var(--surface)); color: var(--ink); border: 1.5px solid var(--k); }

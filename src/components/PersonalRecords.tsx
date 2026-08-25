@@ -3,6 +3,7 @@ import { useAuth } from '../auth'
 import { useBackHandler } from '../backnav'
 import { createSamsungHealthSyncSession, deletePersonalRecordEntry, deletePersonalRecordFolder, newId, savePersonalRecordEntry, savePersonalRecordFolder, uploadPersonalRecordFile, watchPersonalRecordEntries, watchPersonalRecordFolders, watchRunningEntries, type SamsungHealthSyncRange } from '../data'
 import type { PersonalRecordEntry, RecordingFolder, RunningEntry, ScoreFile } from '../types'
+import { FolderTagEditor } from './FolderTagEditor'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
 import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
@@ -46,6 +47,7 @@ function RecordFilesDetail({ folder, onBack, toast }: { folder: RecordingFolder;
   const [loadErr, setLoadErr] = useState('')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(folder.name)
+  const [tagDraft, setTagDraft] = useState(folder.tagId ?? '')
   const [adding, setAdding] = useState(false)
   const [viewing, setViewing] = useState<PersonalRecordEntry | null>(null)
   useBackHandler(() => editing ? setEditing(false) : onBack())
@@ -54,13 +56,18 @@ function RecordFilesDetail({ folder, onBack, toast }: { folder: RecordingFolder;
     if (!confirm(`'${entry.title}' 기록과 첨부 파일을 삭제할까요?`)) return
     try { await deletePersonalRecordEntry(entry); toast.show('기록을 삭제했어요') } catch { toast.show('기록을 삭제하지 못했어요') }
   }
-  async function done() { const name = draft.trim(); if (name && name !== folder.name) await recordFolderRepository.save({ ...folder, name }); setEditing(false) }
+  async function done() {
+    const name = draft.trim() || folder.name
+    if (name !== folder.name || tagDraft !== (folder.tagId ?? '')) await recordFolderRepository.save({ ...folder, name, tagId: tagDraft })
+    setEditing(false)
+  }
   async function removeFolder() { if (!confirm(RECORD_FOLDER_CONFIG.labels.deleteConfirm(folder.name))) return; await recordFolderRepository.remove(folder); onBack() }
   return <>
     <main className="scroll">
       <FolderDetailHeader className="rec-folder-bar" title={folder.name} editing={editing} draft={draft} editable onBack={onBack}
-        onEdit={() => { setDraft(folder.name); setEditing(true) }} onDraftChange={setDraft} onDone={() => void done()}
+        onEdit={() => { setDraft(folder.name); setTagDraft(folder.tagId ?? ''); setEditing(true) }} onDraftChange={setDraft} onDone={() => void done()}
         editActions={<FolderDeleteButton onClick={() => void removeFolder()} />} />
+      {editing && <FolderTagEditor tagId={tagDraft} onChange={setTagDraft} />}
       {loadErr && <div className="banner-err">{loadErr}</div>}
       {!entries.length && !loadErr ? <div className="empty-state"><RecordIcon /><p>아직 기록이 없어요.<br />아래 <b>+ 기록 추가</b>로 이미지나 PDF를 올려보세요.</p></div> : <div className="rec-grid">{entries.map((entry) => <article key={entry.id} className="rec-card personal-video-card">
         <button type="button" className="personal-video-open" onClick={() => setViewing(entry)}><div className="rec-thumb">{entry.kind === 'images' && entry.files[0]?.url ? <img src={entry.files[0].url} alt="" loading="lazy" /> : <span className="rec-thumb-none"><PdfIcon /></span>}</div><div className="rec-meta"><h3>{entry.title}</h3><p>{entry.kind === 'pdf' ? 'PDF' : `이미지 ${entry.files.length}장`}</p></div></button>
