@@ -184,7 +184,7 @@ export function setDemoChannel(bandId: string): void {
 const RUNNING_FOLDER_ID = 'demo-run'
 const initialRecordFolders: RecordingFolder[] = [
   { id: RUNNING_FOLDER_ID, name: '러닝', templateId: 'running', order: now, createdBy: DEMO_MEMBER.uid, createdAt: now },
-  { id: 'demo-daily', name: '일상', order: now + 1, createdBy: DEMO_MEMBER.uid, createdAt: now + 1 },
+  { id: 'demo-daily', name: '일상', order: now + 1, createdBy: DEMO_MEMBER.uid, createdAt: now + 1, tagId: 'pt-study' },
 ]
 const recordFoldersCol = makeCollection<RecordingFolder>(initialRecordFolders)
 

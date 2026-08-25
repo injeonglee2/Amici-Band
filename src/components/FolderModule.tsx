@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth'
 import { useBackHandler } from '../backnav'
+import { watchEventTypes } from '../data'
+import type { CustomEventType } from '../types'
+import { EventIcon } from '../eventIcons'
 import { useSheetSwipe } from './useSheetSwipe'
 
 export interface FolderEntity {
@@ -10,6 +13,7 @@ export interface FolderEntity {
   createdAt: number
   order?: number
   templateId?: string
+  tagId?: string // 일정에서 만든 유형 태그(개인 채널 공용)
 }
 
 export interface FolderRepository<TFolder extends FolderEntity> {
@@ -54,6 +58,9 @@ export default function FolderModule<TFolder extends FolderEntity>({
   const [loadErr, setLoadErr] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
   const [editing, setEditing] = useState<TFolder | 'new' | null>(null)
+  const [tags, setTags] = useState<CustomEventType[]>([])
+  useEffect(() => watchEventTypes(setTags, () => {}), [])
+  const tagMap = new Map(tags.map((t) => [t.id, t]))
 
   useEffect(
     () => repository.watch(setFolders, (error) => {
@@ -82,7 +89,14 @@ export default function FolderModule<TFolder extends FolderEntity>({
             {folders.map((folder) => (
               <button key={folder.id} className="playlist-row" onClick={() => setOpenId(folder.id)}>
                 <div className="playlist-ico" aria-hidden="true">{config.rowIcon?.(folder) ?? <FolderIcon />}</div>
-                <div className="playlist-info"><h3>{folder.name}</h3></div>
+                <div className="playlist-info">
+                  <h3>{folder.name}</h3>
+                  {folder.tagId && tagMap.get(folder.tagId) && (
+                    <span className="folder-tag" style={{ ['--k' as string]: tagMap.get(folder.tagId)!.color }}>
+                      <EventIcon id={tagMap.get(folder.tagId)!.emoji} className="type-ico" />{tagMap.get(folder.tagId)!.name}
+                    </span>
+                  )}
+                </div>
                 <svg className="playlist-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
               </button>
             ))}
@@ -100,6 +114,7 @@ export default function FolderModule<TFolder extends FolderEntity>({
           config={config}
           repository={repository}
           editing={editing === 'new' ? null : editing}
+          tags={tags}
           onClose={() => setEditing(null)}
         />
       )}
@@ -108,18 +123,20 @@ export default function FolderModule<TFolder extends FolderEntity>({
 }
 
 export function FolderForm<TFolder extends FolderEntity>({
-  config, repository, editing, onClose,
+  config, repository, editing, onClose, tags = [],
 }: {
   config: FolderModuleConfig
   repository: FolderRepository<TFolder>
   editing: TFolder | null
   onClose: () => void
+  tags?: CustomEventType[]
 }) {
   const { member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
   const [name, setName] = useState(editing?.name ?? '')
   const [templateId, setTemplateId] = useState(editing?.templateId ?? config.templates?.[0]?.id)
+  const [tagId, setTagId] = useState(editing?.tagId ?? '')
   const [playlistUrl, setPlaylistUrl] = useState('')
   const [importProgress, setImportProgress] = useState('')
   const [busy, setBusy] = useState(false)
@@ -147,11 +164,12 @@ export function FolderForm<TFolder extends FolderEntity>({
         finalName = await repository.playlistImport!.resolveName(playlistUrl)
         setName(finalName)
       }
-      const folder = editing
+      const base = editing
         ? { ...editing, name: finalName }
         : (newFolderRef.current ? { ...newFolderRef.current, name: finalName } : repository.create(finalName, member?.uid ?? '', templateId))
-      if (!editing) newFolderRef.current = folder as TFolder
-      await repository.save(folder as TFolder)
+      const folder = { ...base, tagId } as TFolder
+      if (!editing) newFolderRef.current = folder
+      await repository.save(folder)
       if (!editing && canImport && playlistUrl.trim()) {
         setImportProgress('재생목록을 불러오는 중…')
         const result = await repository.playlistImport!.run(folder as TFolder, playlistUrl, setImportProgress)
@@ -212,6 +230,19 @@ export function FolderForm<TFolder extends FolderEntity>({
                 {selectedTemplate.preview}
               </div>
             )}
+          </div>
+        )}
+        {tags.length > 0 && (
+          <div className="field">
+            <label>태그 <span className="muted">(선택 · 일정 유형)</span></label>
+            <div className="ps-type-pick">
+              <button type="button" className="ps-type-opt" aria-pressed={!tagId} onClick={() => setTagId('')}>태그 없음</button>
+              {tags.map((t) => (
+                <button key={t.id} type="button" className="ps-type-opt" aria-pressed={tagId === t.id} style={{ ['--k' as string]: t.color }} onClick={() => setTagId(t.id)}>
+                  <EventIcon id={t.emoji} className="type-ico" />{t.name}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {importProgress && <p className="hint">{importProgress}</p>}

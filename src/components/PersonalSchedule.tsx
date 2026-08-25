@@ -22,6 +22,7 @@ export default function PersonalSchedule({ toast }: { toast: ToastState }) {
   const [selected, setSelected] = useState(todayStr())
   const [editing, setEditing] = useState<BandEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
+  const [managerOpen, setManagerOpen] = useState(false)
 
   useEffect(() => watchEvents(setEvents, () => setLoadErr('일정을 불러오지 못했어요.')), [])
   useEffect(() => watchEventTypes(setTypes, () => {}), [])
@@ -65,6 +66,9 @@ export default function PersonalSchedule({ toast }: { toast: ToastState }) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
           </button>
         </div>
+        <button className="ps-manage-btn" onClick={() => setManagerOpen(true)} aria-label="유형 관리" title="유형 관리">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 12 22l-9-9V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" /><circle cx="7.5" cy="7.5" r="1.5" /></svg>
+        </button>
       </div>
 
       <main className="scroll">
@@ -96,6 +100,56 @@ export default function PersonalSchedule({ toast }: { toast: ToastState }) {
           creatorUid={user?.uid ?? ''}
           toast={toast}
           onClose={() => setFormOpen(false)}
+        />
+      )}
+      {managerOpen && (
+        <TypesManager types={types} creatorUid={user?.uid ?? ''} toast={toast} onClose={() => setManagerOpen(false)} />
+      )}
+    </>
+  )
+}
+
+/** 일정 유형(태그) 관리 — 목록 + 추가/수정. 여기서 만든 유형은 기록·영상 폴더 태그로도 쓰인다. */
+function TypesManager({ types, creatorUid, toast, onClose }: { types: CustomEventType[]; creatorUid: string; toast: ToastState; onClose: () => void }) {
+  const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
+  useBackHandler(onClose)
+  const [form, setForm] = useState<CustomEventType | 'new' | null>(null)
+  return (
+    <>
+      <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="sheet" ref={sheetRef}>
+          <div className="grab-zone" {...grabHandlers}><div className="grab" /></div>
+          <h2>일정 유형</h2>
+          <p className="hint" style={{ margin: '0 2px 12px' }}>여기서 만든 유형은 기록·영상 폴더의 태그로도 쓸 수 있어요.</p>
+          {types.length === 0 ? (
+            <p className="hint" style={{ margin: '2px' }}>아직 유형이 없어요. 아래에서 만들어 보세요.</p>
+          ) : (
+            <ul className="list">
+              {types.map((t) => (
+                <li key={t.id}>
+                  <button type="button" className="playlist-row" onClick={() => setForm(t)}>
+                    <div className="playlist-ico" style={{ ['--k' as string]: t.color, color: t.color }}><EventIcon id={t.emoji} className="type-ico" /></div>
+                    <div className="playlist-info"><h3>{t.name}</h3></div>
+                    <svg className="playlist-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="actions">
+            <button type="button" className="btn primary block" onClick={() => setForm('new')}>＋ 새 유형</button>
+          </div>
+        </div>
+      </div>
+      {form && (
+        <TypeForm
+          editing={form === 'new' ? null : form}
+          nextOrder={types.length ? Math.max(...types.map((t) => t.order ?? t.createdAt ?? 0)) + 1 : 0}
+          creatorUid={creatorUid}
+          toast={toast}
+          onSaved={() => setForm(null)}
+          onDeleted={() => setForm(null)}
+          onClose={() => setForm(null)}
         />
       )}
     </>

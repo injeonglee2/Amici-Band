@@ -138,6 +138,7 @@ export interface RecordingFolder {
   createdBy: string
   createdAt: number
   playlistIds?: string[] // 밴드 영상 이름 폴더에 연결된 유튜브 재생목록(수동/자동 동기화 대상)
+  tagId?: string // 일정에서 만든 유형 태그(개인 채널 공용)
 }
 
 /** 러닝 중 한 시점의 세부 표본. 누적 거리나 속도가 있으면 실제 1km 구간을 계산할 수 있다. */
