@@ -46,6 +46,7 @@ export interface FolderModuleConfig {
   rowIcon?: (folder: FolderEntity) => ReactNode
   templates?: { id: string; label: string; description: string; symbol: string; preview?: ReactNode }[]
   reorderable?: boolean // 편집 모드에서 폴더 순서 변경 허용
+  taggable?: boolean // 일정 유형 태그 적용 허용(개인 채널 전용)
 }
 
 export default function FolderModule<TFolder extends FolderEntity>({
@@ -63,7 +64,7 @@ export default function FolderModule<TFolder extends FolderEntity>({
   const [editing, setEditing] = useState<TFolder | 'new' | null>(null)
   const [reorderMode, setReorderMode] = useState(false)
   const [tags, setTags] = useState<CustomEventType[]>([])
-  useEffect(() => watchEventTypes(setTags, () => {}), [])
+  useEffect(() => (config.taggable ? watchEventTypes(setTags, () => {}) : undefined), [config.taggable])
   const tagMap = new Map(tags.map((t) => [t.id, t]))
 
   async function moveFolder(index: number, dir: -1 | 1) {
@@ -173,8 +174,8 @@ export function FolderForm<TFolder extends FolderEntity>({
   useBackHandler(onClose)
   // 기존 폴더 수정(상세 화면)에서도 태그를 달 수 있도록, 넘겨받지 못하면 직접 구독한다.
   const [watchedTags, setWatchedTags] = useState<CustomEventType[]>([])
-  useEffect(() => (propTags ? undefined : watchEventTypes(setWatchedTags, () => {})), [propTags])
-  const tags = propTags ?? watchedTags
+  useEffect(() => (propTags || !config.taggable ? undefined : watchEventTypes(setWatchedTags, () => {})), [propTags, config.taggable])
+  const tags = config.taggable ? (propTags ?? watchedTags) : []
   const [name, setName] = useState(editing?.name ?? '')
   const [templateId, setTemplateId] = useState(editing?.templateId ?? config.templates?.[0]?.id)
   const [tagId, setTagId] = useState(editing?.tagId ?? '')

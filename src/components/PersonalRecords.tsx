@@ -16,6 +16,7 @@ import { isSamsungHealthSyncEnvironment, launchSamsungHealthSync } from '../sams
 const RECORD_FOLDER_CONFIG: FolderModuleConfig = {
   labels: { folder: '기록 폴더', empty: '기록 폴더가 없어요.', add: '폴더', createTitle: '새 기록 폴더', editTitle: '기록 폴더 수정', name: '폴더 이름', placeholder: '예) 일상, 공부, 생각 정리', deleteConfirm: (name) => `'${name}' 기록 폴더와 안의 파일을 모두 삭제할까요?` },
   rowIcon: (folder) => <span className="folder-emoji" aria-hidden>{folder.templateId === 'running' ? '🏃' : '📁'}</span>,
+  taggable: true,
 }
 // 폴더 종류(템플릿) — 소유자의 개인 채널에서 '러닝' 폴더를 만들 수 있게 함
 const RECORD_TEMPLATES = [
