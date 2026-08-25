@@ -101,7 +101,6 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       {devPopup === 'firebase' && (
         <DeveloperPopup title="Firebase 관리" onClose={() => setDevPopup(null)}>
           <BillingUsageCard />
-          <FirebaseLimitsCard />
         </DeveloperPopup>
       )}
       {devPopup === 'feedback' && (
@@ -131,6 +130,15 @@ function DeveloperPopup({ title, onClose, children }: { title: string; onClose: 
 const usageNumber = new Intl.NumberFormat('ko-KR')
 
 function BillingUsageCard() {
+  type FirebaseService = 'firestore' | 'storage' | 'hosting' | 'functions' | 'auth'
+  const services: { id: FirebaseService; label: string }[] = [
+    { id: 'firestore', label: 'Firestore' },
+    { id: 'storage', label: 'Storage' },
+    { id: 'hosting', label: 'Hosting' },
+    { id: 'functions', label: 'Functions' },
+    { id: 'auth', label: 'Auth' },
+  ]
+  const [service, setService] = useState<FirebaseService>('firestore')
   const [rows, setRows] = useState<BillingDailyUsage[]>([])
   const [storageAvailable, setStorageAvailable] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -150,18 +158,48 @@ function BillingUsageCard() {
 
   useEffect(() => { void load() }, [])
   const latest = rows.at(-1)
+  const needsMonitoring = service === 'firestore' || service === 'storage'
   return <div className="limits-card billing-usage-card">
-    <div className="limits-head"><h3>Firebase 과금 지표 · 최근 30일</h3><button type="button" className="mini-btn" onClick={() => void load()} disabled={loading}>{loading ? '조회 중…' : '새로고침'}</button></div>
-    <p className="limits-note">Cloud Monitoring 기준 UTC 집계입니다. 점선은 무료 구간이 끝나고 과금이 시작되는 기준입니다.</p>
-    {error ? <div className="banner-err">{error}</div> : loading && !rows.length ? <p className="muted">최근 30일 사용량을 불러오는 중…</p> : <div className="usage-charts">
-      <UsageBarChart label="Firestore 읽기" rows={rows} value={(row) => row.reads} quota={50000} quotaLabel="일 50,000회" />
-      <UsageBarChart label="Firestore 쓰기" rows={rows} value={(row) => row.writes} quota={20000} quotaLabel="일 20,000회" />
-      <UsageBarChart label="Firestore 삭제" rows={rows} value={(row) => row.deletes} quota={20000} quotaLabel="일 20,000회" />
-      {storageAvailable ? <UsageBarChart label="파일 저장 총량" rows={rows} value={(row) => row.storageBytes} quota={5 * 1024 ** 3} quotaLabel="5GB·월" format={formatBytes} /> : <div className="usage-chart unavailable"><b>파일 저장 총량</b><p>Cloud Storage 지표가 아직 수집되지 않았어요. 버킷 지표는 최대 하루 늦게 나타날 수 있어요.</p></div>}
-    </div>}
-    {latest && <p className="limits-note">현재 표시값: 읽기 {usageNumber.format(latest.reads)} · 쓰기 {usageNumber.format(latest.writes)} · 삭제 {usageNumber.format(latest.deletes)}{storageAvailable ? ` · 파일 ${formatBytes(latest.storageBytes)}` : ''}</p>}
-    <div className="usage-links"><a href="https://console.firebase.google.com/project/amicicalender/usage" target="_blank" rel="noopener noreferrer">Firebase 사용량 콘솔</a><a href="https://console.cloud.google.com/storage/monitoring?project=amicicalender" target="_blank" rel="noopener noreferrer">Storage 모니터링</a><a href="https://console.firebase.google.com/project/amicicalender/hosting/usage" target="_blank" rel="noopener noreferrer">Hosting 사용량</a></div>
+    <div className="limits-head"><h3>Firebase 서비스별 사용량</h3>{needsMonitoring && <button type="button" className="mini-btn" onClick={() => void load()} disabled={loading}>{loading ? '조회 중…' : '새로고침'}</button>}</div>
+    <div className="firebase-service-tabs" role="tablist" aria-label="Firebase 서비스">
+      {services.map((item) => (
+        <button key={item.id} type="button" role="tab" aria-selected={service === item.id} onClick={() => setService(item.id)}>{item.label}</button>
+      ))}
+    </div>
+    {needsMonitoring && <p className="limits-note">Cloud Monitoring 기준 UTC 집계입니다. 점선은 무료 구간이 끝나고 과금이 시작되는 기준입니다.</p>}
+    {needsMonitoring && error ? <div className="banner-err">{error}</div> : needsMonitoring && loading && !rows.length ? <p className="muted">최근 30일 사용량을 불러오는 중…</p> : (
+      <div className="firebase-service-page">
+        {service === 'firestore' && <>
+          <FirebaseQuota title="Firestore 무료 한도" text="읽기 5만/일 · 쓰기 2만/일 · 삭제 2만/일 · 저장 1GB" />
+          <div className="usage-charts">
+            <UsageBarChart label="읽기" rows={rows} value={(row) => row.reads} quota={50000} quotaLabel="일 50,000회" />
+            <UsageBarChart label="쓰기" rows={rows} value={(row) => row.writes} quota={20000} quotaLabel="일 20,000회" />
+            <UsageBarChart label="삭제" rows={rows} value={(row) => row.deletes} quota={20000} quotaLabel="일 20,000회" />
+          </div>
+          {latest && <p className="limits-note">현재 표시값: 읽기 {usageNumber.format(latest.reads)} · 쓰기 {usageNumber.format(latest.writes)} · 삭제 {usageNumber.format(latest.deletes)}</p>}
+        </>}
+        {service === 'storage' && <>
+          <FirebaseQuota title="Storage 무료 한도" text="파일 저장 5GB · 다운로드 1GB/일" />
+          <div className="usage-charts">
+            {storageAvailable ? <UsageBarChart label="파일 저장 총량" rows={rows} value={(row) => row.storageBytes} quota={5 * 1024 ** 3} quotaLabel="저장 5GB" format={formatBytes} /> : <div className="usage-chart unavailable"><b>파일 저장 총량</b><p>Cloud Storage 지표가 아직 수집되지 않았어요. 버킷 지표는 최대 하루 늦게 나타날 수 있어요.</p></div>}
+          </div>
+          {latest && storageAvailable && <p className="limits-note">현재 표시값: 파일 {formatBytes(latest.storageBytes)}</p>}
+        </>}
+        {service === 'hosting' && <FirebaseServiceSummary title="Hosting 무료 한도" quota="전송 약 10GB/월" detail="Hosting 전송량은 Firebase 콘솔의 Hosting 사용량에서 확인할 수 있어요." />}
+        {service === 'functions' && <FirebaseServiceSummary title="Functions 무료 한도" quota="호출 200만회/월" detail="함수별 호출과 실행 상태는 Firebase 콘솔에서 확인할 수 있어요." />}
+        {service === 'auth' && <FirebaseServiceSummary title="Authentication 무료 한도" quota="Google 로그인은 현재 사용 규모에서 사실상 무제한" detail="로그인 사용자와 인증 제공업체 상태는 Authentication 콘솔에서 확인할 수 있어요." />}
+      </div>
+    )}
+    <a className="btn primary block firebase-live-link" href={`https://console.firebase.google.com/project/${PROJECT_ID}/usage`} target="_blank" rel="noopener noreferrer">실시간 사용량 보기 →</a>
   </div>
+}
+
+function FirebaseQuota({ title, text }: { title: string; text: string }) {
+  return <div className="firebase-quota"><b>{title}</b><span>{text}</span></div>
+}
+
+function FirebaseServiceSummary({ title, quota, detail }: { title: string; quota: string; detail: string }) {
+  return <div className="firebase-service-summary"><FirebaseQuota title={title} text={quota} /><p>{detail}</p></div>
 }
 
 function formatBytes(value: number) {
@@ -527,45 +565,6 @@ function CalendarExportCard() {
 }
 
 const PROJECT_ID = 'amicicalender'
-
-/** 개발자 전용: Firebase 무료 한도 수치 + 실시간 사용량(콘솔) 바로가기 */
-function FirebaseLimitsCard() {
-  const limits: { name: string; quota: string }[] = [
-    { name: 'Firestore', quota: '읽기 5만/일 · 쓰기 2만/일 · 저장 1GB' },
-    { name: 'Storage', quota: '저장 5GB · 다운로드 1GB/일' },
-    { name: 'Hosting', quota: '전송 약 10GB/월' },
-    { name: 'Functions', quota: '호출 200만/월' },
-    { name: 'Auth', quota: '구글 로그인 사실상 무제한' },
-  ]
-  return (
-    <div className="limits-card">
-      <div className="limits-head">
-        <h3>Firebase 무료 한도</h3>
-        <span className="guide-badge dev">개발자</span>
-      </div>
-      <ul className="limits-list">
-        {limits.map((l) => (
-          <li key={l.name}>
-            <span className="limits-name">{l.name}</span>
-            <span className="limits-quota">{l.quota}</span>
-          </li>
-        ))}
-      </ul>
-      <a
-        className="btn primary block"
-        href={`https://console.firebase.google.com/project/${PROJECT_ID}/usage`}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        실시간 사용량 보기 →
-      </a>
-      <p className="limits-note">
-        이 한도 안이면 청구 0원. 실제 사용량은 위 버튼(콘솔)에서 확인하세요.{' '}
-        <a href="https://console.cloud.google.com/billing/budgets" target="_blank" rel="noopener noreferrer">예산 알림 설정 →</a>
-      </p>
-    </div>
-  )
-}
 
 function NotifCard() {
   const { user, bandId, isChannelMember } = useAuth()
