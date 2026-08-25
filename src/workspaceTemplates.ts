@@ -105,7 +105,7 @@ export const WORKSPACE_TEMPLATES: Record<WorkspaceTemplateId, WorkspaceTemplate>
       { id: 'music', label: '음악', slot: 1 }, { id: 'scores', label: '악보', slot: 2 },
       { id: 'home', label: '일정', slot: 3 }, { id: 'recordings', label: '영상', slot: 4 }, { id: 'places', label: '장소', slot: 5 },
     ],
-    theme: darkTheme('#ff5da2', '#7b68ee', '#3cd0ff', '#fb708a', '#ffdf8a', '#6a68f5'),
+    theme: darkTheme('#ff5da2', '#7b68ee', '#3cd0ff', '#fb708a', '#ffdf8a', '#9693d8'),
   },
   study: {
     id: 'study', label: '스터디', symbol: 'A', memberNoun: '스터디원',
