@@ -36,7 +36,7 @@
   --c-practice: #68c7df; /* 합주 (시안 — 채도 낮춰 눈부심↓, 번개보다 더 차분) */
   --c-show: #fb708a; /* 공연 (핑크빛 다홍 / 코랄로즈) */
   --c-flash: #f5dd94; /* 번개 (옐로 — 채도 살짝↓) */
-  --c-meeting: #9693d8; /* 회의 (밝고 채도를 낮춘 라벤더) */
+  --c-meeting: #ac92ec; /* 회의 (라벤더 — 밝은 보라, 전체(회색)와 확실히 구분) */
 
   --ok: #3de0a0; /* 참석 (초록) */
   --warn: #ffd24d; /* 늦참 (노랑) */
@@ -160,16 +160,19 @@ button { font-family: inherit; }
   background: color-mix(in srgb, var(--k) 22%, transparent);
   box-shadow: 0 0 16px -4px var(--k);
 }
-/* 밝은(개인) 테마: 파스텔 색은 tint 하이라이트가 약해서, 선택 칩을 팔레트 색으로 채우고
-   대비되는 진한 색(파스텔은 밝으므로 검정 계열)으로 아이콘·글자를 표시한다. */
+/* 밝은(개인) 테마: 선택 칩을 유형 색으로 채우고, 배경 밝기에 맞춰(--k-ink) 대비되는
+   글자색(밝은 배경=진한 회색, 어두운/파란 배경=흰색)으로 아이콘·글자를 표시한다.
+   사용자 태그는 선택 여부와 무관하게 테두리를 지정 색으로 보여준다. */
+html[data-template='personal'] .chip { border-color: var(--k, var(--line-strong)); }
+html[data-template='personal'] .ps-type-opt { border-color: var(--k, var(--line)); }
 html[data-template='personal'] .chip[aria-pressed='true'],
 html[data-template='personal'] .ps-type-opt[aria-pressed='true'] {
   background: var(--k, var(--accent)); border-color: var(--k, var(--accent));
-  color: #2b2b2b; box-shadow: 0 2px 8px -3px color-mix(in srgb, var(--k, var(--accent)) 55%, transparent);
+  color: var(--k-ink, var(--on-accent)); box-shadow: 0 2px 8px -3px color-mix(in srgb, var(--k, var(--accent)) 55%, transparent);
 }
 html[data-template='personal'] .chip[aria-pressed='true'] .type-ico,
-html[data-template='personal'] .ps-type-opt[aria-pressed='true'] .type-ico { color: #2b2b2b; filter: none; }
-html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: #2b2b2b; box-shadow: none; }
+html[data-template='personal'] .ps-type-opt[aria-pressed='true'] .type-ico { color: var(--k-ink, var(--on-accent)); filter: none; }
+html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: var(--k-ink, var(--on-accent)); box-shadow: none; }
 
 /* ---------- scroll body ---------- */
 .segmented {
@@ -763,7 +766,8 @@ html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: #2b
   background: var(--surface-2); color: var(--ink-soft); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
 }
 .mini-btn:disabled { cursor: default; opacity: 0.55; }
-.billing-usage-card .limits-note { margin-top: 0; }
+.billing-usage .limits-note { margin-top: 0; }
+.billing-refresh-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .firebase-service-tabs {
   display: flex; gap: 5px; overflow-x: auto; margin: 2px 0 12px; padding-bottom: 2px; scrollbar-width: none;
 }
@@ -778,8 +782,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: #2b
 .firebase-quota-line b { color: var(--ink); font-weight: 800; }
 .firebase-service-summary p.hint { margin: 8px 2px 12px; }
 .dev-popup-head-actions { display: flex; align-items: center; gap: 8px; }
-.firebase-live-link { font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; text-decoration: none; }
-.firebase-live-link:hover { text-decoration: underline; }
+.firebase-live-link { margin-top: 14px; }
 .usage-today { display: grid; gap: 9px; margin: 14px 0; }
 .usage-meter > div:first-child { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; }
 .usage-meter b { color: var(--ink); }
@@ -986,7 +989,7 @@ html[data-template='personal'] select,
 html[data-template='personal'] .theme-select { background: var(--control-bg); color: var(--ink); }
 html[data-template='personal'] .fab { background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 12px rgba(35,131,226,.22); }
 html[data-template='personal'] .bottom-nav { box-shadow: 0 -1px 0 var(--line); }
-html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
+html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--k-ink, var(--on-accent)); }
 .personal-video-card { position: relative; padding: 0; overflow: hidden; }
 .personal-video-open { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .personal-video-open .rec-thumb { border-radius: 0; }
@@ -1593,6 +1596,8 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .switch-knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: #fff; transition: transform .16s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 .switch.on .switch-knob { transform: translateX(18px); }
 .ingredient-badge.nofilter { opacity: .5; }
+.ingredient-badge.editing { border-style: dashed; border-color: var(--accent); color: var(--accent); gap: 5px; padding-left: 10px; }
+.ingredient-badge .ib-edit { width: 13px; height: 13px; flex: none; }
 .tf-preview { display: flex; justify-content: center; margin: 2px 0 12px; }
 .tf-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 800; padding: 8px 16px; border-radius: 999px; background: color-mix(in srgb, var(--k) 30%, var(--surface)); color: var(--ink); border: 1.5px solid var(--k); }
 .tf-colors { display: flex; gap: 10px; }
@@ -1703,6 +1708,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
   color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent);
 }
 .playlist-ico svg { width: 21px; height: 21px; }
+.playlist-ico .folder-emoji, .folder-emoji { font-size: 20px; line-height: 1; }
 .playlist-info { flex: 1; min-width: 0; }
 .playlist-info h3 { margin: 0; font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

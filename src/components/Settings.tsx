@@ -101,9 +101,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       {feedbackOpen && <FeedbackSheet toast={toast} onClose={() => setFeedbackOpen(false)} />}
       {devPopup === 'firebase' && (
         <DeveloperPopup
-          title="Firebase 관리"
+          title="Firebase 서비스별 사용량"
           onClose={() => setDevPopup(null)}
-          headerAction={<a className="firebase-live-link" href={`https://console.firebase.google.com/project/${PROJECT_ID}/usage`} target="_blank" rel="noopener noreferrer">실시간 사용량 보기 →</a>}
         >
           <BillingUsageCard />
         </DeveloperPopup>
@@ -167,8 +166,8 @@ function BillingUsageCard() {
   useEffect(() => { void load() }, [])
   const latest = rows.at(-1)
   const needsMonitoring = service === 'firestore' || service === 'storage'
-  return <div className="limits-card billing-usage-card">
-    <div className="limits-head"><h3>Firebase 서비스별 사용량</h3>{needsMonitoring && <button type="button" className="mini-btn" onClick={() => void load()} disabled={loading}>{loading ? '조회 중…' : '새로고침'}</button>}</div>
+  return <div className="billing-usage">
+    {needsMonitoring && <div className="billing-refresh-row"><button type="button" className="mini-btn" onClick={() => void load()} disabled={loading}>{loading ? '조회 중…' : '새로고침'}</button></div>}
     <div className="firebase-service-tabs" role="tablist" aria-label="Firebase 서비스">
       {services.map((item) => (
         <button key={item.id} type="button" role="tab" aria-selected={service === item.id} onClick={() => setService(item.id)}>{item.label}</button>
@@ -197,6 +196,7 @@ function BillingUsageCard() {
         {service === 'auth' && <FirebaseServiceSummary quota="Google 로그인은 현재 규모에서 사실상 무제한" detail="로그인 사용자·인증 제공업체는 콘솔에서 확인하세요." href={`https://console.firebase.google.com/project/${PROJECT_ID}/authentication/users`} />}
       </div>
     )}
+    <a className="btn primary block firebase-live-link" href={`https://console.firebase.google.com/project/${PROJECT_ID}/usage`} target="_blank" rel="noopener noreferrer">실시간 사용량 보기 →</a>
   </div>
 }
 

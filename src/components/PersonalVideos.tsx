@@ -16,6 +16,7 @@ import {
 } from '../data'
 import { INGREDIENT_CATEGORIES, type PersonalVideo, type RecipeIngredient, type RecordingFolder } from '../types'
 import { FolderTagEditor } from './FolderTagEditor'
+import { Icon } from '../icons'
 import { fetchVideoDescription, fetchYouTubeMeta, parseVideoId, thumbnailUrl, watchUrl } from '../youtube'
 import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlaylistTitle } from '../playlistImport'
 import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
@@ -36,10 +37,10 @@ const VIDEO_FOLDER_CONFIG: FolderModuleConfig = {
     deleteConfirm: (name) => `'${name}' 폴더와 안의 영상을 모두 삭제할까요?`,
   },
   reorderable: true,
-  rowIcon: (folder) => folder.templateId === 'recipe' ? <span aria-label="레시피">🍳</span> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="m10 10 5 3-5 3z" /></svg>,
+  rowIcon: (folder) => <span className="folder-emoji" aria-hidden>{folder.templateId === 'recipe' ? '🍳' : '🎬'}</span>,
   templates: [
     {
-      id: 'video', label: '일반 영상', symbol: '▶', description: '영상을 자유롭게 분류해요.',
+      id: 'video', label: '일반 영상', symbol: '🎬', description: '영상을 자유롭게 분류해요.',
       preview: (
         <div className="ftp-grid">
           {[0, 1, 2, 3].map((i) => (
@@ -181,7 +182,9 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
               if (!items.length) return null
               return <div key={cat} className="ingredient-cat-group">
                 <div className="ingredient-cat-title">{cat}<span>{items.length}</span></div>
-                <div className="ingredient-badges">{items.map((ing) => <button type="button" className={'ingredient-badge tappable' + (ing.filterInVideo === false ? ' nofilter' : '')} key={ing.id} onClick={() => setEditingIngredient(ing)}>{ing.name}</button>)}</div>
+                <div className="ingredient-badges">{items.map((ing) => editingFolder
+                  ? <button type="button" className={'ingredient-badge tappable editing' + (ing.filterInVideo === false ? ' nofilter' : '')} key={ing.id} onClick={() => setEditingIngredient(ing)}><Icon name="edit" className="ib-edit" />{ing.name}</button>
+                  : <span className={'ingredient-badge' + (ing.filterInVideo === false ? ' nofilter' : '')} key={ing.id}>{ing.name}</span>)}</div>
               </div>
             })}</div>
         ) : videos.length === 0 && !loadErr ? (

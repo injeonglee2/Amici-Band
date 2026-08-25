@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useAuth } from '../auth'
 import { useBackHandler } from '../backnav'
 import { deleteEvent, deleteEventType, newId, saveEvent, saveEventType, watchEventTypes, watchEvents } from '../data'
 import { PASTEL_PALETTE, type BandEvent, type CustomEventType, type EventType } from '../types'
 import { parseDate, todayStr, weekday } from '../time'
 import { EventIcon, searchIcons } from '../eventIcons'
+import { typeVars } from '../colors'
 import CalendarView from './CalendarView'
 import ConfirmDialog from './ConfirmDialog'
 import { useSheetSwipe } from './useSheetSwipe'
@@ -48,7 +49,7 @@ export default function PersonalSchedule({ toast }: { toast: ToastState }) {
             <span className="dot" />전체
           </button>
           {types.map((t) => (
-            <button key={t.id} className="chip" aria-pressed={filter === t.id} style={{ ['--k' as string]: t.color }} onClick={() => setFilter(t.id)}>
+            <button key={t.id} className="chip" aria-pressed={filter === t.id} style={typeVars(t.color) as CSSProperties} onClick={() => setFilter(t.id)}>
               <EventIcon id={t.emoji} className="type-ico" />{t.name}
             </button>
           ))}
@@ -218,7 +219,7 @@ function PersonalEventForm({ editing, types, defaultDate, creatorUid, toast, onC
             <label>유형</label>
             <div className="ps-type-pick">
               {types.map((t) => (
-                <button key={t.id} type="button" className="ps-type-opt" aria-pressed={typeId === t.id} style={{ ['--k' as string]: t.color }} onClick={() => setTypeId(t.id)} onDoubleClick={() => setTypeForm(t)}>
+                <button key={t.id} type="button" className="ps-type-opt" aria-pressed={typeId === t.id} style={typeVars(t.color) as CSSProperties} onClick={() => setTypeId(t.id)} onDoubleClick={() => setTypeForm(t)}>
                   <EventIcon id={t.emoji} className="type-ico" />{t.name}
                 </button>
               ))}

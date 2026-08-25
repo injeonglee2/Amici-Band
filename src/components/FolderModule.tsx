@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useAuth } from '../auth'
 import { useBackHandler } from '../backnav'
 import { watchEventTypes } from '../data'
 import type { CustomEventType } from '../types'
 import { EventIcon } from '../eventIcons'
 import { Icon } from '../icons'
+import { typeVars } from '../colors'
 import { useSheetSwipe } from './useSheetSwipe'
 
 export interface FolderEntity {
@@ -278,7 +279,7 @@ export function FolderForm<TFolder extends FolderEntity>({
             <div className="ps-type-pick">
               <button type="button" className="ps-type-opt" aria-pressed={!tagId} onClick={() => setTagId('')}>태그 없음</button>
               {tags.map((t) => (
-                <button key={t.id} type="button" className="ps-type-opt" aria-pressed={tagId === t.id} style={{ ['--k' as string]: t.color }} onClick={() => setTagId(t.id)}>
+                <button key={t.id} type="button" className="ps-type-opt" aria-pressed={tagId === t.id} style={typeVars(t.color) as CSSProperties} onClick={() => setTagId(t.id)}>
                   <EventIcon id={t.emoji} className="type-ico" />{t.name}
                 </button>
               ))}

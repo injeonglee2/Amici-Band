@@ -15,7 +15,7 @@ import { isSamsungHealthSyncEnvironment, launchSamsungHealthSync } from '../sams
 
 const RECORD_FOLDER_CONFIG: FolderModuleConfig = {
   labels: { folder: '기록 폴더', empty: '기록 폴더가 없어요.', add: '폴더', createTitle: '새 기록 폴더', editTitle: '기록 폴더 수정', name: '폴더 이름', placeholder: '예) 일상, 공부, 생각 정리', deleteConfirm: (name) => `'${name}' 기록 폴더와 안의 파일을 모두 삭제할까요?` },
-  rowIcon: (folder) => (folder.templateId === 'running' ? <RunIcon /> : <RecordIcon />),
+  rowIcon: (folder) => <span className="folder-emoji" aria-hidden>{folder.templateId === 'running' ? '🏃' : '📁'}</span>,
 }
 // 폴더 종류(템플릿) — 소유자의 개인 채널에서 '러닝' 폴더를 만들 수 있게 함
 const RECORD_TEMPLATES = [
@@ -224,5 +224,4 @@ function PdfPages({ url }: { url: string }) {
   return <div className="score-gallery">{pages.map((page, index) => <img key={index} src={page} alt={`${index + 1}페이지`} />)}</div>
 }
 function RecordIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M8 8h8M8 12h8M8 16h5" /></svg> }
-function RunIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="17" cy="5" r="2" /><path d="M14 8l-3 2 2 3 3 1M11 10l-3 1-2 4M13 13l1 5M13 13l-3 2-2 4" /></svg> }
 function PdfIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 2h8l4 4v16H6z" /><path d="M14 2v4h4" /><path d="M8.5 16h7M8.5 12h7" /></svg> }
