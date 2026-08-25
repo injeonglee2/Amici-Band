@@ -7,6 +7,7 @@ import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlayli
 import { parseDate, todayStr, weekday } from '../time'
 import { translateText } from '../translate'
 import { parseCredits } from '../gemini'
+import { Icon } from '../icons'
 import ConfirmDialog from './ConfirmDialog'
 import MusicPicker from './MusicPicker'
 import Sheet from './Sheet'
@@ -348,7 +349,7 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
                     onClick={() => setFilterOpen(true)}
                     aria-label="필터"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
+                    <Icon name="filter" />
                   </button>
                 )}
                 {activeMusic && (

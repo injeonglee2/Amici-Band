@@ -35,6 +35,7 @@ const VIDEO_FOLDER_CONFIG: FolderModuleConfig = {
     placeholder: '예) 요리, 운동, 공부',
     deleteConfirm: (name) => `'${name}' 폴더와 안의 영상을 모두 삭제할까요?`,
   },
+  reorderable: true,
   rowIcon: (folder) => folder.templateId === 'recipe' ? <span aria-label="레시피">🍳</span> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="m10 10 5 3-5 3z" /></svg>,
   templates: [
     {
@@ -134,15 +135,16 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
   }, [folder.id, folder.name, toast, videos])
 
   const isRecipe = folder.templateId === 'recipe'
+  const filterIngredients = ingredients.filter((i) => i.filterInVideo !== false)
   const visibleVideos = ingredientFilter === 'all'
     ? videos
     : videos.filter((video) => video.ingredientIds?.includes(ingredientFilter))
 
   useEffect(() => {
-    if (ingredientFilter !== 'all' && !ingredients.some((ingredient) => ingredient.id === ingredientFilter)) {
+    if (ingredientFilter !== 'all' && !filterIngredients.some((ingredient) => ingredient.id === ingredientFilter)) {
       setIngredientFilter('all')
     }
-  }, [ingredientFilter, ingredients])
+  }, [ingredientFilter, filterIngredients])
 
   async function remove(video: PersonalVideo) {
     if (!confirm(`'${video.title}' 영상을 삭제할까요?`)) return
@@ -179,16 +181,16 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
               if (!items.length) return null
               return <div key={cat} className="ingredient-cat-group">
                 <div className="ingredient-cat-title">{cat}<span>{items.length}</span></div>
-                <div className="ingredient-badges">{items.map((ing) => <button type="button" className="ingredient-badge tappable" key={ing.id} onClick={() => setEditingIngredient(ing)}>{ing.name}</button>)}</div>
+                <div className="ingredient-badges">{items.map((ing) => <button type="button" className={'ingredient-badge tappable' + (ing.filterInVideo === false ? ' nofilter' : '')} key={ing.id} onClick={() => setEditingIngredient(ing)}>{ing.name}</button>)}</div>
               </div>
             })}</div>
         ) : videos.length === 0 && !loadErr ? (
           <div className="empty-state"><VideoIcon /><p>이 폴더에 영상이 없어요.<br />아래 <b>+ 영상 추가</b>로 유튜브 링크를 저장하세요.</p></div>
         ) : (
           <>
-          {isRecipe && ingredients.length > 0 && <div className="recipe-filter" aria-label="재료별 영상 필터">
+          {isRecipe && filterIngredients.length > 0 && <div className="recipe-filter" aria-label="재료별 영상 필터">
             <button type="button" className="chip" aria-pressed={ingredientFilter === 'all'} onClick={() => setIngredientFilter('all')}>전체 <span>{videos.length}</span></button>
-            {ingredients.map((ingredient) => {
+            {filterIngredients.map((ingredient) => {
               const count = videos.filter((video) => video.ingredientIds?.includes(ingredient.id)).length
               return <button key={ingredient.id} type="button" className="chip" aria-pressed={ingredientFilter === ingredient.id} onClick={() => setIngredientFilter(ingredient.id)}>{ingredient.name} <span>{count}</span></button>
             })}
@@ -317,6 +319,7 @@ function IngredientForm({ folderId, editing, nextOrder, toast, onClose }: { fold
   useBackHandler(onClose)
   const [name, setName] = useState(editing?.name ?? '')
   const [category, setCategory] = useState(editing?.category ?? '기타')
+  const [filterInVideo, setFilterInVideo] = useState(editing?.filterInVideo ?? true)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -324,7 +327,7 @@ function IngredientForm({ folderId, editing, nextOrder, toast, onClose }: { fold
     if (!name.trim() || busy) return
     setBusy(true); setErr('')
     try {
-      await saveRecipeIngredient({ id: editing?.id ?? newId(), folderId, name: name.trim(), category, order: editing?.order ?? nextOrder, createdAt: editing?.createdAt ?? Date.now() })
+      await saveRecipeIngredient({ id: editing?.id ?? newId(), folderId, name: name.trim(), category, filterInVideo, order: editing?.order ?? nextOrder, createdAt: editing?.createdAt ?? Date.now() })
       onClose()
     } catch { setErr('재료를 저장하지 못했어요.'); setBusy(false) }
   }
@@ -339,6 +342,7 @@ function IngredientForm({ folderId, editing, nextOrder, toast, onClose }: { fold
     <div className="grab-zone" {...grabHandlers}><div className="grab" /></div><h2>{editing ? '재료 수정' : '재료 추가'}</h2>
     <div className="field"><label htmlFor="ingredient-name">재료 이름</label><input id="ingredient-name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit() }} placeholder="예) 양파, 올리브오일" maxLength={50} autoFocus /></div>
     <div className="field"><label>카테고리</label><div className="ingredient-cat-pick">{INGREDIENT_CATEGORIES.map((c) => <button key={c} type="button" className="cat-chip" aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}</div></div>
+    <label className="ing-filter-toggle"><span>영상 필터에 표시</span><button type="button" role="switch" aria-checked={filterInVideo} className={'switch' + (filterInVideo ? ' on' : '')} onClick={() => setFilterInVideo((v) => !v)}><span className="switch-knob" /></button></label>
     {err && <p className="err small">{err}</p>}
     <div className="actions">
       {editing && <button className="btn danger" onClick={() => void doDelete()} disabled={busy}>삭제</button>}

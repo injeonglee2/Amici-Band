@@ -20,12 +20,14 @@ export interface CustomEventType {
 
 /** 개인 채널 일정 유형 색상 팔레트 (파스텔) */
 export const PASTEL_PALETTE: { name: string; color: string }[] = [
-  { name: 'Peachy Pink', color: '#F8B8C8' },
-  { name: 'Buttercream', color: '#FEEEB6' },
-  { name: 'Minty Green', color: '#BDE4C8' },
-  { name: 'Sky Blue', color: '#A8D8F0' },
-  { name: 'Lavender', color: '#D4B8F2' },
-  { name: 'Soft Coral', color: '#F6CAB3' },
+  { name: 'Red', color: '#EF404A' },
+  { name: 'Pink', color: '#F2728C' },
+  { name: 'Yellow', color: '#FFD400' },
+  { name: 'Green', color: '#80B463' },
+  { name: 'Blue', color: '#27AAE1' },
+  { name: 'Teal', color: '#4EB8B9' },
+  { name: 'Purple', color: '#9E7EB9' },
+  { name: 'Gray', color: '#A7A9AC' },
 ]
 
 export interface BandEvent {
@@ -226,6 +228,7 @@ export interface RecipeIngredient {
   folderId: string
   name: string
   category?: string // 육류·채소류 등 분류
+  filterInVideo?: boolean // 영상 필터 칩으로 노출할지(미지정=노출)
   order: number
   createdAt: number
 }

@@ -1576,6 +1576,23 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .folder-tag-edit { margin: 0 0 12px; padding: 12px; background: var(--surface-2); border-radius: 12px; }
 .folder-tag-edit-label { display: block; font-size: 11px; font-weight: 800; color: var(--ink-soft); margin-bottom: 8px; }
 .folder-tag .type-ico { width: 12px; height: 12px; filter: none; }
+/* 폴더 리스트 순서 편집 */
+.folder-list-head { display: flex; justify-content: flex-end; padding: 4px 2px 0; }
+.folder-edit-toggle { appearance: none; cursor: pointer; font: inherit; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
+.folder-edit-toggle.on { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.folder-edit-toggle .fet-ico { width: 15px; height: 15px; }
+.playlist-row.reorder { cursor: default; }
+.folder-reorder-btns { display: flex; flex-direction: column; gap: 4px; margin-left: auto; }
+.folder-reorder-btns button { appearance: none; cursor: pointer; display: grid; place-items: center; width: 30px; height: 26px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 8px; }
+.folder-reorder-btns button:disabled { opacity: .35; cursor: default; }
+.folder-reorder-btns button svg { width: 16px; height: 16px; }
+/* 재료 편집: 영상 필터 표시 토글 */
+.ing-filter-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.switch { appearance: none; cursor: pointer; position: relative; width: 44px; height: 26px; border-radius: 999px; border: none; background: var(--line); transition: background .16s; flex: none; padding: 0; }
+.switch.on { background: var(--accent); }
+.switch-knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: #fff; transition: transform .16s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.switch.on .switch-knob { transform: translateX(18px); }
+.ingredient-badge.nofilter { opacity: .5; }
 .tf-preview { display: flex; justify-content: center; margin: 2px 0 12px; }
 .tf-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 800; padding: 8px 16px; border-radius: 999px; background: color-mix(in srgb, var(--k) 30%, var(--surface)); color: var(--ink); border: 1.5px solid var(--k); }
 .tf-colors { display: flex; gap: 10px; }

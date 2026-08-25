@@ -12,6 +12,7 @@ import { CopyButton } from './CopyButton'
 import Sheet from './Sheet'
 import { versionLabel } from '../version'
 import { useBackHandler } from '../backnav'
+import { Icon } from '../icons'
 import { PART_META, type Band, type Feedback, type Member, type Part } from '../types'
 import { getTemplatePreview, getWorkspaceTemplate, setTemplatePreview, WORKSPACE_TEMPLATES, type WorkspaceTemplateId } from '../workspaceTemplates'
 
@@ -395,7 +396,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
         {open && partChips.length > 1 && (
           <div className="mm-filter-wrap">
             <button type="button" className={'mm-filter-btn' + (filterOpen || partFilter !== 'all' ? ' on' : '')} onClick={() => setFilterOpen((v) => !v)} aria-label="파트 필터" aria-pressed={filterOpen}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
+              <Icon name="filter" />
             </button>
             {filterOpen && (
               <div className="mm-filter-menu" onMouseLeave={() => setFilterOpen(false)}>

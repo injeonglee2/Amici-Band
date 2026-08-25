@@ -4,6 +4,7 @@ import { useBackHandler } from '../backnav'
 import { watchEventTypes } from '../data'
 import type { CustomEventType } from '../types'
 import { EventIcon } from '../eventIcons'
+import { Icon } from '../icons'
 import { useSheetSwipe } from './useSheetSwipe'
 
 export interface FolderEntity {
@@ -43,6 +44,7 @@ export interface FolderModuleConfig {
   emptyIcon?: ReactNode
   rowIcon?: (folder: FolderEntity) => ReactNode
   templates?: { id: string; label: string; description: string; symbol: string; preview?: ReactNode }[]
+  reorderable?: boolean // 편집 모드에서 폴더 순서 변경 허용
 }
 
 export default function FolderModule<TFolder extends FolderEntity>({
@@ -58,9 +60,20 @@ export default function FolderModule<TFolder extends FolderEntity>({
   const [loadErr, setLoadErr] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
   const [editing, setEditing] = useState<TFolder | 'new' | null>(null)
+  const [reorderMode, setReorderMode] = useState(false)
   const [tags, setTags] = useState<CustomEventType[]>([])
   useEffect(() => watchEventTypes(setTags, () => {}), [])
   const tagMap = new Map(tags.map((t) => [t.id, t]))
+
+  async function moveFolder(index: number, dir: -1 | 1) {
+    const target = index + dir
+    if (target < 0 || target >= folders.length) return
+    const next = folders.slice()
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setFolders(next) // 낙관적 갱신
+    // 순서를 정규화해 바뀐 폴더만 저장
+    await Promise.all(next.map((folder, i) => (folder.order === i ? null : repository.save({ ...folder, order: i }))).filter(Boolean) as Promise<void>[])
+  }
 
   useEffect(
     () => repository.watch(setFolders, (error) => {
@@ -79,6 +92,13 @@ export default function FolderModule<TFolder extends FolderEntity>({
     <>
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
+        {config.reorderable && folders.length > 1 && (
+          <div className="folder-list-head">
+            <button type="button" className={'folder-edit-toggle' + (reorderMode ? ' on' : '')} onClick={() => setReorderMode((v) => !v)}>
+              {reorderMode ? <><Icon name="check" className="fet-ico" />완료</> : <><Icon name="sort" className="fet-ico" />순서 편집</>}
+            </button>
+          </div>
+        )}
         {folders.length === 0 && !loadErr ? (
           <div className="empty-state">
             {config.emptyIcon ?? <FolderIcon />}
@@ -86,7 +106,23 @@ export default function FolderModule<TFolder extends FolderEntity>({
           </div>
         ) : (
           <div className="list playlist-list">
-            {folders.map((folder) => (
+            {folders.map((folder, index) => reorderMode ? (
+              <div key={folder.id} className="playlist-row reorder">
+                <div className="playlist-ico" aria-hidden="true">{config.rowIcon?.(folder) ?? <FolderIcon />}</div>
+                <div className="playlist-info">
+                  <h3>{folder.name}</h3>
+                  {folder.tagId && tagMap.get(folder.tagId) && (
+                    <span className="folder-tag" style={{ ['--k' as string]: tagMap.get(folder.tagId)!.color }}>
+                      <EventIcon id={tagMap.get(folder.tagId)!.emoji} className="type-ico" />{tagMap.get(folder.tagId)!.name}
+                    </span>
+                  )}
+                </div>
+                <div className="folder-reorder-btns">
+                  <button type="button" aria-label="위로" disabled={index === 0} onClick={() => void moveFolder(index, -1)}><Icon name="chevron-up" /></button>
+                  <button type="button" aria-label="아래로" disabled={index === folders.length - 1} onClick={() => void moveFolder(index, 1)}><Icon name="chevron-down" /></button>
+                </div>
+              </div>
+            ) : (
               <button key={folder.id} className="playlist-row" onClick={() => setOpenId(folder.id)}>
                 <div className="playlist-ico" aria-hidden="true">{config.rowIcon?.(folder) ?? <FolderIcon />}</div>
                 <div className="playlist-info">
