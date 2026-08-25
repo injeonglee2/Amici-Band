@@ -36,7 +36,6 @@ const VIDEO_FOLDER_CONFIG: FolderModuleConfig = {
     placeholder: '예) 요리, 운동, 공부',
     deleteConfirm: (name) => `'${name}' 폴더와 안의 영상을 모두 삭제할까요?`,
   },
-  reorderable: true,
   taggable: true,
   rowIcon: (folder) => <span className="folder-emoji" aria-hidden>{folder.templateId === 'recipe' ? '🍳' : '🎬'}</span>,
   templates: [
