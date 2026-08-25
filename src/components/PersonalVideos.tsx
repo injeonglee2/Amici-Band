@@ -164,7 +164,9 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
             {visibleVideos.map((video) => (
               <MediaListRow key={video.id} thumbnail={video.thumbnail || thumbnailUrl(video.videoId)} title={video.title}
                 subtitle={video.recipe || video.note} onOpen={() => setPlaying(video)}
-                trailing={<button type="button" className="media-list-delete" onClick={() => void remove(video)} aria-label="영상 삭제">×</button>} />
+                trailing={editingFolder
+                  ? <button type="button" className="media-list-delete" onClick={() => void remove(video)} aria-label="영상 삭제">×</button>
+                  : undefined} />
             ))}
           </div>}
           </>
