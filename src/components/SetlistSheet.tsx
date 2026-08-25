@@ -161,8 +161,8 @@ export default function SetlistSheet({
 
   useEffect(() => {
     if (!isPractice) return
-    return watchEvents(setEvents, () => {})
-  }, [isPractice])
+    return watchEvents((list) => setEvents(isAdmin ? list : list.filter((e) => !e.adminOnly)), () => {})
+  }, [isPractice, isAdmin])
   useEffect(() => {
     if (!isPractice) return
     return watchPlaylists(setRecPlaylists)

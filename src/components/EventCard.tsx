@@ -117,6 +117,7 @@ export default function EventCard({
             <div className="etitle">
               <TypeGlyph type={ev.type} className="type-ico" />
               <h3>{ev.title}</h3>
+              {ev.adminOnly && isAdmin && <span className="admin-only-badge">관리자</span>}
             </div>
             <div className="sub">
               <span>

@@ -641,7 +641,10 @@ function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: 
 
   // 일자를 먼저 정하고, 그 날짜에 등록된 일정이 있으면 골라서 연결할 수 있게 한다.
   const [events, setEvents] = useState<BandEvent[]>([])
-  useEffect(() => watchEvents(setEvents, () => {}), [])
+  useEffect(
+    () => watchEvents((list) => setEvents(member?.admin ? list : list.filter((e) => !e.adminOnly)), () => {}),
+    [member?.admin],
+  )
   const eventsOnDate = events
     .filter((e) => e.date === date)
     .sort((a, b) => (a.rehStart ?? '').localeCompare(b.rehStart ?? ''))
@@ -1017,10 +1020,11 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
   useEffect(() => {
     if (!rec.eventId) return
     return watchEvents((evs) => {
+      if (!member?.admin) evs = evs.filter((e) => !e.adminOnly)
       const e = evs.find((x) => x.id === rec.eventId)
       setLiveEventTitle(e ? e.title : null)
     }, () => {})
-  }, [rec.eventId])
+  }, [rec.eventId, member?.admin])
   const [liveTrackTitle, setLiveTrackTitle] = useState<string | null>(null)
   useEffect(() => {
     if (!rec.playlistId || !rec.trackId) return

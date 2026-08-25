@@ -25,7 +25,7 @@ export default function EventForm({
   places: Place[]
   onClose: () => void
 }) {
-  const { user } = useAuth()
+  const { user, member } = useAuth()
   useBackHandler(onClose) // 뒤로가기로 일정 폼 닫기
   const grapePlaceId = places.find((p) => p.name === '포도나무 합주실')?.id
   // 유형별 기본값: 합주 → 포도나무 합주실·18:00~22:00, 그 외 → 초기화
@@ -64,6 +64,7 @@ export default function EventForm({
     setRehEnd(p.rehEnd)
   }
   const [note, setNote] = useState(editing?.note ?? '')
+  const [adminOnly, setAdminOnly] = useState(editing?.adminOnly ?? false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   // 직접 입력 장소 지도 검색 (일회성 — 골라도 장소 목록에는 저장하지 않고 이 일정의 loc 로만 씀)
@@ -107,6 +108,8 @@ export default function EventForm({
         placeId: placeId || undefined,
         loc: placeId ? undefined : loc.trim() || undefined,
         note: note.trim(),
+        // 관리자만 설정 가능. 일반 일정은 필드를 생략해 기존 데이터와 같은 공개 상태로 저장한다.
+        adminOnly: member?.admin && adminOnly ? true : undefined,
         createdBy: editing?.createdBy ?? user.uid,
         createdAt: editing?.createdAt ?? Date.now(),
       }
@@ -235,6 +238,24 @@ export default function EventForm({
           <label htmlFor="f-note">메모 (선택)</label>
           <textarea id="f-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={400} rows={5} />
         </div>
+
+        {!!member?.admin && (
+          <div className="event-visibility-row">
+            <div>
+              <b>관리자만 보기</b>
+              <span>관리자 일정 목록과 캘린더에만 표시</span>
+            </div>
+            <button
+              type="button"
+              className={'switch' + (adminOnly ? ' on' : '')}
+              aria-label="관리자만 보기"
+              aria-pressed={adminOnly}
+              onClick={() => setAdminOnly((v) => !v)}
+            >
+              <span className="switch-knob" />
+            </button>
+          </div>
+        )}
 
         {err && <p className="err small">{err}</p>}
 

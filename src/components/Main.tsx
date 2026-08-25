@@ -210,8 +210,10 @@ export default function Main() {
   const placesMap = useMemo(() => new Map(places.map((p) => [p.id, p])), [places])
 
   const sorted = useMemo(
-    () => [...events, ...olderEvents].sort((a, b) => (a.date + a.rehStart).localeCompare(b.date + b.rehStart)),
-    [events, olderEvents],
+    () => [...events, ...olderEvents]
+      .filter((e) => isAdmin || !e.adminOnly)
+      .sort((a, b) => (a.date + a.rehStart).localeCompare(b.date + b.rehStart)),
+    [events, olderEvents, isAdmin],
   )
   const upcoming = useMemo(() => sorted.filter((e) => dayDiff(e.date) >= 0), [sorted])
   // 지난 일정: 최신순(방금 끝난 것부터)
@@ -242,8 +244,9 @@ export default function Main() {
     setLoadingMore(true)
     try {
       const batch = await loadOlderEvents(olderCursor, 20)
+      const visibleBatch = isAdmin ? batch : batch.filter((e) => !e.adminOnly)
       if (batch.length) {
-        setOlderEvents((prev) => [...prev, ...batch])
+        setOlderEvents((prev) => [...prev, ...visibleBatch])
         setOlderCursor(batch[batch.length - 1].date) // 다음 '더보기'는 이보다 더 이전
       }
       if (batch.length < 20) setHasMorePast(false) // 더 없음 → 버튼 숨김

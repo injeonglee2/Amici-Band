@@ -558,6 +558,10 @@ button { font-family: inherit; }
 .einfo .etitle { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .einfo .etitle h3 { margin: 0; min-width: 0; }
 .einfo .etitle .type-ico { width: 16px; height: 16px; }
+.admin-only-badge {
+  flex: none; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 999px; color: var(--accent); font-size: 9.5px; font-weight: 700; line-height: 1.2;
+}
 .einfo .sub {
   margin-top: 4px; font-size: 12.5px; color: var(--ink-soft);
   display: flex; flex-wrap: wrap; gap: 3px 12px;
@@ -1964,6 +1968,14 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
   background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); transition: transform 0.16s;
 }
 .switch.on .switch-knob { transform: translateX(18px); }
+.event-visibility-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin: 4px 0 16px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface-2);
+}
+.event-visibility-row > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.event-visibility-row b { color: var(--ink); font-size: 14px; }
+.event-visibility-row span:not(.switch-knob) { color: var(--ink-soft); font-size: 11.5px; }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { *, .toast, .sheet { animation: none !important; transition: none !important; } }

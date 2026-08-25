@@ -446,6 +446,12 @@ async function sendAllPush(memberDocs, payload) {
   }
 }
 
+function eventAudience(memberDocs, eventData) {
+  return eventData && eventData.adminOnly === true
+    ? memberDocs.filter((member) => member.get('admin') === true)
+    : memberDocs
+}
+
 exports.notifyOnEventCreate = onDocumentCreated(
   { document: 'bands/{bandId}/events/{eventId}', secrets: webPushSecrets },
   async (event) => {
@@ -454,7 +460,7 @@ exports.notifyOnEventCreate = onDocumentCreated(
   const { bandId, eventId } = event.params
   const membersSnap = await bandRef(bandId).collection('members').get()
   const isPractice = data.type === 'practice'
-  const delivery = await sendAllPush(membersSnap.docs, {
+  const delivery = await sendAllPush(eventAudience(membersSnap.docs, data), {
     title: isPractice
       ? `참석 투표 요청: ${data.title || '합주 일정'}`
       : `새 일정: ${data.title || '일정'}`,
@@ -479,7 +485,7 @@ exports.notifyOnEventUpdate = onDocumentUpdated(
     const changeSummary = await buildEventChangeSummary(before, after, bandId)
     const membersSnap = await bandRef(bandId).collection('members').get()
     const isShow = after.type === 'show'
-    const delivery = await sendAllPush(membersSnap.docs, {
+    const delivery = await sendAllPush(eventAudience(membersSnap.docs, after), {
       title: `${isShow ? '공연' : '합주'} 일정 변경: ${after.title || '일정'}`,
       body: changeSummary,
       eventId,
@@ -542,7 +548,7 @@ exports.remindUndecided = onCall({ secrets: webPushSecrets }, async (req) => {
   ])
   // 미정 = 아직 투표 안 함 + 명시적으로 '미정' 선택한 멤버
   const statusById = new Map(attSnap.docs.map((d) => [d.id, d.data().status]))
-  const undecided = membersSnap.docs.filter(
+  const undecided = eventAudience(membersSnap.docs, ev).filter(
     (d) => !statusById.has(d.id) || statusById.get(d.id) === 'undecided',
   )
   const delivery = await sendAllPush(undecided, {

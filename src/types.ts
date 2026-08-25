@@ -18,6 +18,7 @@ export interface BandEvent {
   loc?: string // 레거시/직접입력 장소명 (placeId 없을 때 표시용)
   playlistId?: string // (공연 전용) 연결된 재생목록 — 공연 셋리스트를 재생목록으로 대신함
   note: string
+  adminOnly?: boolean // 관리자 일정 목록·캘린더에만 표시
   createdBy: string
   createdAt: number
 }
