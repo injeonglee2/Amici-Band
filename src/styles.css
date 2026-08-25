@@ -1506,8 +1506,27 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .mm-month-nav:hover:not(:disabled) { color: var(--ink); background: var(--surface-2); }
 .mm-month-nav:disabled { opacity: 0.3; cursor: default; }
 .mm-month-nav svg { width: 18px; height: 18px; }
-.mm-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
 .mm-card .mm-list { margin-top: 12px; }
+/* 파트 필터: 아이콘 → 드롭다운 팝업 + 선택 시 활성 뱃지 */
+.mm-filter-wrap { position: relative; flex: none; }
+.mm-filter-menu {
+  position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px; min-width: 132px;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  background: var(--surface-solid); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow-lift);
+}
+.mm-filter-menu button {
+  appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; border-radius: 8px; text-align: left;
+}
+.mm-filter-menu button:hover { background: var(--surface-2); }
+.mm-filter-menu button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.mm-filter-menu button span { color: var(--ink-faint); font-weight: 700; font-variant-numeric: tabular-nums; }
+.mm-active-filter {
+  flex: none; display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; font-weight: 700; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent); padding: 2px 4px 2px 9px; border-radius: 999px;
+}
+.mm-active-filter button { appearance: none; cursor: pointer; border: none; background: transparent; color: inherit; display: grid; place-items: center; padding: 2px; border-radius: 999px; }
+.mm-active-filter button svg { width: 12px; height: 12px; }
 
 /* 개인 채널 일정 — 사용자 정의 유형 */
 .type-emoji { font-size: 13px; line-height: 1; }

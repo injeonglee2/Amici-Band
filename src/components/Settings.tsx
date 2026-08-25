@@ -393,9 +393,27 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
           <span className="guide-badge">관리자</span>
         </button>
         {open && partChips.length > 1 && (
-          <button type="button" className={'mm-filter-btn' + (filterOpen || partFilter !== 'all' ? ' on' : '')} onClick={() => setFilterOpen((v) => !v)} aria-label="파트 필터" aria-pressed={filterOpen}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
-          </button>
+          <div className="mm-filter-wrap">
+            <button type="button" className={'mm-filter-btn' + (filterOpen || partFilter !== 'all' ? ' on' : '')} onClick={() => setFilterOpen((v) => !v)} aria-label="파트 필터" aria-pressed={filterOpen}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
+            </button>
+            {filterOpen && (
+              <div className="mm-filter-menu" onMouseLeave={() => setFilterOpen(false)}>
+                <button type="button" className={partFilter === 'all' ? 'on' : ''} onClick={() => { setPartFilter('all'); setFilterOpen(false) }}>전체 <span>{members.length}</span></button>
+                {partChips.map(([part, count]) => (
+                  <button key={part} type="button" className={partFilter === part ? 'on' : ''} onClick={() => { setPartFilter(part); setFilterOpen(false) }}>{PART_META[part].label} <span>{count}</span></button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {open && partFilter !== 'all' && (
+          <span className="mm-active-filter">
+            {PART_META[partFilter as Part].label}
+            <button type="button" onClick={() => setPartFilter('all')} aria-label="필터 해제">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+          </span>
         )}
         <div className="mm-right">
           {open && (
@@ -421,14 +439,6 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
           <button type="button" className="mm-month-nav" onClick={() => setMonthOffset((o) => Math.min(0, o + 1))} disabled={monthOffset >= 0} aria-label="다음 달">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
           </button>
-        </div>
-      )}
-      {open && filterOpen && partChips.length > 1 && (
-        <div className="mm-filter" role="tablist" aria-label="파트별 필터">
-          <button type="button" className="chip" aria-pressed={partFilter === 'all'} onClick={() => setPartFilter('all')}>전체 <span>{members.length}</span></button>
-          {partChips.map(([part, count]) => (
-            <button key={part} type="button" className="chip" aria-pressed={partFilter === part} onClick={() => setPartFilter(part)}>{PART_META[part].label} <span>{count}</span></button>
-          ))}
         </div>
       )}
       {open && (
