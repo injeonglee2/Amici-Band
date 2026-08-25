@@ -34,6 +34,7 @@ import { exportErrorMessage, exportPlaylistToYouTube, YouTubeExportError, type E
 import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
 import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
 import Sheet from './Sheet'
+import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlaylistTitle } from '../playlistImport'
 
 const MUSIC_FOLDER_CONFIG: FolderModuleConfig = {
   labels: {
@@ -51,6 +52,27 @@ const playlistRepository: FolderRepository<Playlist> = {
   create: (name, creatorUid) => ({ id: newId(), name, createdBy: creatorUid, createdAt: Date.now() }),
   save: savePlaylist,
   remove: (playlist) => deletePlaylist(playlist.id),
+  // 새 재생목록을 만들 때 유튜브 재생목록 링크를 넣으면 제목·곡을 그대로 가져온다(선택).
+  playlistImport: {
+    templateIds: [''], // 템플릿이 없는 재생목록: templateId 미지정('')일 때 허용
+    resolveName: resolveYouTubePlaylistTitle,
+    errorMessage: playlistImportErrorMessage,
+    run: (playlist, url, onProgress) => importYouTubePlaylist({
+      input: url,
+      save: (song, index) => saveTrack(playlist.id, {
+        id: newId(),
+        url: song.url,
+        videoId: song.videoId,
+        title: song.title,
+        artist: song.artist,
+        thumbnail: song.thumbnail,
+        order: Date.now() + index,
+        addedBy: playlist.createdBy,
+        addedAt: Date.now() + index,
+      }),
+      onProgress: ({ current, total }) => onProgress(`${current}/${total}곡 담는 중…`),
+    }),
+  },
 }
 
 /** 음악 뷰 — 하단 네비 '음악' 탭. 재생목록(폴더) 목록 + 상세(곡 목록) */
