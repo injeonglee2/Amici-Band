@@ -488,10 +488,10 @@ export default function Main() {
         <MusicView toast={toast} />
       )}
 
-      <nav className="bottom-nav" role="tablist" aria-label="주 메뉴" style={{ gridTemplateColumns: `repeat(${workspaceTemplate.navigation.length}, minmax(0, 1fr))` }}>
+      <nav className="bottom-nav" role="tablist" aria-label="주 메뉴">
         {workspaceTemplate.navigation.map((item) => (
           <button key={item.id} role="tab" aria-selected={nav === item.id}
-            className={'navitem' + (nav === item.id ? ' on' : '')}
+            className={'navitem' + (nav === item.id ? ' on' : '')} style={{ gridColumn: item.slot }}
             onClick={() => setNav(item.id)}>
             <NavIcon id={item.id} />
             {item.label}
