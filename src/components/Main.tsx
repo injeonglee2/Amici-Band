@@ -50,6 +50,9 @@ export default function Main() {
   const { member, bandId, workspace, channels, isDeveloper, isChannelMember, switchChannel, signOutUser } = useAuth()
   const isAdmin = !!member?.admin
   const workspaceTemplate = getWorkspaceTemplate(isDeveloper ? (getTemplatePreview() ?? workspace?.templateId) : workspace?.templateId)
+  const defaultNav: WorkspaceNavId = workspaceTemplate.id === 'band'
+    ? 'home'
+    : workspaceTemplate.navigation[0]?.id ?? 'home'
   useWorkspaceTheme(workspaceTemplate)
   const [events, setEvents] = useState<BandEvent[]>([]) // 실시간: date >= 1년 전 (미래 포함)
   const [olderEvents, setOlderEvents] = useState<BandEvent[]>([]) // '더보기'로 불러온 1년 이전 지난 일정
@@ -74,7 +77,7 @@ export default function Main() {
       : new URLSearchParams(window.location.search).get('nav') as WorkspaceNavId | null
     return requested && workspaceTemplate.navigation.some((item) => item.id === requested)
       ? requested
-      : workspaceTemplate.navigation[0]?.id ?? 'home'
+      : defaultNav
   })
   const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
@@ -127,9 +130,9 @@ export default function Main() {
   // 템플릿별 활성 탭만 허용한다. 이후 개인 기록 모듈도 navigation 설정만 추가하면 진입 가능하다.
   useEffect(() => {
     if (!workspaceTemplate.navigation.some((item) => item.id === nav)) {
-      setNav(workspaceTemplate.navigation[0]?.id ?? 'home')
+      setNav(defaultNav)
     }
-  }, [nav, workspaceTemplate])
+  }, [defaultNav, nav, workspaceTemplate])
 
   async function selectChannel(nextBandId: string) {
     if (nextBandId === bandId) { setMenuOpen(false); return }
