@@ -44,7 +44,7 @@ export interface FolderModuleConfig {
   }
   emptyIcon?: ReactNode
   rowIcon?: (folder: FolderEntity) => ReactNode
-  templates?: { id: string; label: string; description: string; symbol: string; preview?: ReactNode }[]
+  templates?: { id: string; label: string; description: string; symbol: string }[]
   reorderable?: boolean // 편집 모드에서 폴더 순서 변경 허용
   taggable?: boolean // 일정 유형 태그 적용 허용(개인 채널 전용)
 }
@@ -184,7 +184,6 @@ export function FolderForm<TFolder extends FolderEntity>({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const canImport = !editing && !!repository.playlistImport?.templateIds.includes(templateId ?? '')
-  const selectedTemplate = config.templates?.find((t) => t.id === templateId)
   const valid = name.trim().length > 0 || (canImport && playlistUrl.trim().length > 0)
   const newFolderRef = useRef<TFolder | null>(null)
 
@@ -266,12 +265,6 @@ export function FolderForm<TFolder extends FolderEntity>({
                 </button>
               ))}
             </div>
-            {selectedTemplate?.preview && (
-              <div className="folder-template-preview">
-                <div className="ftp-label">미리보기</div>
-                {selectedTemplate.preview}
-              </div>
-            )}
           </div>
         )}
         {tags.length > 0 && (

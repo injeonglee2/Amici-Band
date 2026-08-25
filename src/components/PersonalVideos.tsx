@@ -39,29 +39,8 @@ const VIDEO_FOLDER_CONFIG: FolderModuleConfig = {
   taggable: true,
   rowIcon: (folder) => <span className="folder-emoji" aria-hidden>{folder.templateId === 'recipe' ? '🍳' : '🎬'}</span>,
   templates: [
-    {
-      id: 'video', label: '일반 영상', symbol: '🎬', description: '영상을 자유롭게 분류해요.',
-      preview: (
-        <div className="ftp-grid">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="ftp-thumb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></div>
-          ))}
-        </div>
-      ),
-    },
-    {
-      id: 'recipe', label: '레시피', symbol: '🍳', description: '재료와 조리법을 함께 기록해요.',
-      preview: (
-        <div className="ftp-recipe">
-          <div className="ftp-badges">{['양파', '마늘', '두부'].map((n) => <span key={n} className="ftp-badge">{n}</span>)}</div>
-          <div className="ftp-grid">
-            {[0, 1].map((i) => (
-              <div key={i} className="ftp-thumb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></div>
-            ))}
-          </div>
-        </div>
-      ),
-    },
+    { id: 'video', label: '일반 영상', symbol: '🎬', description: '영상을 자유롭게 분류해요.' },
+    { id: 'recipe', label: '레시피', symbol: '🍳', description: '재료와 조리법을 함께 기록해요.' },
   ],
 }
 

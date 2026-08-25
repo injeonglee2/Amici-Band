@@ -1036,15 +1036,6 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--k-ink, 
 .folder-template-card span { margin-bottom: 7px; font-size: 20px; }
 .folder-template-card b { font-size: 13px; }
 .folder-template-card small { margin-top: 4px; color: var(--ink-soft); font-size: 10.5px; line-height: 1.35; }
-/* 폴더 템플릿 미리보기 */
-.folder-template-preview { margin-top: 10px; padding: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; }
-.ftp-label { font-size: 10.5px; font-weight: 800; color: var(--ink-faint); margin-bottom: 8px; letter-spacing: .04em; }
-.ftp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.ftp-recipe .ftp-grid { grid-template-columns: repeat(2, 1fr); }
-.ftp-thumb { aspect-ratio: 16 / 10; border-radius: 8px; background: color-mix(in srgb, var(--ink) 8%, var(--surface)); display: grid; place-items: center; color: var(--ink-faint); }
-.ftp-thumb svg { width: 18px; height: 18px; }
-.ftp-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
-.ftp-badge { font-size: 11px; font-weight: 700; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 3px 9px; border-radius: 999px; }
 /* 레시피 재료: 아이콘 없이 뱃지 나열 */
 .ingredient-cats { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
 .ingredient-cat-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--ink-soft); margin-bottom: 8px; }
