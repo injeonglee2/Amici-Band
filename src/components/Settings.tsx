@@ -9,6 +9,7 @@ import ConfirmDialog from './ConfirmDialog'
 import Segmented from './Segmented'
 import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
+import Sheet from './Sheet'
 import { versionLabel } from '../version'
 import { useBackHandler } from '../backnav'
 import { PART_META, type Band, type Feedback, type Member, type Part } from '../types'
@@ -26,13 +27,19 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const isAdmin = !!member?.admin
   const toast = useToast()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [devPopup, setDevPopup] = useState<null | 'firebase' | 'feedback'>(null)
+  const [devFeedback, setDevFeedback] = useState<Feedback[]>([])
   const [tab, setTab] = useState<'general' | 'band' | 'dev'>('general')
   const tabs: { k: 'general' | 'band' | 'dev'; label: string }[] = [
     { k: 'general', label: '일반' },
     ...(isAdmin && bandId ? [{ k: 'band' as const, label: '관리' }] : []),
     ...(isDeveloper ? [{ k: 'dev' as const, label: '개발자' }] : []),
   ]
-  useBackHandler(() => (feedbackOpen ? setFeedbackOpen(false) : onClose()))
+  useEffect(() => {
+    if (!isDeveloper) return
+    return watchFeedback(setDevFeedback, () => {})
+  }, [isDeveloper])
+  useBackHandler(() => (devPopup ? setDevPopup(null) : feedbackOpen ? setFeedbackOpen(false) : onClose()))
   return (
     <div className="app">
       <header className="top">
@@ -71,11 +78,19 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
         {tab === 'dev' && isDeveloper && (
           <>
-            <BillingUsageCard />
             <TemplatePreviewCard />
             <BandsStatusCard />
-            <AdminFeedbackCard toast={toast} />
-            <FirebaseLimitsCard />
+            <button type="button" className="set-entry dev-entry" onClick={() => setDevPopup('firebase')}>
+              <span><b>Firebase 관리</b><small>사용량과 무료 한도 확인</small></span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+            <button type="button" className="set-entry dev-entry" onClick={() => setDevPopup('feedback')}>
+              <span><b>받은 의견</b><small>버그 제보와 개선 의견 관리</small></span>
+              <span className="dev-entry-side">
+                {devFeedback.filter((f) => f.status === 'new').length > 0 && <b className="fb-newbadge">{devFeedback.filter((f) => f.status === 'new').length}</b>}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+              </span>
+            </button>
           </>
         )}
 
@@ -83,8 +98,33 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       </main>
 
       {feedbackOpen && <FeedbackSheet toast={toast} onClose={() => setFeedbackOpen(false)} />}
+      {devPopup === 'firebase' && (
+        <DeveloperPopup title="Firebase 관리" onClose={() => setDevPopup(null)}>
+          <BillingUsageCard />
+          <FirebaseLimitsCard />
+        </DeveloperPopup>
+      )}
+      {devPopup === 'feedback' && (
+        <DeveloperPopup title="받은 의견" onClose={() => setDevPopup(null)}>
+          <AdminFeedbackCard toast={toast} list={devFeedback} />
+        </DeveloperPopup>
+      )}
       <Toast state={toast} />
     </div>
+  )
+}
+
+function DeveloperPopup({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <Sheet onClose={onClose} className="dev-popup-sheet">
+      <div className="dev-popup-head">
+        <h2>{title}</h2>
+        <button type="button" className="edit-btn" onClick={onClose} aria-label="닫기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+      </div>
+      {children}
+    </Sheet>
   )
 }
 
@@ -377,9 +417,7 @@ function BandsStatusCard() {
 const FB_TYPE_LABEL: Record<Feedback['type'], string> = { bug: '버그', idea: '개선', etc: '기타' }
 
 /** 개발자 전용: 받은 의견·버그 제보 목록 + 처리 상태 토글 */
-function AdminFeedbackCard({ toast }: { toast: ReturnType<typeof useToast> }) {
-  const [list, setList] = useState<Feedback[]>([])
-  useEffect(() => watchFeedback(setList, () => {}), [])
+function AdminFeedbackCard({ toast, list }: { toast: ReturnType<typeof useToast>; list: Feedback[] }) {
   const newCount = list.filter((f) => f.status === 'new').length
 
   async function toggle(f: Feedback) {

@@ -1031,6 +1031,19 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
   color: var(--ink); font: inherit; font-weight: 700; font-size: 15px; text-align: left;
 }
 .set-entry svg { flex: none; width: 20px; height: 20px; color: var(--ink-faint); }
+.dev-entry > span:first-child { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.dev-entry > span:first-child > b { color: var(--ink); font-size: 14px; }
+.dev-entry small { color: var(--ink-faint); font-size: 11.5px; font-weight: 500; }
+.dev-entry-side { flex: none; display: inline-flex; align-items: center; gap: 7px; }
+.dev-entry-side .fb-newbadge { margin: 0; }
+.dev-popup-sheet { padding-bottom: 14px; }
+.dev-popup-head {
+  position: sticky; top: -8px; z-index: 2; display: flex; align-items: center; justify-content: space-between;
+  margin: 0 -2px 12px; padding: 8px 2px 8px; background: var(--surface-solid);
+}
+.dev-popup-head h2 { margin: 0; }
+.dev-popup-head .edit-btn svg { width: 18px; height: 18px; }
+.dev-popup-sheet > .limits-card { margin-bottom: 12px; }
 /* 의견 제출 폼: 유형 칩 */
 .fb-types { display: flex; gap: 8px; }
 .fb-type {
