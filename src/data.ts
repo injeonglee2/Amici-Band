@@ -23,7 +23,7 @@ import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'fi
 import { db, fbApp, storage } from './firebase'
 import { getCurrentBand, bandCol, bandDoc, bandStoragePath } from './band'
 import { DEMO, demoDb } from './demo'
-import type { Band, Attendance, BandEvent, Feedback, Member, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Band, Attendance, BandEvent, CustomEventType, Feedback, Member, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -476,6 +476,28 @@ export async function addRecordingFolderPlaylist(folderId: string, playlistId: s
 export async function removeRecordingFolderPlaylist(folderId: string, playlistId: string): Promise<void> {
   if (DEMO) return demoDb.removeRecordingFolderPlaylist(folderId, playlistId)
   await setDoc(bandDoc('recordingFolders', folderId), { playlistIds: arrayRemove(playlistId) }, { merge: true })
+}
+
+/* ---------------- 개인 채널 사용자 정의 일정 유형 (bands/{band}/eventTypes) ---------------- */
+export function watchEventTypes(
+  cb: (types: CustomEventType[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) return demoDb.watchEventTypes(cb)
+  return onSnapshot(bandCol('eventTypes'), (snap) => {
+    const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<CustomEventType, 'id'>) }))
+    list.sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0))
+    cb(list)
+  }, (err) => onError?.(err))
+}
+export async function saveEventType(t: CustomEventType): Promise<void> {
+  if (DEMO) return demoDb.saveEventType(t)
+  const { id, ...data } = t
+  await setDoc(bandDoc('eventTypes', id), data, { merge: true })
+}
+export async function deleteEventType(id: string): Promise<void> {
+  if (DEMO) return demoDb.deleteEventType(id)
+  await deleteDoc(bandDoc('eventTypes', id))
 }
 
 /** 개발자 채널 전환용 전체 채널 일회 조회. */

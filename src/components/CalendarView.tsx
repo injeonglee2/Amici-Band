@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { TYPE_META, type BandEvent, type Member, type Place } from '../types'
+import { Fragment, useMemo, type ReactNode } from 'react'
+import { TYPE_META, type BandEvent, type EventType, type Member, type Place } from '../types'
 import { parseDate, todayStr, weekday } from '../time'
 import { resolvePlace } from '../place'
 import EventCard from './EventCard'
@@ -23,6 +23,9 @@ export default function CalendarView({
   cursor,
   selected,
   onSelect,
+  resolveType = (t) => ({ color: TYPE_META[t as EventType]?.color ?? 'var(--ink-faint)' }),
+  renderEvent,
+  emptyLabel = '이 날은 일정이 없어요.',
 }: {
   events: BandEvent[]
   placesMap: Map<string, Place>
@@ -32,6 +35,9 @@ export default function CalendarView({
   cursor: { y: number; m: number } // m: 0-based
   selected: string
   onSelect: (date: string) => void
+  resolveType?: (type: string) => { color: string } // 유형 색상 주입(개인 채널 커스텀 유형 지원)
+  renderEvent?: (ev: BandEvent) => ReactNode // 날짜 상세 카드 커스텀(기본=밴드 EventCard)
+  emptyLabel?: string
 }) {
   const today = todayStr()
 
@@ -88,7 +94,7 @@ export default function CalendarView({
               {evs && evs.length > 0 && (
                 <span className="cal-evs">
                   {evs.slice(0, 3).map((e) => (
-                    <span key={e.id} className="cal-ev" style={{ ['--k' as string]: TYPE_META[e.type].color }}>
+                    <span key={e.id} className="cal-ev" style={{ ['--k' as string]: resolveType(e.type).color }}>
                       {e.title}
                     </span>
                   ))}
@@ -104,19 +110,23 @@ export default function CalendarView({
         {sd.getMonth() + 1}월 {sd.getDate()}일 ({weekday(selected)})
       </div>
       {dayEvents.length === 0 ? (
-        <div className="cal-noday">이 날은 일정이 없어요.</div>
+        <div className="cal-noday">{emptyLabel}</div>
       ) : (
         <div className="list">
-          {dayEvents.map((ev) => (
-            <EventCard
-              key={ev.id}
-              ev={ev}
-              place={resolvePlace(ev, placesMap)}
-              members={members}
-              onEdit={() => onEdit(ev)}
-              toast={toast}
-            />
-          ))}
+          {dayEvents.map((ev) =>
+            renderEvent ? (
+              <Fragment key={ev.id}>{renderEvent(ev)}</Fragment>
+            ) : (
+              <EventCard
+                key={ev.id}
+                ev={ev}
+                place={resolvePlace(ev, placesMap)}
+                members={members}
+                onEdit={() => onEdit(ev)}
+                toast={toast}
+              />
+            ),
+          )}
         </div>
       )}
     </div>

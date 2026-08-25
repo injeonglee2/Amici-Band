@@ -169,6 +169,12 @@ service cloud.firestore {
         allow write: if isBandMember(bandId);
       }
 
+      // 개인 채널 사용자 정의 일정 유형(플래그). 멤버가 직접 생성/수정.
+      match /eventTypes/{typeId} {
+        allow read: if isDeveloper() || isBandMember(bandId);
+        allow write: if isBandMember(bandId);
+      }
+
       match /scores/{scoreId} {
         allow read: if isDeveloper() || isBandMember(bandId);
         allow create: if isBandMember(bandId);

@@ -122,7 +122,7 @@ export const WORKSPACE_TEMPLATES: Record<WorkspaceTemplateId, WorkspaceTemplate>
   personal: {
     id: 'personal', label: '개인', symbol: '✓', memberNoun: '사용자',
     description: '나만의 영상과 기록을 폴더별로 관리해요.',
-    navigation: [{ id: 'recordings', label: '영상', slot: 2 }, { id: 'journal', label: '기록', slot: 4 }],
+    navigation: [{ id: 'recordings', label: '영상', slot: 2 }, { id: 'home', label: '일정', slot: 3 }, { id: 'journal', label: '기록', slot: 4 }],
     theme: notionPersonalTheme,
   },
 }

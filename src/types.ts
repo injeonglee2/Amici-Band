@@ -7,6 +7,27 @@ export const TYPE_META: Record<EventType, { label: string; color: string }> = {
   meeting: { label: '회의', color: 'var(--c-meeting)' },
 }
 
+/** 개인 채널의 사용자 정의 일정 유형(플래그). 밴드의 고정 TYPE_META 대체. 경로: bands/{bandId}/eventTypes/{id} */
+export interface CustomEventType {
+  id: string
+  name: string
+  emoji: string // 아이콘(이모지)
+  color: string // 파스텔 hex
+  order?: number
+  createdBy?: string
+  createdAt?: number
+}
+
+/** 개인 채널 일정 유형 색상 팔레트 (파스텔) */
+export const PASTEL_PALETTE: { name: string; color: string }[] = [
+  { name: 'Peachy Pink', color: '#F8B8C8' },
+  { name: 'Buttercream', color: '#FEEEB6' },
+  { name: 'Minty Green', color: '#BDE4C8' },
+  { name: 'Sky Blue', color: '#A8D8F0' },
+  { name: 'Lavender', color: '#D4B8F2' },
+  { name: 'Soft Coral', color: '#F6CAB3' },
+]
+
 export interface BandEvent {
   id: string
   type: EventType

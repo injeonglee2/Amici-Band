@@ -31,6 +31,7 @@ import { useAndroidBack, useBackHandler } from '../backnav'
 import { getTemplatePreview, getWorkspaceTemplate, workspaceThemeStyle, type WorkspaceNavId } from '../workspaceTemplates'
 import { BAND_RECORDING_MODULE } from '../recordingModules'
 import PersonalVideos from './PersonalVideos'
+import PersonalSchedule from './PersonalSchedule'
 import Onboarding from './Onboarding'
 import PersonalRecords from './PersonalRecords'
 import { useWorkspaceTheme } from '../useWorkspaceTheme'
@@ -342,6 +343,9 @@ export default function Main() {
       <NotifBanner />
 
       {nav === 'home' ? (
+      workspaceTemplate.id === 'personal' ? (
+        <PersonalSchedule toast={toast} />
+      ) : (
       <>
       <div className="filters">
         {filters.map((f) => (
@@ -470,7 +474,7 @@ export default function Main() {
         </button>
       )}
       </>
-      ) : nav === 'places' ? (
+      )) : nav === 'places' ? (
         <PlacesView places={places} loadErr={placesErr} toast={toast} />
       ) : nav === 'recordings' ? (
         workspaceTemplate.id === 'personal'

@@ -7,7 +7,7 @@
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, Band, BandEvent, Member, Place, Playlist, Recording, RecordingFolder, RunningEntry, SetlistSong, Track, TrackPart } from './types'
+import type { Attendance, Band, BandEvent, CustomEventType, EventType, Member, Place, Playlist, Recording, RecordingFolder, RunningEntry, SetlistSong, Track, TrackPart } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
@@ -107,6 +107,25 @@ const initialTracks: Record<string, Track[]> = {
 }
 
 const eventsCol = makeCollection<BandEvent>(initialEvents)
+
+// 개인 채널 데모: 사용자 정의 유형 + 개인 일정 (밴드 이벤트와 분리)
+const demoPersonalTypes: CustomEventType[] = [
+  { id: 'pt-run', name: '운동', emoji: '🏃', color: '#BDE4C8', order: 0 },
+  { id: 'pt-study', name: '공부', emoji: '📚', color: '#A8D8F0', order: 1 },
+  { id: 'pt-meet', name: '약속', emoji: '🍻', color: '#F8B8C8', order: 2 },
+]
+const dstr = (day: number) => {
+  const d = new Date(now)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+const personalEvents: BandEvent[] = [
+  { id: 'pe1', type: 'pt-run' as unknown as EventType, title: '아침 러닝', date: dstr(26), rehStart: '07:00', rehEnd: '', note: '5km 목표', createdBy: DEMO_MEMBER.uid, createdAt: now },
+  { id: 'pe2', type: 'pt-study' as unknown as EventType, title: '알고리즘 스터디', date: dstr(27), rehStart: '20:00', rehEnd: '22:00', note: '', createdBy: DEMO_MEMBER.uid, createdAt: now },
+  { id: 'pe3', type: 'pt-meet' as unknown as EventType, title: '동창 모임', date: dstr(29), rehStart: '19:00', rehEnd: '', note: '홍대입구역', createdBy: DEMO_MEMBER.uid, createdAt: now },
+]
+const personalEventsCol = makeCollection<BandEvent>(personalEvents)
+const eventTypesCol = makeCollection<CustomEventType>(demoPersonalTypes)
+const isPersonalChannel = () => demoActiveWorkspace().templateId === 'personal'
 const placesCol = makeCollection<Place>(initialPlaces)
 const membersCol = makeCollection<Member>(initialMembers)
 const playlistsCol = makeCollection<Playlist>(initialPlaylists)
@@ -263,9 +282,12 @@ const recordingFoldersCol = makeCollection<RecordingFolder>(initialRecordingFold
 
 export const demoDb = {
   watchMembers: (cb: Sub<Member[]>) => membersCol.watch(cb),
-  watchEvents: (cb: Sub<BandEvent[]>) => eventsCol.watch(cb),
-  saveEvent: (ev: BandEvent) => eventsCol.upsert(ev, (x) => x.id),
-  deleteEvent: (id: string) => eventsCol.remove(id, (x) => x.id),
+  watchEvents: (cb: Sub<BandEvent[]>) => (isPersonalChannel() ? personalEventsCol : eventsCol).watch(cb),
+  saveEvent: (ev: BandEvent) => (isPersonalChannel() ? personalEventsCol : eventsCol).upsert(ev, (x) => x.id),
+  deleteEvent: (id: string) => (isPersonalChannel() ? personalEventsCol : eventsCol).remove(id, (x) => x.id),
+  watchEventTypes: (cb: Sub<CustomEventType[]>) => eventTypesCol.watch((l) => cb([...l].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))),
+  saveEventType: (t: CustomEventType) => eventTypesCol.upsert(t, (x) => x.id),
+  deleteEventType: (id: string) => eventTypesCol.remove(id, (x) => x.id),
 
   watchPlaces: (cb: Sub<Place[]>) => {
     return placesCol.watch((list) => cb([...list].sort((a, b) => a.name.localeCompare(b.name, 'ko'))))

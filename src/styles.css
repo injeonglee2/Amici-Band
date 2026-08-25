@@ -1510,6 +1510,25 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .mm-month-nav svg { width: 18px; height: 18px; }
 .mm-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
 .mm-card .mm-list { margin-top: 12px; }
+
+/* 개인 채널 일정 — 사용자 정의 유형 */
+.type-emoji { font-size: 13px; line-height: 1; }
+.ps-emoji { font-size: 18px; line-height: 1; }
+.ps-event .ps-type-tag { font-size: 11px; color: var(--ink-soft); }
+.ps-type-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.ps-type-opt { appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 13px; font-weight: 700; padding: 7px 12px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink); }
+.ps-type-opt[aria-pressed="true"] { border-color: var(--k); background: color-mix(in srgb, var(--k) 24%, var(--surface)); }
+.ps-type-new { border-style: dashed; color: var(--ink-soft); }
+.ps-type-hint { margin: 6px 2px 0; }
+.tf-preview { display: flex; justify-content: center; margin: 2px 0 12px; }
+.tf-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 800; padding: 8px 16px; border-radius: 999px; background: color-mix(in srgb, var(--k) 30%, var(--surface)); color: var(--ink); border: 1.5px solid var(--k); }
+.tf-colors { display: flex; gap: 10px; }
+.tf-color { width: 32px; height: 32px; border-radius: 999px; border: 2px solid transparent; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); }
+.tf-color.on { border-color: var(--ink); }
+.tf-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; max-height: 170px; overflow-y: auto; margin-top: 8px; padding: 4px; background: var(--surface-2); border-radius: 12px; }
+.tf-emoji { appearance: none; cursor: pointer; border: none; background: transparent; font-size: 22px; padding: 6px; border-radius: 8px; line-height: 1; }
+.tf-emoji:hover { background: var(--surface-active); }
+.tf-emoji.on { background: color-mix(in srgb, var(--accent) 20%, var(--surface-2)); outline: 2px solid var(--accent); }
 .btn.sm { flex: 0 0 auto; font-size: 12px; font-weight: 700; padding: 7px 10px; border-radius: 9px; }
 .google-btn {
   margin-top: 10px; width: 100%; appearance: none; cursor: pointer; border: 1px solid var(--line-strong);
