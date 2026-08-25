@@ -36,8 +36,29 @@ const VIDEO_FOLDER_CONFIG: FolderModuleConfig = {
   },
   rowIcon: (folder) => folder.templateId === 'recipe' ? <span aria-label="레시피">🍳</span> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="m10 10 5 3-5 3z" /></svg>,
   templates: [
-    { id: 'video', label: '일반 영상', symbol: '▶', description: '영상을 자유롭게 분류해요.' },
-    { id: 'recipe', label: '레시피', symbol: '🍳', description: '재료와 조리법을 함께 기록해요.' },
+    {
+      id: 'video', label: '일반 영상', symbol: '▶', description: '영상을 자유롭게 분류해요.',
+      preview: (
+        <div className="ftp-grid">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="ftp-thumb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      id: 'recipe', label: '레시피', symbol: '🍳', description: '재료와 조리법을 함께 기록해요.',
+      preview: (
+        <div className="ftp-recipe">
+          <div className="ftp-badges">{['양파', '마늘', '두부'].map((n) => <span key={n} className="ftp-badge">{n}</span>)}</div>
+          <div className="ftp-grid">
+            {[0, 1].map((i) => (
+              <div key={i} className="ftp-thumb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></div>
+            ))}
+          </div>
+        </div>
+      ),
+    },
   ],
 }
 
@@ -145,10 +166,10 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
         {loadErr && <div className="banner-err">{loadErr}</div>}
         {isRecipe && section === 'ingredients' ? (
           ingredients.length === 0 ? <div className="empty-state"><span className="ingredient-empty-icon">🥕</span><p>등록된 재료가 없어요.<br />아래 <b>+ 재료 추가</b>로 시작하세요.</p></div> :
-            <div className="list ingredient-list">{ingredients.map((ingredient) => <div className="playlist-row" key={ingredient.id}>
-              <div className="playlist-ico ingredient-ico">🥕</div><div className="playlist-info"><h3>{ingredient.name}</h3></div>
-              <button type="button" className="edit-btn" aria-label={`${ingredient.name} 삭제`} onClick={() => void removeIngredient(folder.id, ingredient)}>×</button>
-            </div>)}</div>
+            <div className="ingredient-badges">{ingredients.map((ingredient) => <span className="ingredient-badge" key={ingredient.id}>
+              {ingredient.name}
+              <button type="button" aria-label={`${ingredient.name} 삭제`} onClick={() => void removeIngredient(folder.id, ingredient)}>×</button>
+            </span>)}</div>
         ) : videos.length === 0 && !loadErr ? (
           <div className="empty-state"><VideoIcon /><p>이 폴더에 영상이 없어요.<br />아래 <b>+ 영상 추가</b>로 유튜브 링크를 저장하세요.</p></div>
         ) : (

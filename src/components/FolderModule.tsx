@@ -38,7 +38,7 @@ export interface FolderModuleConfig {
   }
   emptyIcon?: ReactNode
   rowIcon?: (folder: FolderEntity) => ReactNode
-  templates?: { id: string; label: string; description: string; symbol: string }[]
+  templates?: { id: string; label: string; description: string; symbol: string; preview?: ReactNode }[]
 }
 
 export default function FolderModule<TFolder extends FolderEntity>({
@@ -125,6 +125,7 @@ export function FolderForm<TFolder extends FolderEntity>({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const canImport = !editing && !!repository.playlistImport?.templateIds.includes(templateId ?? '')
+  const selectedTemplate = config.templates?.find((t) => t.id === templateId)
   const valid = name.trim().length > 0 || (canImport && playlistUrl.trim().length > 0)
   const newFolderRef = useRef<TFolder | null>(null)
 
@@ -188,6 +189,12 @@ export function FolderForm<TFolder extends FolderEntity>({
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submit() } }}
             placeholder={config.labels.placeholder} maxLength={40} autoFocus />
         </div>
+        {canImport && <div className="field">
+          <label htmlFor="folder-playlist-url">유튜브 재생목록 링크 <span className="muted">(선택)</span></label>
+          <input id="folder-playlist-url" value={playlistUrl} onChange={(e) => void onPlaylistUrlChange(e.target.value)}
+            placeholder="https://www.youtube.com/playlist?list=…" inputMode="url" />
+          <p className="hint">링크를 넣으면 재생목록 제목과 영상들을 새 폴더에 자동으로 가져와요.</p>
+        </div>}
         {!editing && config.templates && (
           <div className="field">
             <label>폴더 템플릿</label>
@@ -199,14 +206,14 @@ export function FolderForm<TFolder extends FolderEntity>({
                 </button>
               ))}
             </div>
+            {selectedTemplate?.preview && (
+              <div className="folder-template-preview">
+                <div className="ftp-label">미리보기</div>
+                {selectedTemplate.preview}
+              </div>
+            )}
           </div>
         )}
-        {canImport && <div className="field">
-          <label htmlFor="folder-playlist-url">유튜브 재생목록 링크 <span className="muted">(선택)</span></label>
-          <input id="folder-playlist-url" value={playlistUrl} onChange={(e) => void onPlaylistUrlChange(e.target.value)}
-            placeholder="https://www.youtube.com/playlist?list=…" inputMode="url" />
-          <p className="hint">링크를 넣으면 재생목록 제목과 영상들을 새 폴더에 자동으로 가져와요.</p>
-        </div>}
         {importProgress && <p className="hint">{importProgress}</p>}
         {err && <p className="err small">{err}</p>}
         <div className="actions">
