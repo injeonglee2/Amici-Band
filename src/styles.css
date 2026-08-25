@@ -121,7 +121,8 @@ button { font-family: inherit; }
 .ghost-btn.icon svg { width: 18px; height: 18px; }
 .menu {
   position: absolute; right: 0; top: 44px; background: var(--surface-solid); border: 1px solid var(--glass-border);
-  border-radius: 14px; box-shadow: var(--shadow-lift); padding: 6px; z-index: 30; min-width: 130px;
+  border-radius: 14px; box-shadow: var(--shadow-lift); padding: 6px; z-index: 30;
+  width: max-content; min-width: 130px; max-width: calc(100vw - 24px);
 }
 .menu button {
   width: 100%; text-align: left; appearance: none; border: none; background: transparent; color: var(--ink);
@@ -130,6 +131,7 @@ button { font-family: inherit; }
 .menu button:hover { background: var(--surface-2); }
 .menu button.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .menu button { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.menu button > span { min-width: 0; white-space: nowrap; font-size: clamp(11px, 3.4vw, 14px); }
 .menu button small { color: inherit; font-size: 9px; font-weight: 800; white-space: nowrap; }
 .menu-divider { height: 1px; margin: 5px 7px; background: var(--line); }
 
