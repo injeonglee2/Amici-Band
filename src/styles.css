@@ -76,8 +76,8 @@ button { font-family: inherit; }
 }
 @media (min-width: 560px) {
   .app {
-    /* PC에서도 일반 스마트폰(9:19.5)과 같은 세로 프레임으로 표시 */
-    width: min(calc((100dvh - 48px) * 9 / 19.5), calc(100vw - 32px));
+    /* PC에서는 실제 앱 캡처에 가까운 1:2 세로 프레임으로 표시 */
+    width: min(calc((100dvh - 48px) / 2), calc(100vw - 32px));
     max-width: none;
     height: calc(100dvh - 48px);
     min-height: 0;
@@ -108,10 +108,10 @@ button { font-family: inherit; }
 .brand { flex: 1; min-width: 0; }
 .brand h1 {
   margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1;
-  color: var(--heading); text-shadow: none;
+  color: var(--heading); text-shadow: none; white-space: nowrap;
 }
 .brand p { margin: 3px 0 0; font-size: 12.5px; color: var(--ink-soft); }
-.workspace-context { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+.workspace-context { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .06em; white-space: nowrap; }
 .workspace-context i { display: grid; place-items: center; width: 15px; height: 15px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 18%, transparent); font-style: normal; }
 
 .usermenu { position: relative; flex: none; }
