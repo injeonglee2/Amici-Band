@@ -32,7 +32,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'general' | 'band' | 'dev'>('general')
   const tabs: { k: 'general' | 'band' | 'dev'; label: string }[] = [
     { k: 'general', label: '일반' },
-    ...(isAdmin && bandId ? [{ k: 'band' as const, label: '관리' }] : []),
+    ...(isAdmin && bandId && workspace?.templateId !== 'personal' ? [{ k: 'band' as const, label: '관리' }] : []),
     ...(isDeveloper ? [{ k: 'dev' as const, label: '개발자' }] : []),
   ]
   useEffect(() => {
@@ -69,9 +69,9 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           </>
         )}
 
-        {tab === 'band' && isAdmin && bandId && (
+        {tab === 'band' && isAdmin && bandId && workspace?.templateId !== 'personal' && (
           <>
-            {workspace?.templateId !== 'personal' && <InviteCodeCard bandId={bandId} toast={toast} />}
+            <InviteCodeCard bandId={bandId} toast={toast} />
             <MemberManageCard bandId={bandId} myUid={user?.uid ?? ''} toast={toast} />
           </>
         )}
@@ -387,28 +387,37 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
 function BandsStatusCard() {
   const [bands, setBands] = useState<Band[]>([])
   useEffect(() => watchAllBands(setBands, () => {}), [])
+  const personal = bands.filter((b) => b.templateId === 'personal')
+  const shared = bands.filter((b) => b.templateId !== 'personal')
+  const renderBands = (items: Band[], personalChannel: boolean) => (
+    <ul className="bands-list">
+      {items.map((b) => (
+        <li key={b.id}>
+          <span className="bands-name">
+            {b.name}
+            {b.unlimited && <em className="bands-unl">무제한</em>}
+          </span>
+          <span className="bands-meta">
+            {!personalChannel && <>{b.memberCount ?? 0}{b.unlimited ? '' : '/5'}명 · </>}
+            {((b.storageBytes ?? 0) / 1048576).toFixed(1)}MB · AI {b.aiUsage?.count ?? 0}회 · {fmtDay(b.createdAt)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
   return (
     <div className="limits-card">
       <div className="limits-head">
-        <h3>밴드 현황{bands.length > 0 && <b className="fb-newbadge"> {bands.length}</b>}</h3>
+        <h3>채널 현황{bands.length > 0 && <b className="fb-newbadge"> {bands.length}</b>}</h3>
         <span className="guide-badge dev">개발자</span>
       </div>
       {bands.length === 0 ? (
         <p className="app-ver" style={{ textAlign: 'left', margin: 0 }}>밴드가 없어요.</p>
       ) : (
-        <ul className="bands-list">
-          {bands.map((b) => (
-            <li key={b.id}>
-              <span className="bands-name">
-                {b.name}
-                {b.unlimited && <em className="bands-unl">무제한</em>}
-              </span>
-              <span className="bands-meta">
-                {b.memberCount ?? 0}{b.unlimited ? '' : '/5'}명 · {((b.storageBytes ?? 0) / 1048576).toFixed(1)}MB · AI {b.aiUsage?.count ?? 0}회 · {fmtDay(b.createdAt)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="bands-groups">
+          {shared.length > 0 && <section><h4>공동 채널 <b>{shared.length}</b></h4>{renderBands(shared, false)}</section>}
+          {personal.length > 0 && <section><h4>개인 채널 <b>{personal.length}</b></h4>{renderBands(personal, true)}</section>}
+        </div>
       )}
     </div>
   )

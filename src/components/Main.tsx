@@ -316,13 +316,22 @@ export default function Main() {
             </button>
             {menuOpen && (
               <div className="menu" onMouseLeave={() => setMenuOpen(false)}>
-                {channels.length > 1 && channels.map((channel) => (
-                  <button key={channel.id} className={channel.id === bandId ? 'active' : ''} onClick={() => void selectChannel(channel.id)}>
-                    <span>{channel.name}</span>{channel.id === bandId && <small>사용 중</small>}
-                  </button>
-                ))}
+                {channels.length > 1 && (['personal', 'shared'] as const).map((group) => {
+                  const grouped = channels.filter((channel) => group === 'personal' ? channel.templateId === 'personal' : channel.templateId !== 'personal')
+                  if (!grouped.length) return null
+                  return (
+                    <div className="menu-channel-group" key={group}>
+                      <div className="menu-group-label">{group === 'personal' ? '개인 채널' : '공동 채널'}</div>
+                      {grouped.map((channel) => (
+                        <button key={channel.id} className={channel.id === bandId ? 'active' : ''} onClick={() => void selectChannel(channel.id)}>
+                          <span>{channel.name}</span>{channel.id === bandId && <small>사용 중</small>}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })}
                 {channels.length > 1 && <div className="menu-divider" />}
-                {isDeveloper && <button onClick={() => { setMenuOpen(false); setChannelOnboarding(true) }}>채널 추가</button>}
+                <button onClick={() => { setMenuOpen(false); setChannelOnboarding(true) }}>채널 추가</button>
                 <button onClick={signOutUser}>로그아웃</button>
               </div>
             )}

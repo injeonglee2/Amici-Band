@@ -7,7 +7,7 @@ import { getWorkspaceTemplate } from '../workspaceTemplates'
 import { useWorkspaceTheme } from '../useWorkspaceTheme'
 
 export default function NameSetup() {
-  const { user, member, workspace, setRealName, signOutUser } = useAuth()
+  const { user, member, workspace, channels, setRealName, signOutUser } = useAuth()
   const template = getWorkspaceTemplate(workspace?.templateId)
   useWorkspaceTheme(template)
   const needsPart = template.id === 'band'
@@ -15,6 +15,9 @@ export default function NameSetup() {
   const [part, setPart] = useState<Part | null>(member?.part ?? null)
   const [busy, setBusy] = useState(false)
   const [receiveNotifications, setReceiveNotifications] = useState(pushConfigured())
+  // 기존 채널이 있는 상태에서 밴드에 들어온 경우에만 등록 이름을 고정 재사용한다.
+  // 첫 채널이 밴드라면 Google 이름을 초깃값으로 보여주되 직접 수정할 수 있다.
+  const reuseName = needsPart && !!member?.name && !member?.part && channels.some((channel) => channel.id !== workspace?.id)
 
   const trimmed = name.trim()
   const valid = trimmed.length >= 2 && trimmed.length <= 4 && (!needsPart || !!part)
@@ -51,15 +54,19 @@ export default function NameSetup() {
         </p>
 
         <label className="setup-label">이름</label>
-        <input
-          className="name-input"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="예) 홍길동"
-          maxLength={4}
-          autoFocus
-        />
+        {reuseName ? (
+          <div className="name-reused"><b>{name}</b><span>기존 이름 사용</span></div>
+        ) : (
+          <input
+            className="name-input"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="예) 홍길동"
+            maxLength={4}
+            autoFocus
+          />
+        )}
 
         {needsPart && (
           <>
@@ -67,7 +74,7 @@ export default function NameSetup() {
             <div className="part-pick">
               {PART_ORDER.map((p) => (
                 <button key={p} type="button" className={'part-btn' + (part === p ? ' on' : '')}
-                  aria-pressed={part === p} onClick={() => setPart(p)}>
+                  aria-pressed={part === p} onClick={() => setPart(p)} autoFocus={reuseName && p === PART_ORDER[0]}>
                   {PART_META[p].label}
                 </button>
               ))}

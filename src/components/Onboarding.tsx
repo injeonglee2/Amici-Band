@@ -16,19 +16,19 @@ export default function Onboarding({ onCancel }: { onCancel?: () => void }) {
   const { refreshBand, signOutUser, member } = useAuth()
   const [mode, setMode] = useState<'choose' | 'create' | 'join' | 'created'>('choose')
   const [name, setName] = useState('')
-  const [channelType, setChannelType] = useState<'personal' | 'shared'>('personal')
+  const [channelType, setChannelType] = useState<'personal' | 'band'>('personal')
   const [code, setCode] = useState('')
   const [createdCode, setCreatedCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const selectedTemplate = channelType === 'personal' ? WORKSPACE_TEMPLATES.personal : WORKSPACE_TEMPLATES.gathering
+  const selectedTemplate = channelType === 'personal' ? WORKSPACE_TEMPLATES.personal : WORKSPACE_TEMPLATES.band
 
   async function doCreate() {
     if (!name.trim() || busy) return
     setBusy(true)
     setErr('')
     try {
-      const res = await createBand(name.trim(), channelType === 'personal' ? 'personal' : 'gathering')
+      const res = await createBand(name.trim(), channelType === 'personal' ? 'personal' : 'band')
       if (res.code) {
         setCreatedCode(res.code)
         setMode('created') // 공동 채널은 코드 먼저 안내한 뒤 계속
@@ -66,17 +66,17 @@ export default function Onboarding({ onCancel }: { onCancel?: () => void }) {
         {mode === 'choose' && (
           <>
             <h1>새 공간 시작하기</h1>
-            <p className="muted">나만의 개인 채널이나 여러 사람이 함께 쓰는 공동 채널을 시작하세요. 일반 계정은 채널 하나만 사용할 수 있어요.</p>
+            <p className="muted">개인 채널과 멤버가 함께 쓰는 밴드 채널을 각각 하나씩 사용할 수 있어요. 이름은 채널 사이에서 그대로 이어집니다.</p>
             <button className="btn primary block" onClick={() => { setChannelType('personal'); setMode('create'); setErr('') }}>개인 채널 만들기</button>
-            <button className="btn subtle block" onClick={() => { setChannelType('shared'); setMode('create'); setErr('') }}>공동 채널 만들기</button>
-            <button className="btn subtle block" onClick={() => { setMode('join'); setErr('') }}>코드로 참여</button>
+            <button className="btn subtle block" onClick={() => { setChannelType('band'); setMode('create'); setErr('') }}>밴드 채널 만들기</button>
+            <button className="btn subtle block" onClick={() => { setMode('join'); setErr('') }}>밴드 초대 코드로 참여</button>
           </>
         )}
 
         {mode === 'create' && (
           <>
-            <h1>{channelType === 'personal' ? '개인 채널 만들기' : '공동 채널 만들기'}</h1>
-            <p className="template-preview-label">{channelType === 'personal' ? '개인 템플릿' : '공동 템플릿'}</p>
+            <h1>{channelType === 'personal' ? '개인 채널 만들기' : '밴드 채널 만들기'}</h1>
+            <p className="template-preview-label">{channelType === 'personal' ? '개인 템플릿' : '밴드 템플릿'}</p>
             <div className="template-card on onboarding-template" style={{ ['--template-color' as string]: selectedTemplate.theme.accent }}>
               <span className="template-symbol">{selectedTemplate.symbol}</span>
               <b>{selectedTemplate.label}</b>
@@ -84,7 +84,7 @@ export default function Onboarding({ onCancel }: { onCancel?: () => void }) {
             </div>
             <div className="field">
               <label htmlFor="ob-name">채널 이름</label>
-              <input id="ob-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder={channelType === 'personal' ? '예: 나의 기록, 인정의 공간' : '예: 독서 모임, 주말 풋살'} />
+              <input id="ob-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder={channelType === 'personal' ? '예: 나의 기록, 인정의 공간' : '예: 아미치, 주말 밴드'} />
             </div>
             <button className="btn primary block" onClick={doCreate} disabled={!name.trim() || busy}>
               {busy ? '만드는 중…' : '만들기'}
@@ -95,7 +95,7 @@ export default function Onboarding({ onCancel }: { onCancel?: () => void }) {
 
         {mode === 'created' && (
           <>
-            <h1>{channelType === 'personal' ? '개인 채널이 만들어졌어요' : '공동 채널이 만들어졌어요'}</h1>
+            <h1>{channelType === 'personal' ? '개인 채널이 만들어졌어요' : '밴드 채널이 만들어졌어요'}</h1>
             <p className="muted">이 초대 코드로 멤버를 초대하세요. (설정에서 언제든 다시 볼 수 있어요)</p>
             <div className="invite-code big">
               <span>{createdCode}</span>
@@ -107,7 +107,7 @@ export default function Onboarding({ onCancel }: { onCancel?: () => void }) {
 
         {mode === 'join' && (
           <>
-            <h1>코드로 참여</h1>
+            <h1>밴드 코드로 참여</h1>
             <div className="field">
               <label htmlFor="ob-code">초대 코드</label>
               <input

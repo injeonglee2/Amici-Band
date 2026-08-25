@@ -580,14 +580,14 @@ async function uniqueCode() {
   throw new HttpsError('internal', '코드 생성에 실패했어요. 다시 시도해 주세요.')
 }
 
-// 새 채널 생성 — 일반 사용자는 1개, 앱 소유자만 여러 개인 채널을 만들 수 있다.
+// 새 채널 생성 — 일반 사용자는 개인 1개 + 공동 1개까지, 앱 소유자는 제한 없이 생성한다.
 exports.createBand = onCall(async (req) => {
   if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
   const uid = req.auth.uid
   const email = (req.auth.token && req.auth.token.email) || ''
   const name = String((req.data && req.data.name) || '').trim()
   const requestedTemplate = String((req.data && req.data.templateId) || 'personal')
-  if (!['personal', 'gathering'].includes(requestedTemplate)) {
+  if (!['personal', 'band', 'gathering'].includes(requestedTemplate)) {
     throw new HttpsError('failed-precondition', '개인 또는 공동 채널만 새로 만들 수 있어요.')
   }
   const templateId = requestedTemplate
@@ -596,8 +596,15 @@ exports.createBand = onCall(async (req) => {
   const userDoc = await db.collection('users').doc(uid).get()
   const isDeveloper = email.toLowerCase() === DEVELOPER_EMAIL
   const currentBandId = userDoc.exists ? userDoc.get('bandId') : null
-  if (currentBandId && !isDeveloper) {
-    throw new HttpsError('failed-precondition', '일반 사용자는 채널을 하나만 소유하거나 참여할 수 있어요.')
+  const storedBandIds = userDoc.exists && Array.isArray(userDoc.get('bandIds')) ? userDoc.get('bandIds') : []
+  const knownBandIds = [...new Set([currentBandId, ...storedBandIds].filter(Boolean))]
+  if (!isDeveloper && knownBandIds.length) {
+    const knownBands = await Promise.all(knownBandIds.map((id) => db.collection('bands').doc(id).get()))
+    const wantsPersonal = templateId === 'personal'
+    const sameKindExists = knownBands.some((snap) => snap.exists && (snap.get('templateId') === 'personal') === wantsPersonal)
+    if (sameKindExists) {
+      throw new HttpsError('failed-precondition', wantsPersonal ? '개인 채널은 하나만 만들 수 있어요.' : '공동 채널은 하나만 만들거나 참여할 수 있어요.')
+    }
   }
 
   const bandId = db.collection('bands').doc().id
@@ -605,14 +612,12 @@ exports.createBand = onCall(async (req) => {
   const now = Date.now()
   let reusableProfile = {
     name: userDoc.exists ? String(userDoc.get('profileName') || '').trim() : '',
-    part: userDoc.exists ? userDoc.get('profilePart') : null,
   }
   if (!reusableProfile.name && currentBandId) {
     const previousMember = await bandRef(currentBandId).collection('members').doc(uid).get()
     if (previousMember.exists) {
       reusableProfile = {
         name: String(previousMember.get('name') || '').trim(),
-        part: previousMember.get('part') || null,
       }
     }
   }
@@ -623,22 +628,20 @@ exports.createBand = onCall(async (req) => {
   batch.set(db.collection('bands').doc(bandId).collection('members').doc(uid), {
     uid, email, admin: true, createdAt: now,
     ...(reusableProfile.name ? { name: reusableProfile.name } : {}),
-    ...(reusableProfile.part ? { part: reusableProfile.part } : {}),
   })
   if (code) batch.set(db.collection('inviteCodes').doc(code), { bandId, active: true, createdAt: now })
-  const knownBandIds = currentBandId ? [currentBandId, bandId] : [bandId]
   batch.set(db.collection('users').doc(uid), {
     bandId,
-    bandIds: FieldValue.arrayUnion(...knownBandIds),
+    bandIds: FieldValue.arrayUnion(...knownBandIds, bandId),
     ...(reusableProfile.name ? { profileName: reusableProfile.name } : {}),
-    ...(reusableProfile.part ? { profilePart: reusableProfile.part } : {}),
+    profilePart: FieldValue.delete(),
     createdAt: userDoc.exists ? (userDoc.get('createdAt') || now) : now,
   }, { merge: true })
   await batch.commit()
   return code ? { bandId, code } : { bandId }
 })
 
-// 초대 코드로 가입 — 정원(5명, unlimited 면제) 확인 후 멤버로 추가. (1인 1밴드)
+// 초대 코드로 공동 채널 가입 — 개인 채널과 병행 가능, 일반 사용자는 공동 채널 1개까지.
 exports.joinBand = onCall(async (req) => {
   if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
   const uid = req.auth.uid
@@ -647,15 +650,24 @@ exports.joinBand = onCall(async (req) => {
   if (!code) throw new HttpsError('invalid-argument', '초대 코드를 입력해 주세요.')
 
   const userDoc = await db.collection('users').doc(uid).get()
-  if (userDoc.exists && userDoc.get('bandId')) {
-    throw new HttpsError('failed-precondition', '이미 밴드에 속해 있어요. (지금은 1인 1밴드)')
-  }
+  const isDeveloper = email.toLowerCase() === DEVELOPER_EMAIL
+  const currentBandId = userDoc.exists ? userDoc.get('bandId') : null
+  const storedBandIds = userDoc.exists && Array.isArray(userDoc.get('bandIds')) ? userDoc.get('bandIds') : []
+  const knownBandIds = [...new Set([currentBandId, ...storedBandIds].filter(Boolean))]
 
   const codeSnap = await db.collection('inviteCodes').doc(code).get()
   if (!codeSnap.exists || codeSnap.get('active') !== true) {
     throw new HttpsError('not-found', '유효하지 않은 코드예요.')
   }
   const bandId = codeSnap.get('bandId')
+  if (!isDeveloper && knownBandIds.length) {
+    const knownBands = await Promise.all(knownBandIds.filter((id) => id !== bandId).map((id) => db.collection('bands').doc(id).get()))
+    if (knownBands.some((snap) => snap.exists && snap.get('templateId') !== 'personal')) {
+      throw new HttpsError('failed-precondition', '공동 채널은 하나만 만들거나 참여할 수 있어요.')
+    }
+  }
+
+  const reusableName = userDoc.exists ? String(userDoc.get('profileName') || '').trim() : ''
 
   const bandRefX = db.collection('bands').doc(bandId)
   await db.runTransaction(async (tx) => {
@@ -665,15 +677,27 @@ exports.joinBand = onCall(async (req) => {
       throw new HttpsError('permission-denied', '개인 채널에는 참여할 수 없어요.')
     }
     const already = await tx.get(bandRefX.collection('members').doc(uid))
-    if (already.exists) return // 재시도 안전
+    if (already.exists) {
+      tx.set(db.collection('users').doc(uid), { bandId, bandIds: FieldValue.arrayUnion(bandId) }, { merge: true })
+      return // 재시도 안전
+    }
     const unlimited = band.get('unlimited') === true
     const count = band.get('memberCount') || 0
     if (!unlimited && count >= MEMBER_CAP) {
       throw new HttpsError('resource-exhausted', `정원이 찼어요. (최대 ${MEMBER_CAP}명)`)
     }
-    tx.set(bandRefX.collection('members').doc(uid), { uid, email, admin: false, createdAt: Date.now() })
+    tx.set(bandRefX.collection('members').doc(uid), {
+      uid, email, admin: false, createdAt: Date.now(),
+      ...(reusableName ? { name: reusableName } : {}),
+    })
     tx.update(bandRefX, { memberCount: count + 1 })
-    tx.set(db.collection('users').doc(uid), { bandId, bandIds: [bandId], createdAt: Date.now() }, { merge: true })
+    tx.set(db.collection('users').doc(uid), {
+      bandId,
+      bandIds: FieldValue.arrayUnion(...knownBandIds, bandId),
+      ...(reusableName ? { profileName: reusableName } : {}),
+      profilePart: FieldValue.delete(),
+      createdAt: userDoc.exists ? (userDoc.get('createdAt') || Date.now()) : Date.now(),
+    }, { merge: true })
   })
   return { bandId }
 })

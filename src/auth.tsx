@@ -58,12 +58,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const [m, band, ids, globalProfile, legacyMember] = await Promise.all([
         getMember(u.uid), getBand(bid), getUserBandIds(u.uid), getUserProfile(u.uid), getLegacyMember(u.uid),
       ])
-      const candidates = await Promise.all(ids.filter((id) => id !== bid).map((id) => getMemberFromBand(id, u.uid)))
+      const [candidates, accessibleBands] = await Promise.all([
+        Promise.all(ids.filter((id) => id !== bid).map((id) => getMemberFromBand(id, u.uid))),
+        developer ? getAllBands() : Promise.all(ids.map((id) => getBand(id))),
+      ])
       setIsChannelMember(!!m)
       const reusable = candidates.find((candidate) => candidate?.name)
       const googleName = Array.from((u.displayName || '').trim()).slice(0, 4).join('')
       const recoveredName = m?.name || globalProfile.name || reusable?.name || legacyMember?.name || googleName
-      const recoveredPart = m?.part || globalProfile.part || reusable?.part || legacyMember?.part
+      // 파트는 사용자 공통 정보가 아니라 밴드 채널별 정보다. 다른 채널·개인 채널에서 가져오지 않는다.
+      const needsBandPart = band?.templateId === 'band' || (!band?.templateId && bid === 'amici')
+      const recoveredPart = needsBandPart ? (m?.part || (bid === 'amici' ? legacyMember?.part : undefined)) : undefined
       let resolvedMember: Member | null = recoveredName ? {
         ...legacyMember,
         ...reusable,
@@ -75,15 +80,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: m?.createdAt || reusable?.createdAt || legacyMember?.createdAt || Date.now(),
       } : null
       if (resolvedMember && developer && !m) resolvedMember = { ...resolvedMember, admin: false }
-      if (resolvedMember && (!m?.name || (!m?.part && recoveredPart)) && (!developer || !!m)) await saveMember(resolvedMember)
+      const shouldHealMember = !!resolvedMember && (!m?.name || (!m?.part && !!recoveredPart) || (!needsBandPart && !!m?.part))
+      if (resolvedMember && shouldHealMember && (!developer || !!m)) await saveMember(resolvedMember)
       setMember(resolvedMember)
       setWorkspace(band)
       if (band) rememberWorkspaceTemplate(band.templateId)
-      if (developer) {
-        setChannels(await getAllBands())
-      } else {
-        setChannels(band ? [band] : [])
-      }
+      setChannels(
+        developer
+          ? (accessibleBands as Band[])
+          : (accessibleBands.filter((item): item is Band => !!item)),
+      )
     } else {
       setCurrentBand('')
       setMember(null)
@@ -160,7 +166,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       switchChannel: async (nextBandId: string) => {
         if (DEMO) { setDemoChannel(nextBandId); return }
-        if (!user || !isDeveloperEmail(user.email)) return
+        if (!user) return
+        if (!isDeveloperEmail(user.email)) {
+          const membership = await getMemberFromBand(nextBandId, user.uid)
+          if (!membership) return
+        }
         await setActiveUserBand(user.uid, nextBandId)
         await resolveFor(user)
       },

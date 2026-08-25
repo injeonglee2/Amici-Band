@@ -76,19 +76,24 @@ export async function getLegacyMember(uid: string): Promise<Member | null> {
   return snap.exists() ? (snap.data() as Member) : null
 }
 
-export async function getUserProfile(uid: string): Promise<{ name?: string; part?: Member['part'] }> {
+export async function getUserProfile(uid: string): Promise<{ name?: string }> {
   const snap = await getDoc(doc(db, 'users', uid))
   if (!snap.exists()) return {}
   return {
     name: (snap.get('profileName') as string | undefined)?.trim() || undefined,
-    part: (snap.get('profilePart') as Member['part'] | null | undefined) || undefined,
   }
 }
 
 export async function saveMember(m: Member): Promise<void> {
+  const memberData = {
+    ...m,
+    // 파트가 없는 개인/일반 공동 채널에서는 과거에 복사된 파트도 제거한다.
+    part: m.part ?? deleteField(),
+  }
   await Promise.all([
-    setDoc(bandDoc('members', m.uid), m, { merge: true }),
-    setDoc(doc(db, 'users', m.uid), { profileName: m.name, profilePart: m.part ?? null }, { merge: true }),
+    setDoc(bandDoc('members', m.uid), memberData, { merge: true }),
+    // 이름만 사용자 공통 프로필이다. 파트는 밴드별 members 문서에만 둔다.
+    setDoc(doc(db, 'users', m.uid), { profileName: m.name, profilePart: deleteField() }, { merge: true }),
   ])
 }
 
@@ -490,7 +495,7 @@ export async function getUserBandIds(uid: string): Promise<string[]> {
   return [...new Set([current, ...stored].filter(Boolean))]
 }
 
-/** 앱 소유자의 활성 채널 전환. 실제 접근 권한은 각 채널 멤버십 규칙으로 다시 검증된다. */
+/** 활성 채널 전환. 실제 접근 권한은 각 채널 멤버십 규칙으로 다시 검증된다. */
 export async function setActiveUserBand(uid: string, bandId: string): Promise<void> {
   await setDoc(doc(db, 'users', uid), { bandId }, { merge: true })
 }
