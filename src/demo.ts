@@ -110,9 +110,9 @@ const eventsCol = makeCollection<BandEvent>(initialEvents)
 
 // 개인 채널 데모: 사용자 정의 유형 + 개인 일정 (밴드 이벤트와 분리)
 const demoPersonalTypes: CustomEventType[] = [
-  { id: 'pt-run', name: '운동', emoji: '🏃', color: '#BDE4C8', order: 0 },
-  { id: 'pt-study', name: '공부', emoji: '📚', color: '#A8D8F0', order: 1 },
-  { id: 'pt-meet', name: '약속', emoji: '🍻', color: '#F8B8C8', order: 2 },
+  { id: 'pt-run', name: '운동', emoji: 'activity', color: '#BDE4C8', order: 0 },
+  { id: 'pt-study', name: '공부', emoji: 'book', color: '#A8D8F0', order: 1 },
+  { id: 'pt-meet', name: '약속', emoji: 'users', color: '#F8B8C8', order: 2 },
 ]
 const dstr = (day: number) => {
   const d = new Date(now)

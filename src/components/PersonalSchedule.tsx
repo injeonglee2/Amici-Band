@@ -4,7 +4,7 @@ import { useBackHandler } from '../backnav'
 import { deleteEvent, deleteEventType, newId, saveEvent, saveEventType, watchEventTypes, watchEvents } from '../data'
 import { PASTEL_PALETTE, type BandEvent, type CustomEventType, type EventType } from '../types'
 import { parseDate, todayStr, weekday } from '../time'
-import { searchEmoji } from '../emojiList'
+import { EventIcon, searchIcons } from '../eventIcons'
 import CalendarView from './CalendarView'
 import ConfirmDialog from './ConfirmDialog'
 import { useSheetSwipe } from './useSheetSwipe'
@@ -49,7 +49,7 @@ export default function PersonalSchedule({ toast }: { toast: ToastState }) {
           </button>
           {types.map((t) => (
             <button key={t.id} className="chip" aria-pressed={filter === t.id} style={{ ['--k' as string]: t.color }} onClick={() => setFilter(t.id)}>
-              <span className="type-emoji">{t.emoji}</span>{t.name}
+              <EventIcon id={t.emoji} className="type-ico" />{t.name}
             </button>
           ))}
         </div>
@@ -121,7 +121,7 @@ function PersonalEventCard({ ev, type, onEdit, toast }: { ev: BandEvent; type?: 
         </div>
         <div className="einfo">
           <div className="etitle">
-            <span className="type-ico ps-emoji">{type?.emoji ?? '📌'}</span>
+            <EventIcon id={type?.emoji} className="type-ico ps-emoji" />
             <h3>{ev.title}</h3>
           </div>
           <div className="sub">
@@ -219,7 +219,7 @@ function PersonalEventForm({ editing, types, defaultDate, creatorUid, toast, onC
             <div className="ps-type-pick">
               {types.map((t) => (
                 <button key={t.id} type="button" className="ps-type-opt" aria-pressed={typeId === t.id} style={{ ['--k' as string]: t.color }} onClick={() => setTypeId(t.id)} onDoubleClick={() => setTypeForm(t)}>
-                  <span className="type-emoji">{t.emoji}</span>{t.name}
+                  <EventIcon id={t.emoji} className="type-ico" />{t.name}
                 </button>
               ))}
               <button type="button" className="ps-type-opt ps-type-new" onClick={() => setTypeForm('new')}>＋ 새 유형</button>
@@ -262,12 +262,12 @@ function TypeForm({ editing, nextOrder, creatorUid, toast, onSaved, onDeleted, o
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
   const [name, setName] = useState(editing?.name ?? '')
-  const [emoji, setEmoji] = useState(editing?.emoji ?? '📌')
+  const [emoji, setEmoji] = useState(editing?.emoji ?? 'bookmark')
   const [color, setColor] = useState(editing?.color ?? PASTEL_PALETTE[0].color)
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
-  const results = searchEmoji(query)
+  const results = searchIcons(query)
 
   async function submit() {
     if (!name.trim() || busy) return
@@ -297,7 +297,7 @@ function TypeForm({ editing, nextOrder, creatorUid, toast, onSaved, onDeleted, o
           <div className="grab-zone" {...grabHandlers}><div className="grab" /></div>
           <h2>{editing ? '유형 수정' : '새 유형'}</h2>
           <div className="tf-preview">
-            <span className="tf-chip" style={{ ['--k' as string]: color }}><span className="type-emoji">{emoji}</span>{name.trim() || '유형 이름'}</span>
+            <span className="tf-chip" style={{ ['--k' as string]: color }}><EventIcon id={emoji} className="type-ico" />{name.trim() || '유형 이름'}</span>
           </div>
           <div className="field"><label htmlFor="tf-name">이름</label><input id="tf-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={20} autoFocus placeholder="예) 운동, 공부, 약속" /></div>
           <div className="field">
@@ -313,7 +313,9 @@ function TypeForm({ editing, nextOrder, creatorUid, toast, onSaved, onDeleted, o
             <input id="tf-emoji-q" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="아이콘 검색 (예: 운동, 공부, 여행…)" />
             <div className="tf-emoji-grid">
               {results.map((item) => (
-                <button key={item.e} type="button" className={'tf-emoji' + (emoji === item.e ? ' on' : '')} onClick={() => setEmoji(item.e)}>{item.e}</button>
+                <button key={item.id} type="button" className={'tf-icon' + (emoji === item.id ? ' on' : '')} style={{ ['--k' as string]: color }} onClick={() => setEmoji(item.id)} aria-label={item.id}>
+                  <EventIcon id={item.id} className="type-ico" />
+                </button>
               ))}
               {results.length === 0 && <p className="hint" style={{ margin: '4px 2px' }}>검색 결과가 없어요.</p>}
             </div>

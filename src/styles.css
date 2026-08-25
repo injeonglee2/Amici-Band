@@ -1542,10 +1542,16 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .tf-colors { display: flex; gap: 10px; }
 .tf-color { width: 32px; height: 32px; border-radius: 999px; border: 2px solid transparent; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); }
 .tf-color.on { border-color: var(--ink); }
-.tf-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; max-height: 170px; overflow-y: auto; margin-top: 8px; padding: 4px; background: var(--surface-2); border-radius: 12px; }
-.tf-emoji { appearance: none; cursor: pointer; border: none; background: transparent; font-size: 22px; padding: 6px; border-radius: 8px; line-height: 1; }
-.tf-emoji:hover { background: var(--surface-active); }
-.tf-emoji.on { background: color-mix(in srgb, var(--accent) 20%, var(--surface-2)); outline: 2px solid var(--accent); }
+.tf-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; max-height: 180px; overflow-y: auto; margin-top: 8px; padding: 6px; background: var(--surface-2); border-radius: 12px; }
+.tf-icon { appearance: none; cursor: pointer; border: none; background: transparent; padding: 9px; border-radius: 9px; display: grid; place-items: center; }
+.tf-icon .type-ico { width: 22px; height: 22px; color: var(--ink-soft); filter: none; }
+.tf-icon:hover { background: var(--surface-active); }
+.tf-icon:hover .type-ico { color: var(--ink); }
+.tf-icon.on { background: color-mix(in srgb, var(--k) 20%, var(--surface-solid)); outline: 2px solid var(--k); }
+.tf-icon.on .type-ico { color: var(--k); }
+/* 미리보기/타입 칩 안의 아이콘도 크기 통일 */
+.tf-chip .type-ico { width: 16px; height: 16px; }
+.ps-type-opt .type-ico { width: 15px; height: 15px; }
 .btn.sm { flex: 0 0 auto; font-size: 12px; font-weight: 700; padding: 7px 10px; border-radius: 9px; }
 .google-btn {
   margin-top: 10px; width: 100%; appearance: none; cursor: pointer; border: 1px solid var(--line-strong);
