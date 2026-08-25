@@ -229,6 +229,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   const [confirmKick, setConfirmKick] = useState<Member | null>(null)
   const [busy, setBusy] = useState('')
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [practiceCounts, setPracticeCounts] = useState<Record<string, number> | null>(null)
   useEffect(() => watchMembers(setMembers), [])
   useEffect(() => {
@@ -277,13 +278,26 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   }
   return (
     <div className="limits-card">
-      <button type="button" className="limits-head mm-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <h3>멤버{members.length > 0 && <b className="fb-newbadge"> {members.length}</b>}</h3>
-        <span className="guide-badge">관리자</span>
-        <svg className={'mm-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
+      <div className="limits-head mm-head">
+        <button type="button" className="mm-toggle" onClick={() => { setOpen((o) => !o); if (open) setEditing(false) }} aria-expanded={open}>
+          <h3>멤버{members.length > 0 && <b className="fb-newbadge"> {members.length}</b>}</h3>
+          <span className="guide-badge">관리자</span>
+        </button>
+        {open && (
+          <button type="button" className={'mm-edit' + (editing ? ' on' : '')} onClick={() => setEditing((v) => !v)} aria-label={editing ? '편집 완료' : '멤버 편집'} title={editing ? '완료' : '편집'}>
+            {editing ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+            )}
+          </button>
+        )}
+        <button type="button" className="mm-open" onClick={() => { setOpen((o) => !o); if (open) setEditing(false) }} aria-label={open ? '멤버 목록 닫기' : '멤버 목록 열기'}>
+          <svg className={'mm-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+        </button>
+      </div>
       {open && (
-      <ul className="mm-list">
+      <ul className={'mm-list' + (editing ? ' editing' : '')}>
         {sorted.map((m) => {
           const isOwner = m.uid === ownerUid
           const self = m.uid === myUid
@@ -295,15 +309,14 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
                   {isOwner && <em className="mm-tag owner">소유자</em>}
                   {m.admin && !isOwner && <em className="mm-tag admin">관리자</em>}
                 </span>
-                <span className="mm-part">
-                  {PART_META[m.part as Part]?.label ?? ''}
-                  {!!m.part && <span aria-hidden="true"> · </span>}
-                  <em className="mm-practice-count" title="참석·늦참·조퇴 포함">
-                    이번 달 합주 {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}
-                  </em>
-                </span>
+                <span className="mm-sep" aria-hidden="true">·</span>
+                <span className="mm-part">{PART_META[m.part as Part]?.label ?? '파트 미정'}</span>
+                <span className="mm-sep" aria-hidden="true">·</span>
+                <em className="mm-practice-count" title="참석·늦참·조퇴 포함">
+                  이번 달 {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}
+                </em>
               </div>
-              {!self && !isOwner && (
+              {editing && !self && !isOwner && (
                 <div className="mm-actions">
                   <button type="button" className="btn subtle sm" disabled={busy === m.uid} onClick={() => void toggleAdmin(m)}>
                     {m.admin ? '관리자 해제' : '관리자 지정'}

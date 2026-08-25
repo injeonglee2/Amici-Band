@@ -1433,19 +1433,30 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .bands-unl { font-style: normal; font-size: 10px; font-weight: 800; color: #ffd24d; background: color-mix(in srgb, #ffd24d 15%, transparent); padding: 1px 6px; border-radius: 999px; }
 .bands-meta { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* 멤버 관리 (드롭다운) */
-.mm-toggle { appearance: none; cursor: pointer; border: none; background: transparent; width: 100%; padding: 0; text-align: left; }
+.mm-head { gap: 6px; }
+.mm-toggle { appearance: none; cursor: pointer; border: none; background: transparent; padding: 0; text-align: left; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mm-edit, .mm-open {
+  appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink-faint);
+  width: 30px; height: 30px; padding: 6px; border-radius: 8px; display: grid; place-items: center;
+}
+.mm-edit { margin-left: auto; }
+.mm-edit:hover, .mm-open:hover, .mm-edit.on { color: var(--accent); background: var(--surface-2); }
+.mm-edit svg, .mm-open svg { width: 18px; height: 18px; }
 .mm-chev { flex: none; color: var(--ink-faint); transition: transform 0.18s; }
 .mm-chev.open { transform: rotate(180deg); }
 .mm-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.mm-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.mm-info { min-width: 0; }
+.mm-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.mm-info { min-width: 0; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; }
 .mm-name { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); }
-.mm-part { display: block; font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+.mm-part, .mm-sep { flex: none; font-size: 11.5px; color: var(--ink-soft); }
 .mm-practice-count { color: var(--accent); font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mm-tag { font-style: normal; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 999px; }
 .mm-tag.owner { color: #ffd24d; background: color-mix(in srgb, #ffd24d 15%, transparent); }
 .mm-tag.admin { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
 .mm-actions { flex: none; display: flex; gap: 6px; }
+.mm-list.editing li { flex-wrap: wrap; }
+.mm-list.editing .mm-info { flex: 1 1 100%; }
+.mm-list.editing .mm-actions { width: 100%; justify-content: flex-end; }
 .btn.sm { flex: 0 0 auto; font-size: 12px; font-weight: 700; padding: 7px 10px; border-radius: 9px; }
 .google-btn {
   margin-top: 10px; width: 100%; appearance: none; cursor: pointer; border: 1px solid var(--line-strong);
