@@ -1478,7 +1478,11 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .bands-meta { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* 멤버 관리 (드롭다운) */
 .mm-head { gap: 6px; }
-.mm-toggle { appearance: none; cursor: pointer; border: none; background: transparent; padding: 0; text-align: left; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mm-toggle { flex: 1; appearance: none; cursor: pointer; border: none; background: transparent; padding: 0; text-align: left; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mm-toggle h3 { flex: none; } /* 제목·뱃지는 좌측에 붙이고, 드롭다운/편집 버튼은 우측으로 밀기 */
+/* 닫힌 상태: 목록이 없으니 글자 높이에 맞춰 세로 여백 축소 */
+.mm-card:not(.open) { padding-top: 9px; padding-bottom: 9px; }
+.mm-card:not(.open) .mm-head { margin-bottom: 0; }
 .mm-edit, .mm-open {
   appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink-faint);
   width: 30px; height: 30px; padding: 6px; border-radius: 8px; display: grid; place-items: center;

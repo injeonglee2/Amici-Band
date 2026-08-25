@@ -355,7 +355,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
     }
   }
   return (
-    <div className="limits-card">
+    <div className={'limits-card mm-card' + (open ? ' open' : '')}>
       <div className="limits-head mm-head">
         <button type="button" className="mm-toggle" onClick={() => { setOpen((o) => !o); if (open) setEditing(false) }} aria-expanded={open}>
           <h3>멤버{members.length > 0 && <b className="fb-newbadge"> {members.length}</b>}</h3>
@@ -465,8 +465,6 @@ const FB_TYPE_LABEL: Record<Feedback['type'], string> = { bug: '버그', idea: '
 
 /** 개발자 전용: 받은 의견·버그 제보 목록 + 처리 상태 토글 */
 function AdminFeedbackCard({ toast, list }: { toast: ReturnType<typeof useToast>; list: Feedback[] }) {
-  const newCount = list.filter((f) => f.status === 'new').length
-
   async function toggle(f: Feedback) {
     try {
       await setFeedbackStatus(f.id, f.status === 'new' ? 'done' : 'new')
@@ -488,11 +486,7 @@ function AdminFeedbackCard({ toast, list }: { toast: ReturnType<typeof useToast>
   }
 
   return (
-    <div className="limits-card">
-      <div className="limits-head">
-        <h3>받은 의견{newCount > 0 && <b className="fb-newbadge"> {newCount}</b>}</h3>
-        <span className="guide-badge dev">개발자</span>
-      </div>
+    <>
       {list.length === 0 ? (
         <p className="app-ver" style={{ textAlign: 'left', margin: 0 }}>아직 받은 의견이 없어요.</p>
       ) : (
@@ -526,7 +520,7 @@ function AdminFeedbackCard({ toast, list }: { toast: ReturnType<typeof useToast>
           ))}
         </ul>
       )}
-    </div>
+    </>
   )
 }
 
