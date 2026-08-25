@@ -280,8 +280,10 @@ function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { fo
       }
       await savePersonalVideo(video)
       onClose()
-    } catch {
-      setErr('영상을 저장하지 못했어요.')
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? (e as { message?: string })?.message ?? ''
+      setErr('영상을 저장하지 못했어요.' + (code ? ` (${code})` : ''))
+      console.error('savePersonalVideo failed', e)
     } finally { setBusy(false) }
   }
 
