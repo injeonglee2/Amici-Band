@@ -306,6 +306,10 @@ export const demoDb = {
       }))
     return counts
   },
+  getEarliestEventDate: (): string | null => {
+    const dates = (isPersonalChannel() ? personalEventsCol : eventsCol).get().map((e) => e.date).filter(Boolean)
+    return dates.length ? dates.sort()[0] : null
+  },
   setAttendance: (eventId: string, att: Attendance) =>
     attendanceCol(eventId).upsert(att, (x) => x.uid),
   clearAttendance: (eventId: string, uid: string) => attendanceCol(eventId).remove(uid, (x) => x.uid),

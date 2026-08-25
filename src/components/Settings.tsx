@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { deleteFeedback, getActiveInviteCode, getBand, getBillingUsageStats, getMonthlyPracticeParticipation, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers, type BillingDailyUsage } from '../data'
+import { deleteFeedback, getActiveInviteCode, getBand, getBillingUsageStats, getEarliestEventDate, getMonthlyPracticeParticipation, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers, type BillingDailyUsage } from '../data'
 import { useAuth } from '../auth'
 import { isStandaloneApp, mobileOS, notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
@@ -99,7 +99,11 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
       {feedbackOpen && <FeedbackSheet toast={toast} onClose={() => setFeedbackOpen(false)} />}
       {devPopup === 'firebase' && (
-        <DeveloperPopup title="Firebase 관리" onClose={() => setDevPopup(null)}>
+        <DeveloperPopup
+          title="Firebase 관리"
+          onClose={() => setDevPopup(null)}
+          headerAction={<a className="firebase-live-link" href={`https://console.firebase.google.com/project/${PROJECT_ID}/usage`} target="_blank" rel="noopener noreferrer">실시간 사용량 보기 →</a>}
+        >
           <BillingUsageCard />
         </DeveloperPopup>
       )}
@@ -113,14 +117,17 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   )
 }
 
-function DeveloperPopup({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function DeveloperPopup({ title, onClose, children, headerAction }: { title: string; onClose: () => void; children: React.ReactNode; headerAction?: React.ReactNode }) {
   return (
     <Sheet onClose={onClose} className="dev-popup-sheet">
       <div className="dev-popup-head">
         <h2>{title}</h2>
-        <button type="button" className="edit-btn" onClick={onClose} aria-label="닫기">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-        </button>
+        <div className="dev-popup-head-actions">
+          {headerAction}
+          <button type="button" className="edit-btn" onClick={onClose} aria-label="닫기">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
       </div>
       {children}
     </Sheet>
@@ -166,11 +173,10 @@ function BillingUsageCard() {
         <button key={item.id} type="button" role="tab" aria-selected={service === item.id} onClick={() => setService(item.id)}>{item.label}</button>
       ))}
     </div>
-    {needsMonitoring && <p className="limits-note">Cloud Monitoring 기준 UTC 집계입니다. 점선은 무료 구간이 끝나고 과금이 시작되는 기준입니다.</p>}
     {needsMonitoring && error ? <div className="banner-err">{error}</div> : needsMonitoring && loading && !rows.length ? <p className="muted">최근 30일 사용량을 불러오는 중…</p> : (
       <div className="firebase-service-page">
         {service === 'firestore' && <>
-          <FirebaseQuota title="Firestore 무료 한도" text="읽기 5만/일 · 쓰기 2만/일 · 삭제 2만/일 · 저장 1GB" />
+          <FirebaseQuota text="읽기 5만/일 · 쓰기 2만/일 · 삭제 2만/일 · 저장 1GB" />
           <div className="usage-charts">
             <UsageBarChart label="읽기" rows={rows} value={(row) => row.reads} quota={50000} quotaLabel="일 50,000회" />
             <UsageBarChart label="쓰기" rows={rows} value={(row) => row.writes} quota={20000} quotaLabel="일 20,000회" />
@@ -179,27 +185,32 @@ function BillingUsageCard() {
           {latest && <p className="limits-note">현재 표시값: 읽기 {usageNumber.format(latest.reads)} · 쓰기 {usageNumber.format(latest.writes)} · 삭제 {usageNumber.format(latest.deletes)}</p>}
         </>}
         {service === 'storage' && <>
-          <FirebaseQuota title="Storage 무료 한도" text="파일 저장 5GB · 다운로드 1GB/일" />
+          <FirebaseQuota text="파일 저장 5GB · 다운로드 1GB/일" />
           <div className="usage-charts">
             {storageAvailable ? <UsageBarChart label="파일 저장 총량" rows={rows} value={(row) => row.storageBytes} quota={5 * 1024 ** 3} quotaLabel="저장 5GB" format={formatBytes} /> : <div className="usage-chart unavailable"><b>파일 저장 총량</b><p>Cloud Storage 지표가 아직 수집되지 않았어요. 버킷 지표는 최대 하루 늦게 나타날 수 있어요.</p></div>}
           </div>
           {latest && storageAvailable && <p className="limits-note">현재 표시값: 파일 {formatBytes(latest.storageBytes)}</p>}
         </>}
-        {service === 'hosting' && <FirebaseServiceSummary title="Hosting 무료 한도" quota="전송 약 10GB/월" detail="Hosting 전송량은 Firebase 콘솔의 Hosting 사용량에서 확인할 수 있어요." />}
-        {service === 'functions' && <FirebaseServiceSummary title="Functions 무료 한도" quota="호출 200만회/월" detail="함수별 호출과 실행 상태는 Firebase 콘솔에서 확인할 수 있어요." />}
-        {service === 'auth' && <FirebaseServiceSummary title="Authentication 무료 한도" quota="Google 로그인은 현재 사용 규모에서 사실상 무제한" detail="로그인 사용자와 인증 제공업체 상태는 Authentication 콘솔에서 확인할 수 있어요." />}
+        {service === 'hosting' && <FirebaseServiceSummary quota="전송 약 10GB/월" detail="Hosting 전송량은 앱에서 자동 집계하지 않아요. 콘솔에서 확인하세요." href={`https://console.firebase.google.com/project/${PROJECT_ID}/hosting/usage`} />}
+        {service === 'functions' && <FirebaseServiceSummary quota="호출 200만회/월" detail="함수별 호출·실행은 앱에서 자동 집계하지 않아요. 콘솔에서 확인하세요." href={`https://console.firebase.google.com/project/${PROJECT_ID}/functions`} />}
+        {service === 'auth' && <FirebaseServiceSummary quota="Google 로그인은 현재 규모에서 사실상 무제한" detail="로그인 사용자·인증 제공업체는 콘솔에서 확인하세요." href={`https://console.firebase.google.com/project/${PROJECT_ID}/authentication/users`} />}
       </div>
     )}
-    <a className="btn primary block firebase-live-link" href={`https://console.firebase.google.com/project/${PROJECT_ID}/usage`} target="_blank" rel="noopener noreferrer">실시간 사용량 보기 →</a>
   </div>
 }
 
-function FirebaseQuota({ title, text }: { title: string; text: string }) {
-  return <div className="firebase-quota"><b>{title}</b><span>{text}</span></div>
+function FirebaseQuota({ text }: { text: string }) {
+  return <p className="firebase-quota-line"><b>무료 한도</b> · {text}</p>
 }
 
-function FirebaseServiceSummary({ title, quota, detail }: { title: string; quota: string; detail: string }) {
-  return <div className="firebase-service-summary"><FirebaseQuota title={title} text={quota} /><p>{detail}</p></div>
+function FirebaseServiceSummary({ quota, detail, href }: { quota: string; detail: string; href?: string }) {
+  return (
+    <div className="firebase-service-summary">
+      <FirebaseQuota text={quota} />
+      <p className="hint">{detail}</p>
+      {href && <a className="btn subtle block" href={href} target="_blank" rel="noopener noreferrer">콘솔에서 보기 →</a>}
+    </div>
+  )
 }
 
 function formatBytes(value: number) {
@@ -309,7 +320,9 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [partFilter, setPartFilter] = useState<Part | 'all'>('all')
+  const [filterOpen, setFilterOpen] = useState(false)
   const [monthOffset, setMonthOffset] = useState(0) // 0=이번 달, -1=지난 달 …
+  const [earliestDate, setEarliestDate] = useState<string | null>(null)
   const [practiceCounts, setPracticeCounts] = useState<Record<string, number> | null>(null)
   useEffect(() => watchMembers(setMembers), [])
   useEffect(() => {
@@ -328,8 +341,17 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
       .catch(() => { if (active) setPracticeCounts({}) })
     return () => { active = false }
   }, [bandId, open, monthOffset])
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    getEarliestEventDate().then((d) => { if (active) setEarliestDate(d) }).catch(() => {})
+    return () => { active = false }
+  }, [bandId, open])
   const viewMonth = new Date(new Date().getFullYear(), new Date().getMonth() + monthOffset, 1)
   const monthShort = monthOffset === 0 ? '이번 달' : `${viewMonth.getMonth() + 1}월`
+  // 데이터가 존재하는 가장 이른 달까지만 뒤로 이동 허용
+  const curMonthIdx = new Date().getFullYear() * 12 + new Date().getMonth()
+  const minOffset = earliestDate ? (new Date(earliestDate).getFullYear() * 12 + new Date(earliestDate).getMonth()) - curMonthIdx : 0
   const sorted = [...members].sort(
     (a, b) => (b.admin ? 1 : 0) - (a.admin ? 1 : 0) || (a.name ?? '').localeCompare(b.name ?? '', 'ko'),
   )
@@ -370,22 +392,29 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
           <h3>멤버{members.length > 0 && <b className="fb-newbadge"> {members.length}</b>}</h3>
           <span className="guide-badge">관리자</span>
         </button>
-        {open && (
-          <button type="button" className={'mm-edit' + (editing ? ' on' : '')} onClick={() => setEditing((v) => !v)} aria-label={editing ? '편집 완료' : '멤버 편집'} title={editing ? '완료' : '편집'}>
-            {editing ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-            )}
+        {open && partChips.length > 1 && (
+          <button type="button" className={'mm-filter-btn' + (filterOpen || partFilter !== 'all' ? ' on' : '')} onClick={() => setFilterOpen((v) => !v)} aria-label="파트 필터" aria-pressed={filterOpen}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
           </button>
         )}
-        <button type="button" className="mm-open" onClick={() => { setOpen((o) => !o); if (open) setEditing(false) }} aria-label={open ? '멤버 목록 닫기' : '멤버 목록 열기'}>
-          <svg className={'mm-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-        </button>
+        <div className="mm-right">
+          {open && (
+            <button type="button" className={'mm-edit' + (editing ? ' on' : '')} onClick={() => setEditing((v) => !v)} aria-label={editing ? '편집 완료' : '멤버 편집'} title={editing ? '완료' : '편집'}>
+              {editing ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              )}
+            </button>
+          )}
+          <button type="button" className="mm-open" onClick={() => { setOpen((o) => !o); if (open) setEditing(false) }} aria-label={open ? '멤버 목록 닫기' : '멤버 목록 열기'}>
+            <svg className={'mm-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+        </div>
       </div>
       {open && (
         <div className="mm-month">
-          <button type="button" className="mm-month-nav" onClick={() => setMonthOffset((o) => o - 1)} aria-label="이전 달">
+          <button type="button" className="mm-month-nav" onClick={() => setMonthOffset((o) => Math.max(minOffset, o - 1))} disabled={monthOffset <= minOffset} aria-label="이전 달">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
           </button>
           <b>{viewMonth.getFullYear()}년 {viewMonth.getMonth() + 1}월 참여</b>
@@ -394,7 +423,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
           </button>
         </div>
       )}
-      {open && partChips.length > 1 && (
+      {open && filterOpen && partChips.length > 1 && (
         <div className="mm-filter" role="tablist" aria-label="파트별 필터">
           <button type="button" className="chip" aria-pressed={partFilter === 'all'} onClick={() => setPartFilter('all')}>전체 <span>{members.length}</span></button>
           {partChips.map(([part, count]) => (
@@ -414,13 +443,15 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
                 {isOwner && <em className="mm-tag owner">소유자</em>}
                 {m.admin && !isOwner && <em className="mm-tag admin">관리자</em>}
               </span>
-              {editing && !self && !isOwner ? (
-                <div className="mm-actions">
-                  <button type="button" className="btn subtle sm" disabled={busy === m.uid} onClick={() => void toggleAdmin(m)}>
-                    {m.admin ? '관리자 해제' : '관리자 지정'}
-                  </button>
-                  <button type="button" className="btn danger sm" disabled={busy === m.uid} onClick={() => setConfirmKick(m)}>내보내기</button>
-                </div>
+              {editing ? (
+                !self && !isOwner ? (
+                  <div className="mm-actions">
+                    <button type="button" className="btn subtle sm" disabled={busy === m.uid} onClick={() => void toggleAdmin(m)}>
+                      {m.admin ? '관리자 해제' : '관리자 지정'}
+                    </button>
+                    <button type="button" className="btn danger sm" disabled={busy === m.uid} onClick={() => setConfirmKick(m)}>내보내기</button>
+                  </div>
+                ) : null
               ) : (
                 <div className="mm-meta">
                   <span className="mm-part">{PART_META[m.part as Part]?.label ?? '파트 미정'}</span>

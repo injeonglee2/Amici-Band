@@ -764,14 +764,12 @@ button { font-family: inherit; }
 }
 .firebase-service-tabs button[aria-selected='true'] { color: #fff; background: var(--accent); border-color: var(--accent); }
 .firebase-service-page { min-height: 180px; }
-.firebase-quota {
-  display: flex; flex-direction: column; gap: 3px; margin: 12px 0 2px; padding: 11px 12px;
-  border-radius: 11px; background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
-}
-.firebase-quota b { color: var(--ink); font-size: 12.5px; }
-.firebase-quota span { color: var(--ink-soft); font-size: 11.5px; line-height: 1.45; }
-.firebase-service-summary p { margin: 12px 2px; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
-.firebase-live-link { margin-top: 14px; }
+.firebase-quota-line { margin: 12px 2px 8px; font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+.firebase-quota-line b { color: var(--ink); font-weight: 800; }
+.firebase-service-summary p.hint { margin: 8px 2px 12px; }
+.dev-popup-head-actions { display: flex; align-items: center; gap: 8px; }
+.firebase-live-link { font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; text-decoration: none; }
+.firebase-live-link:hover { text-decoration: underline; }
 .usage-today { display: grid; gap: 9px; margin: 14px 0; }
 .usage-meter > div:first-child { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; }
 .usage-meter b { color: var(--ink); }
@@ -1478,18 +1476,18 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .bands-meta { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* 멤버 관리 (드롭다운) */
 .mm-head { gap: 6px; }
-.mm-toggle { flex: 1; appearance: none; cursor: pointer; border: none; background: transparent; padding: 0; text-align: left; display: flex; align-items: center; gap: 8px; min-width: 0; }
-.mm-toggle h3 { flex: none; } /* 제목·뱃지는 좌측에 붙이고, 드롭다운/편집 버튼은 우측으로 밀기 */
+/* 제목·뱃지·필터아이콘은 좌측, 편집·드롭다운은 우측 그룹으로 */
+.mm-toggle { flex: none; appearance: none; cursor: pointer; border: none; background: transparent; padding: 0; text-align: left; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mm-right { margin-left: auto; flex: none; display: flex; align-items: center; gap: 4px; }
 /* 닫힌 상태: 목록이 없으니 글자 높이에 맞춰 세로 여백 축소 */
 .mm-card:not(.open) { padding-top: 9px; padding-bottom: 9px; }
 .mm-card:not(.open) .mm-head { margin-bottom: 0; }
-.mm-edit, .mm-open {
+.mm-edit, .mm-open, .mm-filter-btn {
   appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink-faint);
-  width: 30px; height: 30px; padding: 6px; border-radius: 8px; display: grid; place-items: center;
+  width: 30px; height: 30px; padding: 6px; border-radius: 8px; display: grid; place-items: center; flex: none;
 }
-.mm-edit { margin-left: auto; }
-.mm-edit:hover, .mm-open:hover, .mm-edit.on { color: var(--accent); background: var(--surface-2); }
-.mm-edit svg, .mm-open svg { width: 18px; height: 18px; }
+.mm-edit:hover, .mm-open:hover, .mm-edit.on, .mm-filter-btn:hover, .mm-filter-btn.on { color: var(--accent); background: var(--surface-2); }
+.mm-edit svg, .mm-open svg, .mm-filter-btn svg { width: 18px; height: 18px; }
 .mm-chev { flex: none; color: var(--ink-faint); transition: transform 0.18s; }
 .mm-chev.open { transform: rotate(180deg); }
 .mm-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }

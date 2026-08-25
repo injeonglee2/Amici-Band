@@ -342,6 +342,13 @@ export function watchAttendance(
 }
 
 /** 지정한 달의 합주에서 참석·늦참·조퇴로 응답한 횟수를 멤버별로 집계한다. */
+/** 참여 통계가 존재할 수 있는 가장 이른 이벤트 날짜(YYYY-MM-DD). 없으면 null. */
+export async function getEarliestEventDate(): Promise<string | null> {
+  if (DEMO) return demoDb.getEarliestEventDate()
+  const snap = await getDocs(query(bandCol('events'), orderBy('date', 'asc'), limit(1)))
+  return snap.empty ? null : ((snap.docs[0].get('date') as string) ?? null)
+}
+
 export async function getMonthlyPracticeParticipation(startDate: string, endDate: string): Promise<Record<string, number>> {
   if (DEMO) return demoDb.getMonthlyPracticeParticipation(startDate, endDate)
   const events = await getDocs(query(
