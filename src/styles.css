@@ -65,7 +65,7 @@ body {
   letter-spacing: -0.01em;
 }
 @media (min-width: 560px) {
-  body { display: flex; justify-content: center; padding: 24px 16px 0; }
+  body { display: flex; justify-content: center; padding: 24px 16px; overflow: hidden; }
 }
 button { font-family: inherit; }
 
@@ -76,11 +76,16 @@ button { font-family: inherit; }
 }
 @media (min-width: 560px) {
   .app {
-    min-height: calc(100vh - 24px);
+    /* PC에서도 일반 스마트폰(9:19.5)과 같은 세로 프레임으로 표시 */
+    width: min(calc((100dvh - 48px) * 9 / 19.5), calc(100vw - 32px));
+    max-width: none;
+    height: calc(100dvh - 48px);
+    min-height: 0;
     background: var(--bg);
-    border: 1px solid var(--glass-border); border-bottom: none;
-    border-radius: 30px 30px 0 0; box-shadow: var(--shadow-lift); overflow: hidden;
+    border: 1px solid var(--glass-border);
+    border-radius: 30px; box-shadow: var(--shadow-lift); overflow: hidden;
   }
+  .app > .scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 }
 
 .top {
