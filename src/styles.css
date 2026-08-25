@@ -160,6 +160,16 @@ button { font-family: inherit; }
   background: color-mix(in srgb, var(--k) 22%, transparent);
   box-shadow: 0 0 16px -4px var(--k);
 }
+/* 밝은(개인) 테마: 파스텔 색은 tint 하이라이트가 약해서, 선택 칩을 팔레트 색으로 채우고
+   대비되는 진한 색(파스텔은 밝으므로 검정 계열)으로 아이콘·글자를 표시한다. */
+html[data-template='personal'] .chip[aria-pressed='true'],
+html[data-template='personal'] .ps-type-opt[aria-pressed='true'] {
+  background: var(--k, var(--accent)); border-color: var(--k, var(--accent));
+  color: #2b2b2b; box-shadow: 0 2px 8px -3px color-mix(in srgb, var(--k, var(--accent)) 55%, transparent);
+}
+html[data-template='personal'] .chip[aria-pressed='true'] .type-ico,
+html[data-template='personal'] .ps-type-opt[aria-pressed='true'] .type-ico { color: #2b2b2b; filter: none; }
+html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: #2b2b2b; box-shadow: none; }
 
 /* ---------- scroll body ---------- */
 .segmented {
