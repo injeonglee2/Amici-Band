@@ -176,7 +176,7 @@ export interface RunningSplit {
 export interface RunningEntry {
   id: string
   folderId: string
-  source?: 'health-connect' | 'samsung-health' | string
+  source?: 'health-connect' | 'samsung-health' | 'apple-health' | string
   sourceId?: string
   date?: string
   startTime?: number

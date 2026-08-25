@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth'
 import { useBackHandler } from '../backnav'
-import { createSamsungHealthSyncSession, deletePersonalRecordEntry, deletePersonalRecordFolder, newId, savePersonalRecordEntry, savePersonalRecordFolder, uploadPersonalRecordFile, watchPersonalRecordEntries, watchPersonalRecordFolders, watchRunningEntries, type SamsungHealthSyncRange } from '../data'
+import { createAppleHealthSyncSession, createSamsungHealthSyncSession, deletePersonalRecordEntry, deletePersonalRecordFolder, newId, savePersonalRecordEntry, savePersonalRecordFolder, uploadPersonalRecordFile, watchPersonalRecordEntries, watchPersonalRecordFolders, watchRunningEntries, type SamsungHealthSyncRange } from '../data'
 import type { PersonalRecordEntry, RecordingFolder, RunningEntry, ScoreFile } from '../types'
 import { FolderTagEditor } from './FolderTagEditor'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -12,6 +12,7 @@ import { useSheetSwipe } from './useSheetSwipe'
 import RunningDashboard from './RunningDashboard'
 import Sheet from './Sheet'
 import { isSamsungHealthSyncEnvironment, launchSamsungHealthSync } from '../samsungHealth'
+import { isAppleHealthSyncEnvironment, launchAppleHealthSync } from '../appleHealth'
 
 const RECORD_FOLDER_CONFIG: FolderModuleConfig = {
   labels: { folder: '기록 폴더', empty: '기록 폴더가 없어요.', add: '폴더', createTitle: '새 기록 폴더', editTitle: '기록 폴더 수정', name: '폴더 이름', placeholder: '예) 일상, 공부, 생각 정리', deleteConfirm: (name) => `'${name}' 기록 폴더와 안의 파일을 모두 삭제할까요?` },
@@ -99,17 +100,17 @@ function RunningFolderDetail({ folder, onBack, toast }: { folder: RecordingFolde
     url.searchParams.delete('healthSync')
     url.searchParams.delete('healthImported')
     window.history.replaceState({}, '', url)
-    if (result === 'success') toast.show(`삼성 헬스 러닝 기록 ${Number.isFinite(imported) ? imported : 0}건을 확인했어요`)
-    else if (result === 'permission-denied') toast.show('삼성 헬스에서 운동 데이터 읽기를 허용해 주세요')
-    else if (result === 'sdk-missing') toast.show('Samsung Health Data SDK가 포함된 최신 앱이 필요해요')
-    else toast.show('삼성 헬스 동기화를 시작하려면 Android 앱을 업데이트해 주세요')
+    if (result === 'success') toast.show(`건강 앱 러닝 기록 ${Number.isFinite(imported) ? imported : 0}건을 확인했어요`)
+    else if (result === 'permission-denied') toast.show('건강 앱에서 운동 데이터 읽기를 허용해 주세요')
+    else if (result === 'sdk-missing') toast.show('건강 데이터 기능이 포함된 최신 앱이 필요해요')
+    else toast.show('건강 데이터 동기화를 지원하는 최신 앱이 필요해요')
   }, [toast])
 
   return <>
     <main className="scroll">
       <FolderDetailHeader className="rec-folder-bar" title={folder.name} editing={editing} draft={draft} editable onBack={onBack}
         onEdit={() => { setDraft(folder.name); setEditing(true) }} onDraftChange={setDraft}
-        onSync={() => setSyncOpen(true)} syncLabel="Samsung Health 동기화"
+        onSync={() => setSyncOpen(true)} syncLabel="건강 데이터 동기화"
         onDone={() => void (async () => { const name = draft.trim(); if (name && name !== folder.name) await recordFolderRepository.save({ ...folder, name }); setEditing(false) })()}
         editActions={<FolderDeleteButton onClick={() => void (async () => { if (!confirm(RECORD_FOLDER_CONFIG.labels.deleteConfirm(folder.name))) return; await recordFolderRepository.remove(folder); onBack() })()} />} />
       {loadErr && <div className="banner-err">{loadErr}</div>}
@@ -138,28 +139,33 @@ function RunningFolderDetail({ folder, onBack, toast }: { folder: RecordingFolde
 function RunningSyncSheet({ folderId, toast, onClose }: { folderId: string; toast: ToastState; onClose: () => void }) {
   const [range, setRange] = useState<SamsungHealthSyncRange>('90d')
   const [busy, setBusy] = useState(false)
-  const canSync = isSamsungHealthSyncEnvironment()
+  const samsung = isSamsungHealthSyncEnvironment()
+  const apple = isAppleHealthSyncEnvironment()
+  const canSync = samsung || apple
   async function sync() {
     if (!canSync || busy) return
     setBusy(true)
     try {
-      const session = await createSamsungHealthSyncSession(folderId, range)
-      launchSamsungHealthSync({ ...session, folderId })
+      const session = apple
+        ? await createAppleHealthSyncSession(folderId, range)
+        : await createSamsungHealthSyncSession(folderId, range)
+      if (apple) launchAppleHealthSync({ ...session, folderId })
+      else launchSamsungHealthSync({ ...session, folderId })
     } catch (error) {
       toast.show((error as { message?: string })?.message || '동기화 준비에 실패했어요')
       setBusy(false)
     }
   }
   return <Sheet onClose={onClose}>
-    <h2>Samsung Health 동기화</h2>
+    <h2>{apple ? 'Apple 건강 동기화' : 'Samsung Health 동기화'}</h2>
     <p className="hint run-sync-intro">선택한 기간의 러닝 기록을 가져옵니다.</p>
     <div className="segmented run-sync-range" role="radiogroup" aria-label="동기화 기간">
       <button type="button" className={range === '90d' ? 'on' : ''} onClick={() => setRange('90d')} disabled={busy}>90일</button>
       <button type="button" className={range === '1y' ? 'on' : ''} onClick={() => setRange('1y')} disabled={busy}>1년</button>
       <button type="button" className={range === 'all' ? 'on' : ''} onClick={() => setRange('all')} disabled={busy}>전체</button>
     </div>
-    <p className="hint">전체 기록은 처음 가져온 뒤 다음부터 변경분만 빠르게 확인합니다. Android Amici 앱에서 사용할 수 있어요.</p>
-    <div className="actions"><button type="button" className="btn subtle" onClick={onClose}>닫기</button><button type="button" className="btn primary" disabled={!canSync || busy} title={canSync ? undefined : 'Android 앱에서 사용할 수 있어요'} onClick={() => void sync()}>{busy ? '연결 중…' : '동기화'}</button></div>
+    <p className="hint">전체 기록은 처음 가져온 뒤 다음부터 변경분만 빠르게 확인합니다. {apple ? 'iPhone의 Apple 건강 접근 권한이 필요해요.' : samsung ? 'Samsung Health 접근 권한이 필요해요.' : 'Android 또는 iPhone Amici 앱에서 사용할 수 있어요.'}</p>
+    <div className="actions"><button type="button" className="btn subtle" onClick={onClose}>닫기</button><button type="button" className="btn primary" disabled={!canSync || busy} title={canSync ? undefined : '모바일 Amici 앱에서 사용할 수 있어요'} onClick={() => void sync()}>{busy ? '연결 중…' : '동기화'}</button></div>
   </Sheet>
 }
 

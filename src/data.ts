@@ -54,6 +54,15 @@ export async function createSamsungHealthSyncSession(folderId: string, range: Sa
   return result.data
 }
 
+export async function createAppleHealthSyncSession(folderId: string, range: SamsungHealthSyncRange): Promise<SamsungHealthSyncSession> {
+  const call = httpsCallable<{ bandId: string; folderId: string; range: SamsungHealthSyncRange }, SamsungHealthSyncSession>(
+    requireFunctions(),
+    'createAppleHealthSyncSession',
+  )
+  const result = await call({ bandId: getCurrentBand(), folderId, range })
+  return result.data
+}
+
 export async function getBillingUsageStats(days = 30): Promise<{ rows: BillingDailyUsage[]; generatedAt: number; timezone: string; storageAvailable: boolean }> {
   const call = httpsCallable<{ days: number }, { rows: BillingDailyUsage[]; generatedAt: number; timezone: string; storageAvailable: boolean }>(requireFunctions(), 'getBillingUsageStats')
   const result = await call({ days })

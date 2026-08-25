@@ -97,6 +97,9 @@ exports.createSamsungHealthSyncSession = onCall(async (req) => {
   }
 })
 
+/** Apple Health 네이티브 리더도 같은 일회용 업로드 세션을 사용한다. */
+exports.createAppleHealthSyncSession = exports.createSamsungHealthSyncSession
+
 function cleanFinite(value) {
   const number = Number(value)
   return Number.isFinite(number) ? number : undefined
@@ -107,7 +110,7 @@ function cleanSamsungRun(run) {
   const endTime = cleanFinite(run && run.endTime)
   if (!run || !run.sourceId || !startTime || !endTime || endTime <= startTime) return null
   const cleaned = {
-    source: 'samsung-health',
+    source: run && run.source === 'apple-health' ? 'apple-health' : 'samsung-health',
     sourceId: String(run.sourceId).slice(0, 200),
     startTime,
     endTime,
