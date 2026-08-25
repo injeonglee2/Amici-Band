@@ -336,6 +336,31 @@ export function watchAttendance(
   )
 }
 
+/** 지정한 달의 합주에서 참석·늦참·조퇴로 응답한 횟수를 멤버별로 집계한다. */
+export async function getMonthlyPracticeParticipation(startDate: string, endDate: string): Promise<Record<string, number>> {
+  if (DEMO) return demoDb.getMonthlyPracticeParticipation(startDate, endDate)
+  const events = await getDocs(query(
+    bandCol('events'),
+    where('date', '>=', startDate),
+    where('date', '<', endDate),
+  ))
+  const practiceIds = events.docs
+    .filter((event) => event.get('type') === 'practice')
+    .map((event) => event.id)
+  const attendanceLists = await Promise.all(practiceIds.map((eventId) =>
+    getDocs(bandCol('events', eventId, 'attendance')),
+  ))
+  const participating = new Set(['present', 'late', 'leave'])
+  const counts: Record<string, number> = {}
+  attendanceLists.forEach((attendance) => attendance.docs.forEach((item) => {
+    const row = item.data() as Partial<Attendance>
+    if (!row.status || !participating.has(row.status)) return
+    const uid = row.uid || item.id
+    counts[uid] = (counts[uid] ?? 0) + 1
+  }))
+  return counts
+}
+
 export async function setAttendance(eventId: string, att: Attendance): Promise<void> {
   if (DEMO) return demoDb.setAttendance(eventId, att)
   // undefined 필드는 Firestore가 거부하므로 정리

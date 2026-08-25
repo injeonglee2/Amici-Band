@@ -1437,6 +1437,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--ink); }
 .mm-info { min-width: 0; }
 .mm-name { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); }
 .mm-part { display: block; font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+.mm-practice-count { color: var(--accent); font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mm-tag { font-style: normal; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 999px; }
 .mm-tag.owner { color: #ffd24d; background: color-mix(in srgb, #ffd24d 15%, transparent); }
 .mm-tag.admin { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }

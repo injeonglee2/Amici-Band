@@ -274,6 +274,16 @@ export const demoDb = {
   deletePlace: (id: string) => placesCol.remove(id, (x) => x.id),
 
   watchAttendance: (eventId: string, cb: Sub<Attendance[]>) => attendanceCol(eventId).watch(cb),
+  getMonthlyPracticeParticipation: (startDate: string, endDate: string) => {
+    const participating = new Set(['present', 'late', 'leave'])
+    const counts: Record<string, number> = {}
+    eventsCol.get()
+      .filter((event) => event.type === 'practice' && event.date >= startDate && event.date < endDate)
+      .forEach((event) => attendanceCol(event.id).get().forEach((attendance) => {
+        if (participating.has(attendance.status)) counts[attendance.uid] = (counts[attendance.uid] ?? 0) + 1
+      }))
+    return counts
+  },
   setAttendance: (eventId: string, att: Attendance) =>
     attendanceCol(eventId).upsert(att, (x) => x.uid),
   clearAttendance: (eventId: string, uid: string) => attendanceCol(eventId).remove(uid, (x) => x.uid),

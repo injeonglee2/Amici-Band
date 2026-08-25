@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { deleteFeedback, getActiveInviteCode, getBand, getBillingUsageStats, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers, type BillingDailyUsage } from '../data'
+import { deleteFeedback, getActiveInviteCode, getBand, getBillingUsageStats, getMonthlyPracticeParticipation, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers, type BillingDailyUsage } from '../data'
 import { useAuth } from '../auth'
 import { isStandaloneApp, mobileOS, notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
@@ -229,10 +229,24 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   const [confirmKick, setConfirmKick] = useState<Member | null>(null)
   const [busy, setBusy] = useState('')
   const [open, setOpen] = useState(false)
+  const [practiceCounts, setPracticeCounts] = useState<Record<string, number> | null>(null)
   useEffect(() => watchMembers(setMembers), [])
   useEffect(() => {
     getBand(bandId).then((b) => setOwnerUid(b?.ownerUid ?? null)).catch(() => {})
   }, [bandId])
+  useEffect(() => {
+    if (!open) return
+    const now = new Date()
+    const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    const endDate = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`
+    let active = true
+    setPracticeCounts(null)
+    getMonthlyPracticeParticipation(startDate, endDate)
+      .then((counts) => { if (active) setPracticeCounts(counts) })
+      .catch(() => { if (active) setPracticeCounts({}) })
+    return () => { active = false }
+  }, [bandId, open])
   const sorted = [...members].sort(
     (a, b) => (b.admin ? 1 : 0) - (a.admin ? 1 : 0) || (a.name ?? '').localeCompare(b.name ?? '', 'ko'),
   )
@@ -281,7 +295,13 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
                   {isOwner && <em className="mm-tag owner">소유자</em>}
                   {m.admin && !isOwner && <em className="mm-tag admin">관리자</em>}
                 </span>
-                <span className="mm-part">{PART_META[m.part as Part]?.label ?? ''}</span>
+                <span className="mm-part">
+                  {PART_META[m.part as Part]?.label ?? ''}
+                  {!!m.part && <span aria-hidden="true"> · </span>}
+                  <em className="mm-practice-count" title="참석·늦참·조퇴 포함">
+                    이번 달 합주 {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}
+                  </em>
+                </span>
               </div>
               {!self && !isOwner && (
                 <div className="mm-actions">
