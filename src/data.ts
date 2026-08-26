@@ -23,7 +23,7 @@ import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'fi
 import { db, fbApp, storage } from './firebase'
 import { getCurrentBand, bandCol, bandDoc, bandStoragePath } from './band'
 import { DEMO, demoDb } from './demo'
-import type { Band, Attendance, BandEvent, CustomEventType, Feedback, Member, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Band, Attendance, BandEvent, CustomEventType, Feedback, FeedbackReply, Member, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -1004,6 +1004,63 @@ export function watchFeedback(
   )
 }
 
+/** 로그인 사용자가 자신이 보낸 의견과 개발자 답변을 확인하기 위한 목록. */
+export function watchMyFeedback(
+  uid: string,
+  cb: (list: Feedback[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO || !uid) {
+    cb([])
+    return () => {}
+  }
+  return onSnapshot(
+    query(collection(db, 'feedback'), where('createdBy', '==', uid)),
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Feedback, 'id'>) }))
+      list.sort((a, b) => b.createdAt - a.createdAt)
+      cb(list)
+    },
+    (err) => onError?.(err),
+  )
+}
+
+export function watchFeedbackReplies(
+  feedbackId: string,
+  cb: (list: FeedbackReply[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) {
+    cb([])
+    return () => {}
+  }
+  return onSnapshot(collection(db, 'feedback', feedbackId, 'replies'), (snap) => {
+    const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<FeedbackReply, 'id'>) }))
+    list.sort((a, b) => a.createdAt - b.createdAt)
+    cb(list)
+  }, (err) => onError?.(err))
+}
+
+export async function uploadFeedbackReplyImage(
+  feedbackId: string,
+  replyId: string,
+  blob: Blob,
+  index: number,
+  name: string,
+): Promise<{ url: string; path: string }> {
+  const safe = (name || 'image.jpg').replace(/[^\w.-]+/g, '_').slice(-40)
+  const path = `feedback/${feedbackId}/replies/${replyId}/${index}-${safe}`
+  const r = storageRef(storage, path)
+  await uploadBytes(r, blob, { contentType: blob.type || 'image/jpeg' })
+  return { url: await getDownloadURL(r), path }
+}
+
+export async function submitFeedbackReply(feedbackId: string, reply: FeedbackReply): Promise<void> {
+  if (DEMO) return
+  const { id, ...data } = reply
+  await setDoc(doc(db, 'feedback', feedbackId, 'replies', id), data)
+}
+
 export async function setFeedbackStatus(id: string, status: Feedback['status']): Promise<void> {
   if (DEMO) return
   await updateDoc(doc(db, 'feedback', id), { status })
@@ -1011,8 +1068,18 @@ export async function setFeedbackStatus(id: string, status: Feedback['status']):
 
 export async function deleteFeedback(id: string, images?: { path: string }[]): Promise<void> {
   if (DEMO) return
+  const replies = await getDocs(collection(db, 'feedback', id, 'replies'))
+  await Promise.allSettled(replies.docs.flatMap((reply) => {
+    const data = reply.data() as Omit<FeedbackReply, 'id'>
+    return (data.images ?? []).map((im) => deleteObject(storageRef(storage, im.path)))
+  }))
   if (images?.length) {
     await Promise.allSettled(images.map((im) => deleteObject(storageRef(storage, im.path))))
+  }
+  if (!replies.empty) {
+    const batch = writeBatch(db)
+    replies.docs.forEach((reply) => batch.delete(reply.ref))
+    await batch.commit()
   }
   await deleteDoc(doc(db, 'feedback', id))
 }

@@ -47,5 +47,16 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
       allow delete: if request.auth != null;
     }
+
+    // 개발자 답변 첨부 사진 — 작성자와 개발자만 열람, 업로드·삭제는 개발자만.
+    match /feedback/{feedbackId}/replies/{replyId}/{fileName} {
+      allow read: if isDeveloper()
+        || (request.auth != null
+            && firestore.get(/databases/(default)/documents/feedback/$(feedbackId)).data.createdBy == request.auth.uid);
+      allow write: if isDeveloper()
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isDeveloper();
+    }
   }
 }

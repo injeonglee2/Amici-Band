@@ -251,6 +251,16 @@ export interface Feedback {
   createdAt: number
 }
 
+/** 개발자가 의견 작성자에게 남기는 답변 — feedback/{feedbackId}/replies/{replyId} */
+export interface FeedbackReply {
+  id: string
+  text: string
+  images?: { url: string; path: string }[]
+  createdBy: string
+  createdByName?: string
+  createdAt: number
+}
+
 /** 악보 파일 하나 (Storage 업로드 결과) */
 export interface ScoreFile {
   url: string // 다운로드 URL

@@ -67,13 +67,22 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // 버그 제보·개선 의견: 로그인 멤버는 제출(create)만, 열람·상태변경·삭제는 개발자만
+    // 버그 제보·개선 의견: 작성자는 자신의 의견·답변 열람, 관리는 개발자만
     match /feedback/{fbId} {
-      allow read: if isDeveloper();
+      allow read: if isDeveloper() || (signedIn() && resource.data.createdBy == request.auth.uid);
       allow create: if signedIn()
                     && request.resource.data.createdBy == request.auth.uid
                     && request.resource.data.status == 'new';
       allow update, delete: if isDeveloper();
+
+      match /replies/{replyId} {
+        allow read: if isDeveloper()
+                    || (signedIn()
+                        && get(/databases/$(database)/documents/feedback/$(fbId)).data.createdBy == request.auth.uid);
+        allow create: if isDeveloper()
+                      && request.resource.data.createdBy == request.auth.uid;
+        allow update, delete: if isDeveloper();
+      }
     }
 
     // 사용자 계정 — 내가 속한 밴드(bandId) 등. 본인/개발자만 읽기, 본인만 쓰기.
