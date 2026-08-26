@@ -679,6 +679,12 @@ html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: var
 .modal-evhead .tag .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--k); box-shadow: 0 0 8px var(--k); }
 .modal-evhead h3 { margin: 6px 0 4px; font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
 .modal-evhead p { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+.modal-evhead.summary-card {
+  position: relative; margin: 0 0 18px; padding: 13px 14px 13px 17px; overflow: hidden;
+  border: 1px solid var(--line); border-left: 3px solid var(--k); border-radius: 13px;
+  background: color-mix(in srgb, var(--k) 8%, var(--surface-2));
+}
+.modal-evhead.summary-card h3 { margin-top: 7px; }
 
 .vote-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 4px; }
 /* 참석/늦참/조퇴 — 단색 버튼 (그라데이션 없음), 활성 시 은은한 글로우만 */
@@ -872,6 +878,21 @@ html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: var
 
 /* ---------- confirm dialog ---------- */
 .scrim.confirm { align-items: center; z-index: 50; padding: 22px; }
+.center-modal-scrim { align-items: center; padding: 18px; z-index: 45; }
+.center-modal {
+  width: min(100%, 480px); max-height: min(82dvh, 720px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface-solid); border: 1px solid var(--glass-border); border-radius: 20px; padding: 22px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .55); animation: center-modal-in .18s ease-out;
+}
+.center-modal h2 { margin: 0 0 18px; font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+@keyframes center-modal-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+.attendance-center-modal .tally { margin-top: 12px; }
+.attendance-center-modal .actions { position: sticky; bottom: -22px; margin: 18px -22px -22px; padding: 14px 22px 20px; background: linear-gradient(transparent, var(--surface-solid) 18%); }
+@media (max-width: 380px) {
+  .center-modal-scrim { padding: 12px; }
+  .center-modal { padding: 18px; border-radius: 17px; }
+  .attendance-center-modal .actions { bottom: -18px; margin: 16px -18px -18px; padding: 14px 18px 18px; }
+}
 .confirm-card {
   width: 100%; max-width: 320px; background: var(--surface-solid); border: 1px solid var(--glass-border);
   border-radius: 20px; padding: 24px 20px 16px; box-shadow: var(--shadow-lift);
@@ -1487,7 +1508,18 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--k-ink, 
   border-radius: 12px; padding: 10px 16px;
 }
 .invite-code.big { font-size: 26px; padding: 14px 20px; margin: 4px 0; }
-.limits-card .invite-code { display: flex; margin-bottom: 12px; }
+.limits-card .invite-code { display: flex; flex: 1; min-width: 0; padding: 9px 12px; }
+.invite-code-row { display: flex; align-items: stretch; gap: 8px; }
+.invite-rotate {
+  appearance: none; cursor: pointer; flex: none; border: 1px solid var(--line-strong); border-radius: 11px;
+  background: var(--surface-2); color: var(--ink-soft); padding: 0 12px; font: inherit; font-size: 11.5px; font-weight: 750;
+}
+.invite-rotate:hover:not(:disabled) { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.invite-rotate:disabled { opacity: .55; cursor: default; }
+@media (max-width: 370px) {
+  .invite-rotate { padding: 0 9px; }
+  .limits-card .invite-code { font-size: 18px; letter-spacing: .09em; padding-inline: 9px; }
+}
 /* 개발자 밴드 현황 목록 */
 .bands-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .bands-groups { display: flex; flex-direction: column; gap: 16px; }
