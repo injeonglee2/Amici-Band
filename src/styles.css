@@ -33,10 +33,10 @@
   --yellow: #ffd24d;
   --green: #3de0a0;
 
-  --c-practice: #68c7df; /* 합주 (시안 — 채도 낮춰 눈부심↓, 번개보다 더 차분) */
+  --c-practice: #38c4e8; /* 합주 (민트·시안 — 밝기를 살짝 낮춰 카드 대비 안정화) */
   --c-show: #fb708a; /* 공연 (핑크빛 다홍 / 코랄로즈) */
   --c-flash: #f5dd94; /* 번개 (옐로 — 채도 살짝↓) */
-  --c-meeting: #ac92ec; /* 회의 (라벤더 — 밝은 보라, 전체(회색)와 확실히 구분) */
+  --c-meeting: #948bdc; /* 회의 (라벤더 — 채도를 살짝 높여 합주와 균형 조정) */
 
   --ok: #3de0a0; /* 참석 (초록) */
   --warn: #ffd24d; /* 늦참 (노랑) */
@@ -197,7 +197,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: var
 /* 설정 화면 안의 세그먼트(일반/개발자) — scroll 패딩에 맞춰 좌우 마진 제거 */
 .segmented.set-seg { margin: 4px 0 14px; }
 
-/* 상단바: 좌측 세그먼트(목록 모드) + 우측 목록/캘린더 토글.
+/* 상단바: 좌측 목록/캘린더 토글 + 우측 세그먼트(목록 모드).
    두 컨트롤을 같은 높이(44px)로 고정 → 목록/캘린더 두 모드 모두 토글 높이 동일 */
 .home-topbar { display: flex; gap: 10px; align-items: stretch; margin: 10px 20px 0; min-height: 44px; }
 .home-topbar .segmented { margin: 0; flex: 1; height: 44px; box-sizing: border-box; }
@@ -218,7 +218,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: var
 }
 
 /* ---------- 월 달력 뷰 ---------- */
-/* 상단 바 좌측: 월 이동 컨트롤 (‹ 2026년 8월 ›) — 우측 목록/캘린더 토글과 한 줄 */
+/* 상단 바 우측: 월 이동 컨트롤 (‹ 2026년 8월 ›) — 좌측 목록/캘린더 토글과 한 줄 */
 .cal-navbar { flex: 1; display: flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; }
 .cal-nav {
   appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink-soft);
@@ -680,11 +680,11 @@ html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: var
 .modal-evhead h3 { margin: 6px 0 4px; font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
 .modal-evhead p { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
 .modal-evhead.summary-card {
-  position: relative; margin: 0 0 18px; padding: 13px 14px 13px 17px; overflow: hidden;
+  position: relative; margin: 0 0 18px; padding: 10px 14px 13px 17px; overflow: hidden;
   border: 1px solid var(--line); border-left: 3px solid var(--k); border-radius: 13px;
   background: color-mix(in srgb, var(--k) 8%, var(--surface-2));
 }
-.modal-evhead.summary-card h3 { margin-top: 7px; }
+.modal-evhead.summary-card h3 { margin-top: 4px; }
 
 .vote-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 4px; }
 /* 참석/늦참/조퇴 — 단색 버튼 (그라데이션 없음), 활성 시 은은한 글로우만 */
