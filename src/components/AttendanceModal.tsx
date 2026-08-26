@@ -14,6 +14,7 @@ import { TypeGlyph } from './TypeGlyph'
 import ConfirmDialog from './ConfirmDialog'
 import ThemeSelect from './ThemeSelect'
 import Sheet from './Sheet'
+import CenterModal from './CenterModal'
 import { useBackHandler } from '../backnav'
 
 const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
@@ -150,13 +151,14 @@ export default function AttendanceModal({
   }
 
   const heading = mode === 'vote' ? '참석 투표' : readOnly ? '참석 결과' : '참석 현황'
+  const Surface = mode === 'summary' ? CenterModal : Sheet
 
   return (
     <>
-      <Sheet onClose={onClose}>
+      <Surface onClose={onClose} {...(mode === 'summary' ? { className: 'attendance-center-modal', label: heading } : {})}>
           <h2>{heading}</h2>
 
-          <div className="modal-evhead" style={{ ['--k' as string]: TYPE_META[ev.type].color }}>
+          <div className={'modal-evhead' + (mode === 'summary' ? ' summary-card' : '')} style={{ ['--k' as string]: TYPE_META[ev.type].color }}>
             <div className="tag"><TypeGlyph type={ev.type} className="type-ico" />{TYPE_META[ev.type].label}</div>
             <h3>{ev.title}</h3>
             <p>{d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}</p>
@@ -294,7 +296,7 @@ export default function AttendanceModal({
               </div>
             </>
           )}
-      </Sheet>
+      </Surface>
 
       {confirmCancel && (
         <ConfirmDialog
