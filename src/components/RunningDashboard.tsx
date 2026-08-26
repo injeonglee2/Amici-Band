@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { RunningEntry } from '../types'
+import type { RunningEntry, RunningSplit } from '../types'
 import { useBackHandler } from '../backnav'
 import { fullKmSplits, paceDeltaLabel } from '../runningSplits'
 import { aggregateRuns as agg, formatDuration as fmtDur, formatFullRunDate as fmtFullDate, formatKm as fmtKm, formatPace as fmtPace, formatRunDate as fmtDate, monthStart, normalizeRun as normRun, unitLabel, unitStart, type InsightCandidate, type Period, type Run, type RunInsight, type RunUnit as Unit, type Sample, type YearScope } from '../runningModel'
