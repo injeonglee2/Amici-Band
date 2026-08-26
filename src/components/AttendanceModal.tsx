@@ -173,7 +173,17 @@ export default function AttendanceModal({
   return (
     <>
       <Surface onClose={onClose} {...(mode === 'summary' ? { className: 'attendance-center-modal', label: heading } : {})}>
-          <h2>{heading}</h2>
+          {mode === 'summary' ? (
+            <div className="attendance-title-row">
+              <h2>{heading}</h2>
+              {canShareVote && (
+              <button type="button" className="vote-share-btn" onClick={() => void shareVote()} disabled={sharing}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" /></svg>
+                {sharing ? '여는 중…' : `투표 요청 ${undecided.length}`}
+              </button>
+              )}
+            </div>
+          ) : <h2>{heading}</h2>}
 
           <div className={'modal-evhead' + (mode === 'summary' ? ' summary-card' : '')} style={{ ['--k' as string]: TYPE_META[ev.type].color }}>
             <div className="tag"><TypeGlyph type={ev.type} className="type-ico" />{TYPE_META[ev.type].label}</div>
@@ -299,11 +309,6 @@ export default function AttendanceModal({
               {canRemind && (
                 <button type="button" className="btn block remind-btn" onClick={sendReminder} disabled={reminding}>
                   {reminding ? '보내는 중…' : `미정 ${undecided.length}명에게 투표 요청`}
-                </button>
-              )}
-              {canShareVote && (
-                <button type="button" className="btn block kakao-vote-btn" onClick={() => void shareVote()} disabled={sharing}>
-                  <span aria-hidden="true">💬</span>{sharing ? '공유창 여는 중…' : `카카오톡으로 투표 요청 · 미정 ${undecided.length}명`}
                 </button>
               )}
               {remindMsg && <p className="remind-msg">{remindMsg}</p>}
