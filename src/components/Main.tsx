@@ -36,6 +36,7 @@ import Onboarding from './Onboarding'
 import PersonalRecords from './PersonalRecords'
 import { useWorkspaceTheme } from '../useWorkspaceTheme'
 import { clearShareRequest, readShareRequest } from '../shareTarget'
+import { NOTIFICATION_PROMPTS_ENABLED } from '../features'
 
 type Filter = 'all' | EventType
 const SHARED_TRACK_SAVED_KEY = 'amici.sharedTrackSaved'
@@ -340,7 +341,7 @@ export default function Main() {
         </div>
       </header>
 
-      <NotifBanner />
+      {NOTIFICATION_PROMPTS_ENABLED && <NotifBanner />}
 
       {nav === 'home' ? (
       workspaceTemplate.id === 'personal' ? (
