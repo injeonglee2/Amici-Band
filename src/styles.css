@@ -735,6 +735,11 @@ html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: var
 }
 .remind-btn:hover { background: color-mix(in srgb, var(--accent) 23%, transparent); }
 .remind-msg { margin: 8px 2px 0; text-align: center; font-size: 12px; color: var(--ink-soft); }
+.kakao-vote-btn {
+  margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 7px;
+  color: #2b2100; background: #fee500; border-color: #fee500;
+}
+.kakao-vote-btn:hover { background: #f7dc00; border-color: #f7dc00; }
 
 .notif-card {
   display: flex; align-items: center; gap: 12px; margin-bottom: 14px;

@@ -201,7 +201,7 @@ export default function EventCard({
       </div>
 
       {modal && (
-        <AttendanceModal ev={ev} list={eligibleAtt} members={eligibleMembers} initialMode={modal} readOnly={past} onClose={() => setModal(null)} />
+        <AttendanceModal ev={ev} place={place} list={eligibleAtt} members={eligibleMembers} initialMode={modal} readOnly={past} onClose={() => setModal(null)} />
       )}
 
       {setlistOpen &&

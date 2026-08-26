@@ -16,6 +16,9 @@ import ThemeSelect from './ThemeSelect'
 import Sheet from './Sheet'
 import CenterModal from './CenterModal'
 import { useBackHandler } from '../backnav'
+import { NOTIFICATION_PROMPTS_ENABLED } from '../features'
+import type { ResolvedPlace } from '../place'
+import { shareVoteRequest } from '../eventShare'
 
 const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
 
@@ -24,6 +27,7 @@ const WIDE_NOTE_LEN = 8
 
 export default function AttendanceModal({
   ev,
+  place,
   list,
   members,
   initialMode,
@@ -31,6 +35,7 @@ export default function AttendanceModal({
   onClose,
 }: {
   ev: BandEvent
+  place: ResolvedPlace | null
   list: Attendance[]
   members: Member[]
   /** 처음 열 때 모드: 'vote' = 투표 입력창, 'summary' = 참석 현황 요약. 시트 안에서 서로 전환 가능 */
@@ -47,6 +52,7 @@ export default function AttendanceModal({
   const [noteText, setNoteText] = useState('')
   const [reminding, setReminding] = useState(false)
   const [remindMsg, setRemindMsg] = useState('')
+  const [sharing, setSharing] = useState(false)
 
   const mine = useMemo(() => list.find((a) => a.uid === user?.uid), [list, user])
   // 저장된 사유가 바뀌면 입력값 동기화 (투표 취소·재투표 포함)
@@ -120,10 +126,21 @@ export default function AttendanceModal({
 
   // 리마인더: 합주·공연 일정에서, 관리자에게만, 미정이 있을 때만
   const canRemind =
+    NOTIFICATION_PROMPTS_ENABLED &&
     !readOnly &&
     !!member?.admin &&
     (ev.type === 'practice' || ev.type === 'show') &&
     undecided.length > 0
+  const canShareVote = !readOnly && !!member?.admin && undecided.length > 0
+
+  async function shareVote() {
+    if (sharing) return
+    setSharing(true)
+    const result = await shareVoteRequest(ev, place, undecided.length)
+    if (result === 'copied') setRemindMsg('투표 요청 문구를 복사했어요. 카카오톡에 붙여넣어 주세요.')
+    else if (result === 'shared') setRemindMsg('공유를 완료했어요.')
+    setSharing(false)
+  }
 
   async function sendReminder() {
     if (reminding) return
@@ -282,6 +299,11 @@ export default function AttendanceModal({
               {canRemind && (
                 <button type="button" className="btn block remind-btn" onClick={sendReminder} disabled={reminding}>
                   {reminding ? '보내는 중…' : `미정 ${undecided.length}명에게 투표 요청`}
+                </button>
+              )}
+              {canShareVote && (
+                <button type="button" className="btn block kakao-vote-btn" onClick={() => void shareVote()} disabled={sharing}>
+                  <span aria-hidden="true">💬</span>{sharing ? '공유창 여는 중…' : `카카오톡으로 투표 요청 · 미정 ${undecided.length}명`}
                 </button>
               )}
               {remindMsg && <p className="remind-msg">{remindMsg}</p>}
