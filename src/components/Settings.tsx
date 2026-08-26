@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { deleteFeedback, getActiveInviteCode, getBand, getEarliestEventDate, getMonthlyPracticeParticipation, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers } from '../data'
+import { deleteFeedback, getActiveInviteCode, getBand, getMonthlyPracticeParticipation, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers } from '../data'
 import { useAuth } from '../auth'
 import { isStandaloneApp, mobileOS, notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
@@ -222,8 +222,6 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   const [editing, setEditing] = useState(false)
   const [partFilter, setPartFilter] = useState<Part | 'all'>('all')
   const [filterOpen, setFilterOpen] = useState(false)
-  const [monthOffset, setMonthOffset] = useState(0) // 0=이번 달, -1=지난 달 …
-  const [earliestDate, setEarliestDate] = useState<string | null>(null)
   const [practiceCounts, setPracticeCounts] = useState<Record<string, number> | null>(null)
   useEffect(() => watchMembers(setMembers), [])
   useEffect(() => {
@@ -232,8 +230,8 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   useEffect(() => {
     if (!open) return
     const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
-    const end = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 1)
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
     const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
     let active = true
     setPracticeCounts(null)
@@ -241,18 +239,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
       .then((counts) => { if (active) setPracticeCounts(counts) })
       .catch(() => { if (active) setPracticeCounts({}) })
     return () => { active = false }
-  }, [bandId, open, monthOffset])
-  useEffect(() => {
-    if (!open) return
-    let active = true
-    getEarliestEventDate().then((d) => { if (active) setEarliestDate(d) }).catch(() => {})
-    return () => { active = false }
   }, [bandId, open])
-  const viewMonth = new Date(new Date().getFullYear(), new Date().getMonth() + monthOffset, 1)
-  const monthShort = monthOffset === 0 ? '이번 달' : `${viewMonth.getMonth() + 1}월`
-  // 데이터가 존재하는 가장 이른 달까지만 뒤로 이동 허용
-  const curMonthIdx = new Date().getFullYear() * 12 + new Date().getMonth()
-  const minOffset = earliestDate ? (new Date(earliestDate).getFullYear() * 12 + new Date(earliestDate).getMonth()) - curMonthIdx : 0
   const sorted = [...members].sort(
     (a, b) => (b.admin ? 1 : 0) - (a.admin ? 1 : 0) || (a.name ?? '').localeCompare(b.name ?? '', 'ko'),
   )
@@ -332,17 +319,6 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
         </div>
       </div>
       {open && (
-        <div className="mm-month">
-          <button type="button" className="mm-month-nav" onClick={() => setMonthOffset((o) => Math.max(minOffset, o - 1))} disabled={monthOffset <= minOffset} aria-label="이전 달">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-          </button>
-          <b>{viewMonth.getFullYear()}년 {viewMonth.getMonth() + 1}월 참여</b>
-          <button type="button" className="mm-month-nav" onClick={() => setMonthOffset((o) => Math.min(0, o + 1))} disabled={monthOffset >= 0} aria-label="다음 달">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-          </button>
-        </div>
-      )}
-      {open && (
       <ul className={'mm-list' + (editing ? ' editing' : '')}>
         {visible.map((m) => {
           const isOwner = m.uid === ownerUid
@@ -367,7 +343,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
                 <div className="mm-meta">
                   <span className="mm-part">{PART_META[m.part as Part]?.label ?? '파트 미정'}</span>
                   <span className="mm-sep" aria-hidden="true">·</span>
-                  <em className="mm-practice-count" title="참석·늦참·조퇴 포함">{monthShort} {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}</em>
+                  <em className="mm-practice-count" title="참석·늦참·조퇴 포함">이번달 참여 {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}</em>
                 </div>
               )}
             </li>

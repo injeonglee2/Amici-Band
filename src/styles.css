@@ -1556,12 +1556,6 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--k-ink, 
 .mm-tag.owner { color: #ffd24d; background: color-mix(in srgb, #ffd24d 15%, transparent); }
 .mm-tag.admin { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
 .mm-actions { flex: none; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.mm-month { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 12px 0 4px; }
-.mm-month b { font-size: 12.5px; font-weight: 800; color: var(--ink); min-width: 130px; text-align: center; font-variant-numeric: tabular-nums; }
-.mm-month-nav { appearance: none; cursor: pointer; border: none; background: transparent; color: var(--ink-soft); width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; }
-.mm-month-nav:hover:not(:disabled) { color: var(--ink); background: var(--surface-2); }
-.mm-month-nav:disabled { opacity: 0.3; cursor: default; }
-.mm-month-nav svg { width: 18px; height: 18px; }
 .mm-card .mm-list { margin-top: 12px; }
 /* 파트 필터: 아이콘 → 드롭다운 팝업 + 선택 시 활성 뱃지 */
 .mm-filter-wrap { position: relative; flex: none; }
