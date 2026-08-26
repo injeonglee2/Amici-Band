@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth'
-import { newId, submitFeedback, uploadFeedbackImage } from '../data'
+import { newId, submitFeedback, uploadFeedbackImage, watchMyFeedback } from '../data'
 import { compressImage } from '../image'
 import { APP_VERSION, BUILD_TIME } from '../version'
 import Sheet from './Sheet'
 import { useBackHandler } from '../backnav'
 import type { ToastState } from './Toast'
 import type { Feedback } from '../types'
+import Segmented from './Segmented'
+import { FeedbackReplyList } from './FeedbackReplies'
 
 const TYPES: { value: Feedback['type']; label: string }[] = [
   { value: 'bug', label: '버그' },
@@ -25,10 +27,15 @@ export default function FeedbackSheet({ toast, onClose }: { toast: ToastState; o
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState('')
   const [err, setErr] = useState('')
+  const [mode, setMode] = useState<'new' | 'mine'>('new')
+  const [mine, setMine] = useState<Feedback[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
+  const picsRef = useRef(pics)
+  picsRef.current = pics
 
   // 미리보기 objectURL 정리
-  useEffect(() => () => pics.forEach((p) => URL.revokeObjectURL(p.preview)), [pics])
+  useEffect(() => () => picsRef.current.forEach((p) => URL.revokeObjectURL(p.preview)), [])
+  useEffect(() => user ? watchMyFeedback(user.uid, setMine, () => {}) : undefined, [user])
 
   function addFiles(list: FileList | null) {
     if (!list) return
@@ -95,6 +102,14 @@ export default function FeedbackSheet({ toast, onClose }: { toast: ToastState; o
     <Sheet onClose={onClose}>
       <h2>의견 보내기</h2>
 
+      <Segmented
+        className="fb-view-tabs"
+        tabs={[{ k: 'new', label: '새 의견' }, { k: 'mine', label: '내 의견', badge: mine.length }]}
+        value={mode}
+        onChange={(value) => setMode(value as 'new' | 'mine')}
+      />
+
+      {mode === 'new' ? <>
       <div className="field">
         <label>유형</label>
         <div className="fb-types">
@@ -154,6 +169,25 @@ export default function FeedbackSheet({ toast, onClose }: { toast: ToastState; o
         </button>
         <button type="button" className="btn subtle" onClick={onClose} disabled={busy}>닫기</button>
       </div>
+      </> : (
+        <div className="my-feedback-list">
+          {mine.length === 0 ? <p className="empty-note">보낸 의견이 없어요.</p> : mine.map((feedback) => (
+            <article key={feedback.id} className="my-feedback-item">
+              <div className="fb-item-head">
+                <span className={'fb-badge fb-' + feedback.type}>{TYPES.find((type) => type.value === feedback.type)?.label}</span>
+                <span className={'fb-status ' + feedback.status}>{feedback.status === 'done' ? '처리됨' : '확인 중'}</span>
+              </div>
+              <p className="fb-text">{feedback.text}</p>
+              {feedback.images && feedback.images.length > 0 && (
+                <div className="fb-thumbs">
+                  {feedback.images.map((image, index) => <a key={index} href={image.url} target="_blank" rel="noopener noreferrer" className="fb-thumb"><img src={image.url} alt={`첨부 ${index + 1}`} /></a>)}
+                </div>
+              )}
+              <FeedbackReplyList feedbackId={feedback.id} />
+            </article>
+          ))}
+        </div>
+      )}
     </Sheet>
   )
 }

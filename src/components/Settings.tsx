@@ -16,6 +16,7 @@ import { Icon } from '../icons'
 import { PART_META, type Band, type Feedback, type Member, type Part } from '../types'
 import { getTemplatePreview, getWorkspaceTemplate, setTemplatePreview, WORKSPACE_TEMPLATES, type WorkspaceTemplateId } from '../workspaceTemplates'
 import FirebaseUsage from './FirebaseUsage'
+import { FeedbackReplyComposer, FeedbackReplyList } from './FeedbackReplies'
 
 const fmtDay = (ms?: number) => {
   if (!ms) return '-'
@@ -458,6 +459,8 @@ function AdminFeedbackCard({ toast, list }: { toast: ReturnType<typeof useToast>
               {(f.appVersion || f.userAgent) && (
                 <p className="fb-ctx">v{f.appVersion} · {shortUA(f.userAgent)}</p>
               )}
+              <FeedbackReplyList feedbackId={f.id} />
+              <FeedbackReplyComposer feedbackId={f.id} toast={toast} />
               <div className="fb-item-actions">
                 <button type="button" className="btn subtle" onClick={() => void toggle(f)}>
                   {f.status === 'done' ? '다시 열기' : '처리됨'}
