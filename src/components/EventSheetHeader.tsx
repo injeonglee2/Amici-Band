@@ -9,18 +9,20 @@ import type { ResolvedPlace } from '../place'
 export default function EventSheetHeader({
   ev,
   place,
+  showDetails = true,
 }: {
   ev: BandEvent
   place: ResolvedPlace | null
+  showDetails?: boolean
 }) {
   const d = parseDate(ev.date)
   return (
     <div className="setlist-head">
       <h2>{ev.title}</h2>
-      <p>
-        {d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}
-        {place && <> · {place.name}</>}
-      </p>
+      {showDetails && <p>
+          {d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}
+          {place && <> · {place.name}</>}
+        </p>}
     </div>
   )
 }

@@ -30,7 +30,8 @@ import type { ResolvedPlace } from '../place'
 import ConfirmDialog from './ConfirmDialog'
 import ParticipationSheet from './ParticipationSheet'
 import PartTally from './PartTally'
-import { RecordingPlayer, recThumb } from './Recordings'
+import { RecordingPlayer } from './Recordings'
+import { recordingThumbnail as recThumb } from '../recordingUtils'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
@@ -351,7 +352,7 @@ export default function SetlistSheet({
             <div className="grab" />
           </div>
 
-          <EventSheetHeader ev={ev} place={place} />
+          <EventSheetHeader ev={ev} place={place} showDetails={false} />
 
           {/* 파트별 참석 — 참석 현황 모달과 같은 컴포넌트. 펼친 곡 참여자는 볼드로 강조 */}
           <PartTally members={members} att={att} highlightUids={openPartUids} className="setlist-part-tally" />
