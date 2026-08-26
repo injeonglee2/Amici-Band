@@ -1,27 +1,4 @@
-export function copyText(str: string, onCopied?: () => void, onFail?: () => void) {
-  const done = () => onCopied?.()
-  const fallback = () => {
-    try {
-      const ta = document.createElement('textarea')
-      ta.value = str
-      ta.setAttribute('readonly', '')
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      const ok = document.execCommand('copy')
-      document.body.removeChild(ta)
-      ok ? done() : onFail?.()
-    } catch {
-      onFail?.()
-    }
-  }
-  if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(str).then(done, fallback)
-  } else {
-    fallback()
-  }
-}
+import { copyText } from '../clipboard'
 
 export function CopyButton({ text, onCopied }: { text: string; onCopied?: () => void }) {
   return (

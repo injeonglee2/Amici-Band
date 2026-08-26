@@ -4,8 +4,7 @@ import { addRecordingFolderPlaylist, deleteRecording, deleteRecordingFolder, get
 import { TYPE_META, type BandEvent, type Member, type Recording, type RecordingFolder, type Track } from '../types'
 import { fetchVideoDescription, fetchYouTubeMeta, parsePlaylistId, parseVideoId, thumbnailUrl } from '../youtube'
 import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlaylistTitle } from '../playlistImport'
-import { parseDate, todayStr, weekday } from '../time'
-import { translateText } from '../translate'
+import { todayStr } from '../time'
 import { parseCredits } from '../gemini'
 import { Icon } from '../icons'
 import ConfirmDialog from './ConfirmDialog'
@@ -17,80 +16,7 @@ import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
 import { BAND_RECORDING_MODULE, compareRecordings, type RecordingModuleConfig, type RecordingSortId } from '../recordingModules'
 import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
-
-function fmtDate(date: string): string {
-  const d = parseDate(date)
-  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} (${weekday(date)})`
-}
-// 크레딧(파트) 표시 순서. 목록에 없는 파트는 뒤에 원래 순서로 붙는다.
-const CREDIT_PART_ORDER = ['드럼', '베이스', '기타', '키보드', '보컬']
-const creditRank = (part: string) => {
-  const i = CREDIT_PART_ORDER.indexOf(part)
-  return i === -1 ? CREDIT_PART_ORDER.length : i
-}
-
-/** 제목 속 날짜 숫자(YYYYMMDD 또는 YYMMDD)를 YYYY-MM-DD 로. 없거나 이상하면 null */
-function dateFromTitle(title: string): string | null {
-  const m = title.match(/\d{8}|\d{6}/)
-  if (!m) return null
-  const s = m[0]
-  const y = s.length === 8 ? +s.slice(0, 4) : 2000 + +s.slice(0, 2)
-  const mo = +s.slice(s.length - 4, s.length - 2)
-  const d = +s.slice(s.length - 2)
-  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) return null
-  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
-
-const normTitle = (s: string) => s.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '')
-
-type MatchTrack = { id: string; title: string; artist: string; playlistId: string; playlistName: string }
-
-/** 제목에 곡명이 들어있으면 그 곡을 찾아 반환(가장 긴 일치 우선). 번역/음차 제목은 못 잡음 */
-function musicFromTitle(title: string, tracks: MatchTrack[]): MatchTrack | null {
-  const t = normTitle(title.replace(/\d{8}|\d{6}/, ''))
-  if (t.length < 2) return null
-  let best: MatchTrack | null = null
-  let bestLen = 0
-  for (const tr of tracks) {
-    const tn = normTitle(tr.title)
-    if (tn.length >= 2 && t.includes(tn) && tn.length > bestLen) {
-      best = tr
-      bestLen = tn.length
-    }
-  }
-  return best
-}
-
-/** 문자열로 못 찾으면 제목을 en·ko 로 번역해 다시 매칭한다(언어가 달라도 유추). 실패 시 문자열 결과만 */
-async function musicFromTitleAsync(title: string, tracks: MatchTrack[]): Promise<MatchTrack | null> {
-  const direct = musicFromTitle(title, tracks)
-  if (direct) return direct
-  const base = title.replace(/\d{8}|\d{6}/, '').trim()
-  if (base.length < 2 || tracks.length === 0) return null
-  const [en, ko] = await Promise.all([translateText(base, 'en'), translateText(base, 'ko')])
-  for (const v of [en, ko]) {
-    if (!v) continue
-    const m = musicFromTitle(v, tracks)
-    if (m) return m
-  }
-  return null
-}
-
-/** 구글 드라이브 파일 링크에서 파일 ID 추출 (…/file/d/{ID}/… 또는 ?id={ID}) */
-function parseDriveId(url: string): string | null {
-  const m = url.match(/\/file\/d\/([\w-]+)/) || url.match(/[?&]id=([\w-]+)/)
-  return m ? m[1] : null
-}
-const driveThumb = (id: string) => `https://drive.google.com/thumbnail?id=${id}&sz=w640`
-const ytEmbed = (id: string) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1`
-
-/** 기록의 썸네일 URL (유튜브·드라이브 자동, 저장된 값 우선). 없으면 null */
-export function recThumb(r: Recording): string | null {
-  if (r.thumbnail) return r.thumbnail
-  if (r.videoId) return thumbnailUrl(r.videoId)
-  const dId = parseDriveId(r.url)
-  return dId ? driveThumb(dId) : null
-}
+import { creditRank, dateFromRecordingTitle as dateFromTitle, driveThumbnail as driveThumb, formatRecordingDate as fmtDate, inferMusicFromTitle as musicFromTitleAsync, matchMusicFromTitle as musicFromTitle, parseDriveId, recordingThumbnail as recThumb, youtubeEmbed as ytEmbed, type MatchTrack } from '../recordingUtils'
 
 /** 기록 탭 — 합주 녹음/영상 갤러리 (링크 기반). 전체 멤버 공개(보기·추가 가능, 삭제·수정은 올린 사람/관리자) */
 export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }: { toast: ToastState; config?: RecordingModuleConfig }) {
