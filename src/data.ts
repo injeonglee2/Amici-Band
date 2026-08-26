@@ -907,6 +907,35 @@ export function watchSetlist(
   )
 }
 
+/** 지정 날짜까지 완료된 합주 일정에 곡이 담긴 횟수를 곡별로 집계한다. */
+export async function getPracticeSetlistCounts(throughDate: string, throughStart = '23:59'): Promise<Record<string, number>> {
+  if (DEMO) return {}
+  const eventSnap = await getDocs(query(bandCol('events'), where('date', '<=', throughDate)))
+  const practiceIds = eventSnap.docs
+    .filter((event) => {
+      if (event.get('type') !== 'practice') return false
+      const date = String(event.get('date') || '')
+      const start = String(event.get('rehStart') || '00:00')
+      return date < throughDate || (date === throughDate && start <= throughStart)
+    })
+    .map((event) => event.id)
+  const setlists = await Promise.all(practiceIds.map((eventId) => getDocs(bandCol('events', eventId, 'setlist'))))
+  const counts: Record<string, number> = {}
+  for (const setlist of setlists) {
+    const seen = new Set<string>()
+    for (const song of setlist.docs) {
+      const key = trackKeyForCount(String(song.get('playlistId') || ''), song.id)
+      if (!seen.has(key)) counts[key] = (counts[key] ?? 0) + 1
+      seen.add(key)
+    }
+  }
+  return counts
+}
+
+function trackKeyForCount(playlistId: string, trackId: string): string {
+  return `${playlistId}/${trackId}`
+}
+
 /** 재생목록의 곡을 이 일정의 합주곡으로 담는다 (문서 id = 원본 곡 id 이므로 중복 추가는 덮어쓰기) */
 export async function addSetlistSong(eventId: string, song: SetlistSong): Promise<void> {
   if (DEMO) return demoDb.addSetlistSong(eventId, song)

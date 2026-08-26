@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useAuth } from '../auth'
 import {
   addSetlistSong,
+  getPracticeSetlistCounts,
   removeSetlistSong,
   saveSetlistSong,
   watchAttendance,
@@ -76,6 +77,7 @@ export default function SetlistSheet({
   const [participatingId, setParticipatingId] = useState<string | null>(null)
   // 파트별 참석 표시용 — 참석 현황 모달과 같은 집계를 상단에 보여준다
   const [att, setAtt] = useState<Attendance[]>([])
+  const [practiceCounts, setPracticeCounts] = useState<Record<string, number> | null>(null)
 
   // 드래그 정렬용: 화면에 그릴 순서(items). 드래그 중이 아니면 songs 와 동기화
   const [items, setItems] = useState<SetlistSong[]>([])
@@ -103,6 +105,15 @@ export default function SetlistSheet({
     if (!draggingRef.current) setItems(songs)
   }, [songs])
   useEffect(() => watchAttendance(ev.id, setAtt, () => {}), [ev.id])
+  useEffect(() => {
+    let active = true
+    // 팝업을 열 때마다 현재 저장된 과거·중간·해당 일정의 셋리스트를 다시 집계한다.
+    // 미래 일정은 그 일정까지 곡이 유지되는 합주만 포함한 예상 누적 횟수가 된다.
+    getPracticeSetlistCounts(ev.date, ev.rehStart)
+      .then((counts) => { if (active) setPracticeCounts(counts) })
+      .catch(() => { if (active) setPracticeCounts({}) })
+    return () => { active = false }
+  }, [ev.date, ev.rehStart])
 
   // 담긴 곡들의 원본을 구독해 파트 참여자를 항상 최신으로 표시한다.
   // 재생목록 구성이 바뀔 때만 재구독하도록 id 목록을 문자열로 고정해서 의존성으로 쓴다.
@@ -404,7 +415,7 @@ export default function SetlistSheet({
                 <p className="hint reorder-hint">오른쪽 손잡이를 잡고 위아래로 끌면 합주 순서가 바뀝니다. ×를 누르면 곡을 뺍니다.</p>
               )}
               <ol className="setlist-list">
-                {items.map((s, i) => {
+                {items.map((s) => {
                   const track = tracks.get(trackKey(s.playlistId, s.id))
                   const joined = Object.keys(track?.participants ?? {}).length
                   // 제목·가수는 원본 곡(라이브)을 우선 표시, 삭제됐으면 스냅샷으로 폴백
@@ -420,7 +431,11 @@ export default function SetlistSheet({
                       style={s.id === dragId ? { transform: `translateY(${dragDy}px)` } : undefined}
                     >
                       <div className="setlist-rowhead">
-                        <span className="setlist-no">{i + 1}</span>
+                        {!editMode && (
+                          <span className="setlist-no rehearsal-count" title="오늘까지 합주한 횟수">
+                            {practiceCounts === null ? '–' : `${practiceCounts[trackKey(s.playlistId, s.id)] ?? 0}회`}
+                          </span>
+                        )}
                         <div className="track-thumb sm">
                           {s.thumbnail || s.videoId ? (
                             <img src={s.thumbnail || thumbnailUrl(s.videoId ?? '')} alt="" loading="lazy" />

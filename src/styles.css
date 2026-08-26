@@ -1994,6 +1994,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--k-ink, 
   flex: none; width: 20px; text-align: center; font-size: 12.5px; font-weight: 800;
   color: var(--ink-faint); font-variant-numeric: tabular-nums;
 }
+.setlist-no.rehearsal-count { width: 30px; font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; }
 .setlist-body { flex: 1; min-width: 0; }
 .setlist-del { flex: none; align-self: center; }
 /* 곡별 파트 참여자 — 파트 라벨 + 이름들을 한 줄에 흘려 쓴다 */
