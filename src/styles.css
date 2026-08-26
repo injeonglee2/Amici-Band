@@ -1534,6 +1534,15 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--k-ink, 
 }
 /* 개발자 밴드 현황 목록 */
 .bands-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bands-status-head { margin-bottom: 0; }
+.bands-status-head.open { margin-bottom: 10px; }
+.bands-collapse-btn {
+  appearance: none; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; margin: -5px -5px -5px 0; padding: 5px; border: 0; border-radius: 8px;
+  color: var(--ink-faint); background: transparent; cursor: pointer;
+}
+.bands-collapse-btn:hover { color: var(--ink); background: var(--surface-2); }
+.bands-collapse-btn .mm-chev { width: 18px; height: 18px; }
 .bands-groups { display: flex; flex-direction: column; gap: 16px; }
 .bands-groups section + section { padding-top: 14px; border-top: 1px solid var(--line); }
 .bands-groups h4 { margin: 0 0 9px; color: var(--ink-soft); font-size: 11.5px; }

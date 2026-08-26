@@ -368,6 +368,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
 /** 개발자 전용: 전체 밴드 현황 (과금 리스크 모니터링) */
 function BandsStatusCard() {
   const [bands, setBands] = useState<Band[]>([])
+  const [open, setOpen] = useState(false)
   useEffect(() => watchAllBands(setBands, () => {}), [])
   const personal = bands.filter((b) => b.templateId === 'personal')
   const shared = bands.filter((b) => b.templateId !== 'personal')
@@ -389,18 +390,21 @@ function BandsStatusCard() {
   )
   return (
     <div className="limits-card">
-      <div className="limits-head">
+      <div className={'limits-head bands-status-head' + (open ? ' open' : '')}>
         <h3>채널 현황{bands.length > 0 && <b className="fb-newbadge"> {bands.length}</b>}</h3>
         <span className="guide-badge dev">개발자</span>
+        <button type="button" className="bands-collapse-btn" aria-label={open ? '채널 현황 접기' : '채널 현황 펼치기'} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+          <svg className={'mm-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+        </button>
       </div>
-      {bands.length === 0 ? (
+      {open && (bands.length === 0 ? (
         <p className="app-ver" style={{ textAlign: 'left', margin: 0 }}>밴드가 없어요.</p>
       ) : (
         <div className="bands-groups">
           {shared.length > 0 && <section><h4>공동 채널 <b>{shared.length}</b></h4>{renderBands(shared, false)}</section>}
           {personal.length > 0 && <section><h4>개인 채널 <b>{personal.length}</b></h4>{renderBands(personal, true)}</section>}
         </div>
-      )}
+      ))}
     </div>
   )
 }
