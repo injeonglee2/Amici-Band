@@ -715,10 +715,7 @@ export function watchScores(
   cb: (scores: Score[]) => void,
   onError?: (e: Error) => void,
 ): () => void {
-  if (DEMO) {
-    cb([])
-    return () => {}
-  }
+  if (DEMO) return demoDb.watchScores(cb)
   return onSnapshot(
     bandCol('scores'),
     (snap) => {

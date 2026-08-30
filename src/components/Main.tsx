@@ -52,7 +52,8 @@ export default function Main() {
   const { member, bandId, workspace, channels, isDeveloper, isChannelMember, switchChannel, signOutUser } = useAuth()
   const isAdmin = !!member?.admin
   const workspaceTemplate = getWorkspaceTemplate(isDeveloper ? (getTemplatePreview() ?? workspace?.templateId) : workspace?.templateId)
-  const defaultNav: WorkspaceNavId = workspaceTemplate.id === 'band'
+  // 모든 채널의 홈은 일정 탭이다. 명시적인 공유 진입(?nav=...)만 해당 탭을 우선한다.
+  const defaultNav: WorkspaceNavId = workspaceTemplate.navigation.some((item) => item.id === 'home')
     ? 'home'
     : workspaceTemplate.navigation[0]?.id ?? 'home'
   useWorkspaceTheme(workspaceTemplate)

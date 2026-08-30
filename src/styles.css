@@ -160,19 +160,20 @@ button { font-family: inherit; }
   background: color-mix(in srgb, var(--k) 22%, transparent);
   box-shadow: 0 0 16px -4px var(--k);
 }
-/* 밝은(개인) 테마: 선택 칩을 유형 색으로 채우고, 배경 밝기에 맞춰(--k-ink) 대비되는
-   글자색(밝은 배경=진한 회색, 어두운/파란 배경=흰색)으로 아이콘·글자를 표시한다.
-   사용자 태그는 선택 여부와 무관하게 테두리를 지정 색으로 보여준다. */
-html[data-template='personal'] .chip { border-color: var(--k, var(--line-strong)); }
-html[data-template='personal'] .ps-type-opt { border-color: var(--k, var(--line)); }
+/* 밝은(개인) 테마: 비선택 태그는 테두리·아이콘·글자를 지정 색으로 통일하고,
+   선택 시에는 지정 색 배경 위에 아이콘·글자를 흰색으로 표시한다. */
+html[data-template='personal'] .chip { border-color: var(--k, var(--line-strong)); color: var(--k, var(--ink-soft)); }
+html[data-template='personal'] .ps-type-opt { border-color: var(--k, var(--line)); color: var(--k, var(--ink)); }
+html[data-template='personal'] .chip .type-ico,
+html[data-template='personal'] .ps-type-opt .type-ico { color: inherit; }
 html[data-template='personal'] .chip[aria-pressed='true'],
 html[data-template='personal'] .ps-type-opt[aria-pressed='true'] {
   background: var(--k, var(--accent)); border-color: var(--k, var(--accent));
-  color: var(--k-ink, var(--on-accent)); box-shadow: 0 2px 8px -3px color-mix(in srgb, var(--k, var(--accent)) 55%, transparent);
+  color: #fff; box-shadow: 0 2px 8px -3px color-mix(in srgb, var(--k, var(--accent)) 55%, transparent);
 }
 html[data-template='personal'] .chip[aria-pressed='true'] .type-ico,
-html[data-template='personal'] .ps-type-opt[aria-pressed='true'] .type-ico { color: var(--k-ink, var(--on-accent)); filter: none; }
-html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: var(--k-ink, var(--on-accent)); box-shadow: none; }
+html[data-template='personal'] .ps-type-opt[aria-pressed='true'] .type-ico { color: #fff; filter: none; }
+html[data-template='personal'] .chip[aria-pressed='true'] .dot { background: #fff; box-shadow: none; }
 
 /* ---------- scroll body ---------- */
 .segmented {
@@ -1022,7 +1023,7 @@ html[data-template='personal'] select,
 html[data-template='personal'] .theme-select { background: var(--control-bg); color: var(--ink); }
 html[data-template='personal'] .fab { background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 12px rgba(35,131,226,.22); }
 html[data-template='personal'] .bottom-nav { box-shadow: 0 -1px 0 var(--line); }
-html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--k-ink, var(--on-accent)); }
+html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .personal-video-card { position: relative; padding: 0; overflow: hidden; }
 .personal-video-open { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .personal-video-open .rec-thumb { border-radius: 0; }

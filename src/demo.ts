@@ -7,7 +7,7 @@
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, Band, BandEvent, CustomEventType, EventType, Member, Place, Playlist, Recording, RecordingFolder, RunningEntry, SetlistSong, Track, TrackPart } from './types'
+import type { Attendance, Band, BandEvent, CustomEventType, EventType, Member, Place, Playlist, Recording, RecordingFolder, RunningEntry, Score, SetlistSong, Track, TrackPart } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
@@ -17,8 +17,8 @@ export const DEMO =
 export const DEMO_MEMBER: Member = {
   uid: 'demo-user',
   email: 'demo@amici.band',
-  name: '김데모',
-  part: 'guitar',
+  name: '이인정',
+  part: 'keyboard',
   admin: true,
   createdAt: Date.now(),
 }
@@ -26,35 +26,43 @@ export const DEMO_MEMBER: Member = {
 const now = Date.now()
 
 const initialMembers: Member[] = [
-  { uid: 'demo-user', email: 'demo@amici.band', name: '김데모', part: 'guitar', createdAt: now },
-  { uid: 'u2', email: '', name: '이기타', part: 'guitar', createdAt: now },
-  { uid: 'u3', email: '', name: '박베이스', part: 'bass', createdAt: now },
-  { uid: 'u4', email: '', name: '최드럼', part: 'drum', createdAt: now },
-  { uid: 'u5', email: '', name: '정보컬', part: 'vocal', createdAt: now },
-  { uid: 'u6', email: '', name: '강신스', part: 'keyboard', createdAt: now },
-  { uid: 'u7', email: '', name: '윤건반', part: 'keyboard', createdAt: now },
+  { uid: 'demo-user', email: 'demo@amici.band', name: '이인정', part: 'keyboard', admin: true, createdAt: now },
+  { uid: 'm-kym', email: '', name: '김용민', part: 'bass', admin: true, createdAt: now },
+  { uid: 'm-sgd', email: '', name: '서광동', part: 'drum', admin: true, createdAt: now },
+  { uid: 'm-ong', email: '', name: '오남규', part: 'vocal', admin: true, createdAt: now },
+  { uid: 'm-kdh', email: '', name: '김담희', part: 'vocal', createdAt: now },
+  { uid: 'm-kss', email: '', name: '김성수', part: 'guitar', createdAt: now },
+  { uid: 'm-khe', email: '', name: '김하은', part: 'vocal', createdAt: now },
+  { uid: 'm-pjh', email: '', name: '박정환', part: 'guitar', createdAt: now },
+  { uid: 'm-sjm', email: '', name: '서정민', part: 'keyboard', createdAt: now },
+  { uid: 'm-wsm', email: '', name: '왕성민', part: 'keyboard', createdAt: now },
+  { uid: 'm-igi', email: '', name: '이가인', part: 'bass', createdAt: now },
+  { uid: 'm-csb', email: '', name: '최수빈', part: 'drum', createdAt: now },
+  { uid: 'm-hyk', email: '', name: '한유경', part: 'vocal', createdAt: now },
 ]
 
 const initialPlaces: Place[] = [
-  { id: 'p1', name: '영화동 합주실', address: '경기도 수원시 장안구 영화동 424-16', memo: '주차: 건물 뒤편 공영주차장 (합주실 이름 대면 2시간 무료)\n현관 비밀번호: 1234*', createdAt: now },
-  { id: 'p2', name: '메챠카말레온', address: '서울 마포구 어울마당로 45', createdAt: now },
+  { id: 'p-podo', name: '포도나무 합주실', address: '경기도 수원시 장안구 영화동 424-16', memo: '주차: 건물 뒤편 공영주차장 (합주실 이름 대면 2시간 무료)\n현관 비밀번호: 1234*', createdAt: now },
+  { id: 'p-mudari', name: '무다리분식', address: '경기도 수원시 장안구', createdAt: now },
 ]
 
 const initialEvents: BandEvent[] = [
-  { id: 'e1', type: 'flash', title: '메챠카말레온', date: '2026-07-29', rehStart: '21:00', rehEnd: '22:00', placeId: 'p2', note: '', createdBy: 'demo-user', createdAt: now },
-  { id: 'e2', type: 'practice', title: '8월 1차 정기합주', date: '2026-08-01', rehStart: '18:30', rehEnd: '22:00', placeId: 'p1', note: '저녁을 먹거나 요기 하고 올 것', createdBy: 'demo-user', createdAt: now },
-  { id: 'e3', type: 'show', title: '여름 정기공연', date: '2026-08-22', rehStart: '18:00', rehEnd: '22:00', placeId: 'p1', note: '', createdBy: 'other-user', createdAt: now },
-  { id: 'e4', type: 'meeting', title: '신년 운영 회의', date: '2027-01-10', rehStart: '19:00', rehEnd: '21:00', placeId: 'p2', note: '올해 활동 계획 논의', createdBy: 'demo-user', createdAt: now },
+  { id: 'e-hapju5', type: 'practice', title: '8월 5차 정기합주', date: '2026-08-29', rehStart: '18:00', rehEnd: '22:00', placeId: 'p-podo', note: '', createdBy: 'demo-user', createdAt: now },
+  { id: 'e-jochan', type: 'flash', title: '운영진 조찬', date: '2026-09-05', rehStart: '16:30', rehEnd: '18:00', placeId: 'p-mudari', note: '', adminOnly: true, createdBy: 'demo-user', createdAt: now },
+  { id: 'e-hapju9', type: 'practice', title: '9월 1차 정기합주', date: '2026-09-05', rehStart: '18:00', rehEnd: '22:00', placeId: 'p-podo', note: '', createdBy: 'demo-user', createdAt: now },
+  { id: 'e-hapju9b', type: 'practice', title: '9월 2차 정기합주', date: '2026-09-12', rehStart: '18:00', rehEnd: '22:00', placeId: 'p-podo', note: '', createdBy: 'demo-user', createdAt: now },
+  { id: 'e-show9', type: 'show', title: '9월 공연', date: '2026-09-26', rehStart: '18:00', rehEnd: '22:00', placeId: 'p-podo', note: '', createdBy: 'demo-user', createdAt: now },
 ]
 
 const initialAttendance: Record<string, Attendance[]> = {
-  e2: [
-    { uid: 'demo-user', name: '김데모', status: 'present', updatedAt: now },
-    { uid: 'u2', name: '이기타', status: 'present', updatedAt: now },
-    { uid: 'u3', name: '박베이스', status: 'late', arriveTime: '19:00', note: '회사 회식 있어서 조금 늦어요', updatedAt: now },
-    { uid: 'u4', name: '최드럼', status: 'leave', leaveTime: '21:00', updatedAt: now },
-    { uid: 'u6', name: '강신스', status: 'present', updatedAt: now },
-    { uid: 'u5', name: '정보컬', status: 'absent', note: '가족 행사라 이번엔 불참', updatedAt: now },
+  'e-hapju5': [
+    { uid: 'm-sgd', name: '서광동', status: 'present', updatedAt: now },
+    { uid: 'm-csb', name: '최수빈', status: 'present', updatedAt: now },
+    { uid: 'm-kym', name: '김용민', status: 'present', updatedAt: now },
+    { uid: 'm-pjh', name: '박정환', status: 'present', updatedAt: now },
+    { uid: 'm-sjm', name: '서정민', status: 'present', updatedAt: now },
+    { uid: 'm-ong', name: '오남규', status: 'present', updatedAt: now },
+    { uid: 'demo-user', name: '이인정', status: 'late', arriveTime: '18:30', updatedAt: now },
   ],
 }
 
@@ -95,16 +103,50 @@ function makeCollection<T>(initial: T[]): Collection<T> {
 }
 
 const initialPlaylists: Playlist[] = [
-  { id: 'pl1', name: '이번 공연 셋리스트', createdBy: 'demo-user', createdAt: now },
-  { id: 'pl2', name: '연습하고 싶은 곡', createdBy: 'demo-user', createdAt: now - 1000 },
+  { id: 'pl-sep', name: '2026 9월 공연', createdBy: 'demo-user', createdAt: now },
+  { id: 'pl-jazz', name: '재즈>_<', createdBy: 'demo-user', createdAt: now - 1000 },
 ]
 
+const yt = (v: string) => ({ url: `https://www.youtube.com/watch?v=${v}`, videoId: v, thumbnail: `https://img.youtube.com/vi/${v}/mqdefault.jpg` })
+// 8월 5차 합주 참여 파트(곡별) — 실제 파트 배정 예시
+const fullBand: Record<string, TrackPart> = { 'demo-user': 'keyboard', 'm-kym': 'bass', 'm-sgd': 'drum', 'm-pjh': 'guitar', 'm-ong': 'vocal' }
+
 const initialTracks: Record<string, Track[]> = {
-  pl1: [
-    { id: 't1', url: 'https://www.youtube.com/watch?v=fJ9rUzIMcZQ', videoId: 'fJ9rUzIMcZQ', title: 'Bohemian Rhapsody', artist: 'Queen', thumbnail: 'https://img.youtube.com/vi/fJ9rUzIMcZQ/mqdefault.jpg', order: now, addedBy: 'demo-user', addedByName: '김데모', addedAt: now, participants: { 'demo-user': 'guitar', u2: 'guitar', u3: 'bass', u4: 'drum', u5: 'vocal', u6: 'keyboard' } },
-    { id: 't2', url: 'https://www.youtube.com/watch?v=1w7OgIMMRc4', videoId: '1w7OgIMMRc4', title: 'Sweet Child O\' Mine', artist: "Guns N' Roses", thumbnail: 'https://img.youtube.com/vi/1w7OgIMMRc4/mqdefault.jpg', order: now + 1000, addedBy: 'demo-user', addedByName: '이기타', addedAt: now + 1000, participants: { u2: 'guitar', u4: 'drum', u5: 'vocal', u7: '코러스' } },
+  'pl-sep': [
+    { id: 'tr-fly', ...yt('AuuMtPdKUf0'), title: 'Fly away', artist: '권진아', order: now + 0, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 0 },
+    { id: 'tr-pink', ...yt('FsJDnrY1Cuk'), title: 'PINKTOP', artist: 'The Volunteers', order: now + 1, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 1 },
+    { id: 'tr-romeo', ...yt('KMwFTUV6u1M'), title: 'romeo n juliet', artist: '죠지, 유라', order: now + 2, addedBy: 'demo-user', addedByName: '오남규', addedAt: now + 2, participants: { ...fullBand, 'm-khe': 'vocal' } },
+    { id: 'tr-back', ...yt('sxs2LHOmmoU'), title: 'Back in Time', artist: 'Nerd Connection', order: now + 3, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 3, participants: fullBand },
+    { id: 'tr-pret', ...yt('37W7Y2RRyiM'), title: 'Pretender', artist: 'OFFICIAL HIGE DANDISM', order: now + 4, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 4, participants: { ...fullBand, 'm-sjm': 'keyboard' } },
+    { id: 'tr-spring', ...yt('8i-B1ieI_kY'), title: '시퍼런 봄', artist: 'THORNAPPLE', order: now + 5, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 5 },
+    { id: 'tr-jib', ...yt('XxM5yQj86s0'), title: 'ㅈㅣㅂ', artist: '한로로', order: now + 6, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 6 },
+    { id: 'tr-alu', ...yt('CnL10_X0hv0'), title: '알루미늄', artist: 'Broken Valentine', order: now + 7, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 7 },
+    { id: 'tr-butter', ...yt('5BONQ39cP9k'), title: 'Butter-Fly [디지몬 어드벤처]', artist: '전영호', order: now + 8, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 8, participants: fullBand },
+  ],
+  'pl-jazz': [
+    { id: 'trj-fly', ...yt('AuuMtPdKUf0'), title: 'Fly away', artist: '권진아', order: now, addedBy: 'demo-user', addedByName: '이인정', addedAt: now },
+    { id: 'trj-spring', ...yt('8i-B1ieI_kY'), title: '시퍼런 봄', artist: 'THORNAPPLE', order: now + 1, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 1 },
+    { id: 'trj-jib', ...yt('XxM5yQj86s0'), title: 'ㅈㅣㅂ', artist: '한로로', order: now + 2, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 2 },
   ],
 }
+
+// 8월 5차 정기합주 셋리스트 (재생목록 '2026 9월 공연'에서 담음)
+const initialSetlists: Record<string, SetlistSong[]> = {
+  'e-hapju5': [
+    { id: 'tr-butter', playlistId: 'pl-sep', playlistName: '2026 9월 공연', title: 'Butter-Fly [디지몬 어드벤처]', artist: '전영호', videoId: '5BONQ39cP9k', thumbnail: 'https://img.youtube.com/vi/5BONQ39cP9k/mqdefault.jpg', order: 0, addedBy: 'demo-user', addedAt: now },
+    { id: 'tr-pret', playlistId: 'pl-sep', playlistName: '2026 9월 공연', title: 'Pretender', artist: 'OFFICIAL HIGE DANDISM', videoId: '37W7Y2RRyiM', thumbnail: 'https://img.youtube.com/vi/37W7Y2RRyiM/mqdefault.jpg', order: 1, addedBy: 'demo-user', addedAt: now },
+    { id: 'tr-back', playlistId: 'pl-sep', playlistName: '2026 9월 공연', title: 'Back in Time', artist: 'Nerd Connection', videoId: 'sxs2LHOmmoU', thumbnail: 'https://img.youtube.com/vi/sxs2LHOmmoU/mqdefault.jpg', order: 2, addedBy: 'demo-user', addedAt: now },
+    { id: 'tr-romeo', playlistId: 'pl-sep', playlistName: '2026 9월 공연', title: 'romeo n juliet', artist: '죠지, 유라', videoId: 'KMwFTUV6u1M', thumbnail: 'https://img.youtube.com/vi/KMwFTUV6u1M/mqdefault.jpg', order: 3, addedBy: 'demo-user', addedAt: now },
+  ],
+}
+
+// 악보 — 내 파트(건반) 악보 3곡
+const initialScores: Score[] = [
+  { id: 'sc-butter', trackId: 'tr-butter', playlistId: 'pl-sep', songTitle: 'Butter-Fly [디지몬 어드벤처]', songArtist: '전영호', thumbnail: 'https://img.youtube.com/vi/5BONQ39cP9k/mqdefault.jpg', part: 'keyboard', title: '건반 풀스코어', kind: 'images', files: [], addedBy: 'demo-user', addedByName: '이인정', createdAt: now + 2 },
+  { id: 'sc-pret', trackId: 'tr-pret', playlistId: 'pl-sep', songTitle: 'Pretender', songArtist: 'OFFICIAL HIGE DANDISM', thumbnail: 'https://img.youtube.com/vi/37W7Y2RRyiM/mqdefault.jpg', part: 'keyboard', title: '건반 코드', kind: 'images', files: [], addedBy: 'demo-user', addedByName: '이인정', createdAt: now + 1 },
+  { id: 'sc-alu', trackId: 'tr-alu', playlistId: 'pl-sep', songTitle: '알루미늄', songArtist: 'Broken Valentine', thumbnail: 'https://img.youtube.com/vi/CnL10_X0hv0/mqdefault.jpg', part: 'keyboard', title: '건반 악보', kind: 'images', files: [], addedBy: 'demo-user', addedByName: '이인정', createdAt: now },
+]
+export const demoScores = initialScores
 
 const eventsCol = makeCollection<BandEvent>(initialEvents)
 
@@ -157,14 +199,14 @@ const setlistCols = new Map<string, Collection<SetlistSong>>()
 function setlistCol(eventId: string): Collection<SetlistSong> {
   let col = setlistCols.get(eventId)
   if (!col) {
-    col = makeCollection<SetlistSong>([])
+    col = makeCollection<SetlistSong>(initialSetlists[eventId] ?? [])
     setlistCols.set(eventId, col)
   }
   return col
 }
 
 /* ---------------- 데모 채널(워크스페이스): 밴드 + 개인 ---------------- */
-export const DEMO_BAND: Band = { id: 'demo', name: 'Amici Band', ownerUid: DEMO_MEMBER.uid, templateId: 'band', createdAt: now }
+export const DEMO_BAND: Band = { id: 'demo', name: 'AMICI', ownerUid: DEMO_MEMBER.uid, templateId: 'band', createdAt: now }
 export const DEMO_PERSONAL: Band = { id: 'demo-personal', name: '내 기록', ownerUid: DEMO_MEMBER.uid, templateId: 'personal', createdAt: now }
 export const DEMO_CHANNELS: Band[] = [DEMO_BAND, DEMO_PERSONAL]
 
@@ -272,13 +314,14 @@ const initialRecordingFolders: RecordingFolder[] = [
   { id: 'rf-live', name: '공연', order: now + 1, createdBy: DEMO_MEMBER.uid, createdAt: now + 1 },
 ]
 const initialRecordings: Recording[] = [
-  { id: 'rec1', title: '8/15 합주 · Bohemian Rhapsody', date: '2026-08-15', url: 'https://youtu.be/fJ9rUzIMcZQ', videoId: 'fJ9rUzIMcZQ', folderId: 'rf-hapju', addedBy: DEMO_MEMBER.uid, addedByName: '김데모', createdAt: now, credits: { 보컬: ['정보컬'], 기타: ['이기타'] } },
-  { id: 'rec2', title: "8/15 합주 · Sweet Child O' Mine", date: '2026-08-15', url: 'https://youtu.be/1w7OgIMMRc4', videoId: '1w7OgIMMRc4', folderId: 'rf-hapju', addedBy: DEMO_MEMBER.uid, addedByName: '김데모', createdAt: now + 1 },
-  { id: 'rec3', title: '8/8 합주 연습', date: '2026-08-08', url: 'https://youtu.be/fJ9rUzIMcZQ', videoId: 'fJ9rUzIMcZQ', folderId: 'rf-hapju', addedBy: DEMO_MEMBER.uid, addedByName: '김데모', createdAt: now + 2 },
-  { id: 'rec4', title: '여름 정기공연', date: '2026-08-22', url: 'https://youtu.be/1w7OgIMMRc4', videoId: '1w7OgIMMRc4', folderId: 'rf-live', addedBy: DEMO_MEMBER.uid, addedByName: '김데모', createdAt: now + 3 },
+  { id: 'rec1', title: '8/22 합주 · Butter-Fly', date: '2026-08-22', url: 'https://youtu.be/5BONQ39cP9k', videoId: '5BONQ39cP9k', folderId: 'rf-hapju', addedBy: DEMO_MEMBER.uid, addedByName: '이인정', createdAt: now, credits: { 보컬: ['오남규'], 건반: ['이인정', '서정민'] } },
+  { id: 'rec2', title: '8/22 합주 · Pretender', date: '2026-08-22', url: 'https://youtu.be/37W7Y2RRyiM', videoId: '37W7Y2RRyiM', folderId: 'rf-hapju', addedBy: DEMO_MEMBER.uid, addedByName: '이인정', createdAt: now + 1 },
+  { id: 'rec3', title: '8/15 합주 · Back in Time', date: '2026-08-15', url: 'https://youtu.be/sxs2LHOmmoU', videoId: 'sxs2LHOmmoU', folderId: 'rf-hapju', addedBy: DEMO_MEMBER.uid, addedByName: '이인정', createdAt: now + 2 },
+  { id: 'rec4', title: '9월 공연 리허설', date: '2026-08-22', url: 'https://youtu.be/KMwFTUV6u1M', videoId: 'KMwFTUV6u1M', folderId: 'rf-live', addedBy: DEMO_MEMBER.uid, addedByName: '이인정', createdAt: now + 3 },
 ]
 const recordingsCol = makeCollection<Recording>(initialRecordings)
 const recordingFoldersCol = makeCollection<RecordingFolder>(initialRecordingFolders)
+const scoresCol = makeCollection<Score>(initialScores)
 
 export const demoDb = {
   watchMembers: (cb: Sub<Member[]>) => membersCol.watch(cb),
@@ -361,6 +404,9 @@ export const demoDb = {
     runEntriesCol(folderId).watch((list) =>
       cb([...list].sort((a, b) => (Number(b.startTime) || 0) - (Number(a.startTime) || 0))),
     ),
+
+  // 악보 (내 파트 필터는 컴포넌트에서 처리)
+  watchScores: (cb: Sub<Score[]>) => scoresCol.watch((l) => cb([...l].sort((a, b) => b.createdAt - a.createdAt))),
 
   // 밴드 영상(기록) + 이름 폴더
   watchRecordings: (cb: Sub<Recording[]>) => recordingsCol.watch(cb),
