@@ -1215,17 +1215,18 @@ function FolderSyncSheet({ folder, existingVideoIds, member, toast, onClose }: {
   onClose: () => void
 }) {
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
-  useBackHandler(onClose)
   const [names, setNames] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState('')
+  const [editing, setEditing] = useState(false)
   const [playlistUrl, setPlaylistUrl] = useState('')
   const [addError, setAddError] = useState('')
   const [unlinkTarget, setUnlinkTarget] = useState<string | null>(null)
-  const [pls, setPls] = useState(folder.playlistIds ?? [])
+  const [pls, setPls] = useState(() => uniquePlaylistIds(folder.playlistIds ?? []))
   const plsKey = pls.join(',')
+  useBackHandler(() => editing ? setEditing(false) : onClose())
 
-  useEffect(() => setPls(folder.playlistIds ?? []), [folder.playlistIds])
+  useEffect(() => setPls(uniquePlaylistIds(folder.playlistIds ?? [])), [folder.playlistIds])
 
   useEffect(() => {
     let live = true
@@ -1285,7 +1286,8 @@ function FolderSyncSheet({ folder, existingVideoIds, member, toast, onClose }: {
     setBusy(true); setAddError('')
     try {
       await addRecordingFolderPlaylist(folder.id, pid)
-      setPls((current) => [...current, pid])
+      // Firestore 스냅샷과 로컬 반영 순서가 겹쳐도 같은 재생목록은 한 번만 표시한다.
+      setPls((current) => uniquePlaylistIds([...current, pid]))
       setPlaylistUrl('')
       void resolveYouTubePlaylistTitle(pid).then((title) => { if (title) setNames((current) => ({ ...current, [pid]: title })) }).catch(() => {})
       toast.show('재생목록을 연결했어요')
@@ -1297,25 +1299,25 @@ function FolderSyncSheet({ folder, existingVideoIds, member, toast, onClose }: {
     <><div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet" ref={sheetRef}>
         <div className="grab-zone" {...grabHandlers}><div className="grab" /></div>
-        <h2>연결된 재생목록</h2>
+        <div className="folder-sync-head"><h2>연결된 재생목록</h2><button type="button" className={'edit-btn' + (editing ? ' done' : '')} onClick={() => { setEditing((value) => !value); setAddError('') }} aria-label={editing ? '편집 완료' : '재생목록 편집'} disabled={busy}><Icon name={editing ? 'check' : 'edit'} /></button></div>
         {pls.length === 0 ? (
-          <p className="hint">이 폴더에 연결된 재생목록이 없어요.<br />아래에 유튜브 재생목록 링크를 추가해 주세요.</p>
+          <p className="hint">이 폴더에 연결된 재생목록이 없어요.<br />우측 상단 편집 버튼에서 재생목록을 추가할 수 있어요.</p>
         ) : (
           <ul className="list folder-sync-playlists">
             {pls.map((pid) => (
               <li key={pid} className="playlist-row">
                 <div className="playlist-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg></div>
                 <div className="playlist-info"><h3>{names[pid] || '재생목록'}</h3></div>
-                <button type="button" className="edit-btn" aria-label="연결 해제" onClick={() => setUnlinkTarget(pid)} disabled={busy}>×</button>
+                {editing && <button type="button" className="edit-btn del" aria-label="연결 해제" onClick={() => setUnlinkTarget(pid)} disabled={busy}>×</button>}
               </li>
             ))}
           </ul>
         )}
-        <div className="field folder-sync-add">
+        {editing && <div className="field folder-sync-add">
           <label htmlFor="folder-sync-playlist">재생목록 추가</label>
           <div className="folder-sync-add-row"><input id="folder-sync-playlist" value={playlistUrl} onChange={(event) => { setPlaylistUrl(event.target.value); setAddError('') }} inputMode="url" placeholder="https://www.youtube.com/playlist?list=…" /><button type="button" className="btn subtle" onClick={() => void addPlaylist()} disabled={busy || !playlistUrl.trim()}>추가</button></div>
           {addError && <p className="err small">{addError}</p>}
-        </div>
+        </div>}
         <div className="actions">
           <button type="button" className="btn primary grow" onClick={() => void sync()} disabled={busy || pls.length === 0}>{busy ? (progress || '동기화 중…') : '지금 동기화'}</button>
           <button type="button" className="btn subtle" onClick={onClose} disabled={busy}>닫기</button>
@@ -1325,4 +1327,8 @@ function FolderSyncSheet({ folder, existingVideoIds, member, toast, onClose }: {
     {unlinkTarget && <ConfirmDialog message={`'${names[unlinkTarget] || '재생목록'}' 연결을 해제할까요? 폴더에 가져온 기존 영상은 삭제되지 않습니다.`} confirmLabel="연결 해제" cancelLabel="취소" danger onConfirm={() => void unlink(unlinkTarget)} onCancel={() => setUnlinkTarget(null)} />}
     </>
   )
+}
+
+function uniquePlaylistIds(ids: string[]): string[] {
+  return [...new Set(ids.filter(Boolean))]
 }

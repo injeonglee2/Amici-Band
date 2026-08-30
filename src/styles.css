@@ -1773,6 +1773,9 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .playlist-chev { flex: none; width: 18px; height: 18px; color: var(--ink-faint); }
 .folder-sync-playlists { margin: 0 0 16px; padding: 0; list-style: none; }
+.folder-sync-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.folder-sync-head h2 { margin: 8px 2px 0; }
+.folder-sync-head .edit-btn { flex: none; margin-top: 4px; }
 .folder-sync-add { margin-top: 16px; }
 .folder-sync-add-row { display: flex; gap: 8px; align-items: stretch; }
 .folder-sync-add-row input { flex: 1; min-width: 0; }
