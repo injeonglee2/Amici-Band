@@ -105,6 +105,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
     return onAuthStateChanged(auth, async (u) => {
+      // 로그인 세션이 바뀐 뒤 채널/프로필 해석이 끝날 때까지 온보딩 분기를
+      // 렌더링하지 않는다. (재로그인 시 채널 만들기/이름 설정 화면 깜빡임 방지)
+      setLoading(true)
       setUser(u)
       try {
         if (u) {
@@ -141,7 +144,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading: DEMO ? false : loading,
       signIn: async () => {
         if (DEMO) return
-        await signInWithPopup(auth, googleProvider)
+        setLoading(true)
+        try {
+          await signInWithPopup(auth, googleProvider)
+        } catch (error) {
+          // 팝업 취소/실패 시에는 auth 상태 콜백이 오지 않을 수 있다.
+          setLoading(false)
+          throw error
+        }
       },
       signOutUser: async () => {
         if (DEMO) return

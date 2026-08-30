@@ -1060,6 +1060,9 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--k-ink, 
 .media-list-info strong { font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
 .media-list-info small { margin-top: 3px; font-size: 12.5px; color: var(--ink-soft); }
 .media-list-trailing { flex: none; display: flex; align-items: center; margin-left: 4px; }
+.media-list-edit { appearance: none; width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--ink-faint); cursor: pointer; }
+.media-list-edit svg { width: 17px; height: 17px; }
+.media-list-edit:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .media-list-delete { appearance: none; width: 32px; height: 32px; border: 0; border-radius: 9px; background: transparent; color: var(--ink-faint); font-size: 22px; line-height: 1; cursor: pointer; }
 .media-list-delete:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .folder-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -1768,6 +1771,11 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: var(--k-ink, 
 .playlist-info h3 { margin: 0; font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .playlist-chev { flex: none; width: 18px; height: 18px; color: var(--ink-faint); }
+.folder-sync-playlists { margin: 0 0 16px; padding: 0; list-style: none; }
+.folder-sync-add { margin-top: 16px; }
+.folder-sync-add-row { display: flex; gap: 8px; align-items: stretch; }
+.folder-sync-add-row input { flex: 1; min-width: 0; }
+.folder-sync-add-row .btn { flex: none; padding-inline: 16px; }
 
 /* ---------- 음악: 상세 헤더 ---------- */
 /* 제목(헤더)과 아래 목록을 위·아래 구분선으로 분리한 헤더 밴드 */

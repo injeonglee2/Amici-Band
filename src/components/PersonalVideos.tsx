@@ -26,6 +26,7 @@ import { compactYouTubeDescription } from '../youtubeDescription'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { cleanPersonalVideoTitle } from '../videoTitle'
+import { parseRecipeIngredients, type DetectedIngredient } from '../gemini'
 
 const MACHINE_LEARNING_FOLDER = '혼자 공부하는 머신러닝+딥러닝'
 
@@ -84,6 +85,7 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
   const [section, setSection] = useState<'videos' | 'ingredients'>('videos')
   const [ingredientFilter, setIngredientFilter] = useState<string>('all')
   const [adding, setAdding] = useState(false)
+  const [editingVideo, setEditingVideo] = useState<PersonalVideo | null>(null)
   const [addingIngredient, setAddingIngredient] = useState(false)
   const [editingIngredient, setEditingIngredient] = useState<RecipeIngredient | null>(null)
   const [editingFolder, setEditingFolder] = useState(false)
@@ -182,7 +184,7 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
               <MediaListRow key={video.id} thumbnail={video.thumbnail || thumbnailUrl(video.videoId)} title={video.title}
                 subtitle={video.recipe || video.note} onOpen={() => setPlaying(video)}
                 trailing={editingFolder
-                  ? <button type="button" className="media-list-delete" onClick={() => void remove(video)} aria-label="영상 삭제">×</button>
+                  ? <><button type="button" className="media-list-edit" onClick={() => setEditingVideo(video)} aria-label="영상 수정"><Icon name="edit" /></button><button type="button" className="media-list-delete" onClick={() => void remove(video)} aria-label="영상 삭제">×</button></>
                   : undefined} />
             ))}
           </div>}
@@ -192,7 +194,8 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
       {isRecipe && section === 'ingredients' ?
         <button className="fab" onClick={() => setAddingIngredient(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>재료 추가</button> :
         <button className="fab" onClick={() => setAdding(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>영상 추가</button>}
-      {adding && <VideoForm folderId={folder.id} ingredients={ingredients} isRecipe={isRecipe} nextOrder={videos.length ? Math.max(...videos.map((v) => v.order)) + 1 : 0} onClose={() => setAdding(false)} />}
+      {adding && <VideoForm folderId={folder.id} ingredients={ingredients} isRecipe={isRecipe} nextOrder={videos.length ? Math.max(...videos.map((v) => v.order)) + 1 : 0} editing={null} onClose={() => setAdding(false)} />}
+      {editingVideo && <VideoForm folderId={folder.id} ingredients={ingredients} isRecipe={isRecipe} nextOrder={editingVideo.order} editing={editingVideo} onClose={() => setEditingVideo(null)} />}
       {addingIngredient && <IngredientForm folderId={folder.id} editing={null} nextOrder={ingredients.length ? Math.max(...ingredients.map((v) => v.order)) + 1 : 0} toast={toast} onClose={() => setAddingIngredient(false)} />}
       {editingIngredient && <IngredientForm folderId={folder.id} editing={editingIngredient} nextOrder={editingIngredient.order} toast={toast} onClose={() => setEditingIngredient(null)} />}
       {playing && <VideoPlayer video={playing} ingredients={ingredients} onClose={() => setPlaying(null)} />}
@@ -200,23 +203,26 @@ function VideoFolderDetail({ folder, onBack, toast }: { folder: RecordingFolder;
   )
 }
 
-function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { folderId: string; ingredients: RecipeIngredient[]; isRecipe: boolean; nextOrder: number; onClose: () => void }) {
+function VideoForm({ folderId, ingredients, isRecipe, nextOrder, editing, onClose }: { folderId: string; ingredients: RecipeIngredient[]; isRecipe: boolean; nextOrder: number; editing: PersonalVideo | null; onClose: () => void }) {
   const { member } = useAuth()
   const { sheetRef, grabHandlers } = useSheetSwipe(onClose)
   useBackHandler(onClose)
-  const [url, setUrl] = useState('')
-  const [title, setTitle] = useState('')
-  const [note, setNote] = useState('')
-  const [recipe, setRecipe] = useState('')
-  const [ingredientIds, setIngredientIds] = useState<string[]>([])
+  const [url, setUrl] = useState(editing?.url ?? '')
+  const [title, setTitle] = useState(editing?.title ?? '')
+  const [note, setNote] = useState(editing?.note ?? '')
+  const [recipe, setRecipe] = useState(editing?.recipe ?? '')
+  const [ingredientIds, setIngredientIds] = useState<string[]>(editing?.ingredientIds ?? [])
+  const [detectedIngredients, setDetectedIngredients] = useState<DetectedIngredient[]>([])
+  const [selectedDetectedNames, setSelectedDetectedNames] = useState<string[]>([])
+  const [detectingIngredients, setDetectingIngredients] = useState(false)
   const [fetchingTitle, setFetchingTitle] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const autoTitle = useRef('')
   const autoNote = useRef('')
-  const noteEdited = useRef(false)
+  const noteEdited = useRef(!!editing)
   const autoRecipe = useRef('')
-  const recipeEdited = useRef(false)
+  const recipeEdited = useRef(!!editing)
   const metaRequest = useRef(0)
 
   function onUrlChange(value: string) {
@@ -248,6 +254,22 @@ function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { fo
             autoNote.current = compact
             return compact
           })
+          if (isRecipe) {
+            setDetectingIngredients(true)
+            void parseRecipeIngredients(description).then((detected) => {
+              if (request !== metaRequest.current) return
+              const existingByName = new Map(ingredients.map((ingredient) => [normalizeIngredientName(ingredient.name), ingredient]))
+              const fresh = detected.filter((item) => {
+                const existing = existingByName.get(normalizeIngredientName(item.name))
+                if (existing) setIngredientIds((current) => current.includes(existing.id) ? current : [...current, existing.id])
+                return !existing
+              })
+              setDetectedIngredients(fresh)
+              setSelectedDetectedNames(fresh.map((item) => item.name))
+            }).finally(() => {
+              if (request === metaRequest.current) setDetectingIngredients(false)
+            })
+          }
         }
       })
       .catch(() => {})
@@ -260,19 +282,34 @@ function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { fo
     const videoId = parseVideoId(url)
     if (!videoId || busy) { setErr('올바른 유튜브 링크를 입력해 주세요.'); return }
     setBusy(true); setErr('')
+    const createdIngredientIds: string[] = []
+    let videoSaved = false
     try {
       const [meta, description] = await Promise.all([fetchYouTubeMeta(videoId), fetchVideoDescription(videoId)])
+      const selectedNewIngredients = isRecipe
+        ? detectedIngredients.filter((item) => selectedDetectedNames.includes(item.name))
+        : []
+      const ingredientOrderStart = ingredients.length ? Math.max(...ingredients.map((ingredient) => ingredient.order)) + 1 : 0
+      for (let index = 0; index < selectedNewIngredients.length; index++) {
+        const item = selectedNewIngredients[index]
+        const id = newId()
+        await saveRecipeIngredient({ id, folderId, name: item.name, category: item.category, filterInVideo: true, order: ingredientOrderStart + index, createdAt: Date.now() + index })
+        createdIngredientIds.push(id)
+      }
       const video: PersonalVideo = {
         id: videoId, folderId, videoId, url: watchUrl(videoId),
         title: cleanPersonalVideoTitle(title.trim() || meta.title) || '제목 없는 영상', thumbnail: meta.thumbnail || thumbnailUrl(videoId),
         note: isRecipe ? undefined : (noteEdited.current ? (note || undefined) : (note || compactYouTubeDescription(description) || undefined)),
-        ingredientIds: isRecipe ? ingredientIds : undefined,
+        ingredientIds: isRecipe ? [...new Set([...ingredientIds, ...createdIngredientIds])] : undefined,
         recipe: isRecipe ? (recipeEdited.current ? (recipe || undefined) : (recipe || description || undefined)) : undefined,
-        order: nextOrder, addedBy: member?.uid ?? '', createdAt: Date.now(),
+        order: editing?.order ?? nextOrder, addedBy: editing?.addedBy ?? member?.uid ?? '', createdAt: editing?.createdAt ?? Date.now(),
       }
       await savePersonalVideo(video)
+      videoSaved = true
+      if (editing && editing.id !== videoId) await deletePersonalVideo(folderId, editing.id).catch(() => {})
       onClose()
     } catch (e) {
+      if (!videoSaved) await Promise.allSettled(createdIngredientIds.map((id) => deleteRecipeIngredient(folderId, id)))
       const code = (e as { code?: string })?.code ?? (e as { message?: string })?.message ?? ''
       setErr('영상을 저장하지 못했어요.' + (code ? ` (${code})` : ''))
       console.error('savePersonalVideo failed', e)
@@ -280,7 +317,7 @@ function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { fo
   }
 
   return <div className="scrim open" onClick={(e) => e.target === e.currentTarget && onClose()}><div className="sheet" ref={sheetRef}>
-    <div className="grab-zone" {...grabHandlers}><div className="grab" /></div><h2>유튜브 영상 추가</h2>
+    <div className="grab-zone" {...grabHandlers}><div className="grab" /></div><h2>{editing ? '유튜브 영상 수정' : '유튜브 영상 추가'}</h2>
     <div className="field"><label htmlFor="pv-url">유튜브 링크</label><input id="pv-url" value={url} onChange={(e) => onUrlChange(e.target.value)} placeholder="https://youtu.be/..." autoFocus /></div>
     <div className="field"><label htmlFor="pv-title">제목 <span className="muted">({fetchingTitle ? '가져오는 중…' : '자동 입력 후 수정 가능'})</span></label><input id="pv-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} placeholder={fetchingTitle ? '유튜브 제목을 가져오는 중…' : ''} /></div>
     {isRecipe ? <>
@@ -289,11 +326,20 @@ function VideoForm({ folderId, ingredients, isRecipe, nextOrder, onClose }: { fo
           const selected = ingredientIds.includes(ingredient.id)
           return <button key={ingredient.id} type="button" className="chip" aria-pressed={selected} onClick={() => setIngredientIds((current) => selected ? current.filter((id) => id !== ingredient.id) : [...current, ingredient.id])}>{ingredient.name}</button>
         })}</div> : <p className="hint">이 폴더의 재료 탭에서 재료를 먼저 추가해 주세요.</p>}
+        {detectingIngredients && <p className="hint">AI가 영상 설명에서 재료를 찾는 중…</p>}
+        {detectedIngredients.length > 0 && <><p className="hint">자동 인식된 새 재료 · 저장할 항목을 확인하세요.</p><div className="ingredient-picker detected-ingredients">{detectedIngredients.map((ingredient) => {
+          const selected = selectedDetectedNames.includes(ingredient.name)
+          return <button key={ingredient.name} type="button" className="chip" aria-pressed={selected} onClick={() => setSelectedDetectedNames((current) => selected ? current.filter((name) => name !== ingredient.name) : [...current, ingredient.name])}>{ingredient.name} <small>{ingredient.category}</small></button>
+        })}</div></>}
       </div>
       <div className="field"><label htmlFor="pv-recipe">레시피 <span className="muted">(영상 설명 자동 입력 후 수정 가능)</span></label><textarea id="pv-recipe" value={recipe} onChange={(e) => { recipeEdited.current = true; setRecipe(e.target.value) }} rows={10} maxLength={5000} /></div>
     </> : <div className="field"><label htmlFor="pv-note">메모 <span className="muted">(영상 설명 자동 입력 후 수정 가능)</span></label><textarea id="pv-note" value={note} onChange={(e) => { noteEdited.current = true; setNote(e.target.value) }} rows={6} maxLength={5000} /></div>}
-    {err && <p className="err small">{err}</p>}<div className="actions"><button className="btn subtle" onClick={onClose} disabled={busy}>취소</button><button className="btn primary" onClick={() => void submit()} disabled={!url.trim() || busy}>{busy ? '가져오는 중…' : '추가'}</button></div>
+    {err && <p className="err small">{err}</p>}<div className="actions"><button className="btn subtle" onClick={onClose} disabled={busy}>취소</button><button className="btn primary" onClick={() => void submit()} disabled={!url.trim() || busy}>{busy ? '저장 중…' : (editing ? '저장' : '추가')}</button></div>
   </div></div>
+}
+
+function normalizeIngredientName(name: string): string {
+  return name.trim().replace(/\s+/g, '').toLocaleLowerCase('ko-KR')
 }
 
 function IngredientForm({ folderId, editing, nextOrder, toast, onClose }: { folderId: string; editing: RecipeIngredient | null; nextOrder: number; toast: ToastState; onClose: () => void }) {

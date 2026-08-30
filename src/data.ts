@@ -661,7 +661,13 @@ export function watchPersonalVideos(
 export async function savePersonalVideo(video: PersonalVideo): Promise<void> {
   if (DEMO) return
   const { id, folderId, ...data } = video
-  await setDoc(bandDoc('videoFolders', folderId, 'videos', id), data, { merge: true })
+  await setDoc(bandDoc('videoFolders', folderId, 'videos', id), {
+    ...data,
+    // 수정 화면에서 값을 비우면 기존 선택/메모도 실제로 제거한다.
+    note: data.note ?? deleteField(),
+    recipe: data.recipe ?? deleteField(),
+    ingredientIds: data.ingredientIds ?? deleteField(),
+  }, { merge: true })
 }
 
 export async function updatePersonalVideoTitles(folderId: string, updates: { id: string; title: string }[]): Promise<void> {

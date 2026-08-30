@@ -4,6 +4,7 @@
 import { getAI, getGenerativeModel, VertexAIBackend, type GenerativeModel } from 'firebase/ai'
 import { fbApp } from './firebase'
 import { bumpAiUsage } from './data'
+import { INGREDIENT_CATEGORIES } from './types'
 
 // Vertex AI(현 Agent Platform) 백엔드 리전. 필요 시 'global' 등으로 조정.
 const AI_LOCATION = 'us-central1'
@@ -66,5 +67,52 @@ export async function parseCredits(description: string): Promise<Credits | null>
     return Object.keys(credits).length ? credits : null
   } catch {
     return null
+  }
+}
+
+export interface DetectedIngredient {
+  name: string
+  category: string
+}
+
+const INGREDIENT_PROMPT =
+  '다음은 요리 영상 설명 또는 레시피다. 실제 조리에 쓰이는 재료만 찾아 JSON 배열로만 답하라. ' +
+  '각 항목은 {"name":"재료명","category":"분류"} 형식이다. 재료명에서는 수량, 단위, 손질법을 빼고 ' +
+  '한국어의 일반적인 재료명으로 정리한다. 소금·물·식용유 같은 기본 재료도 명시되어 있으면 포함한다. ' +
+  `분류는 ${INGREDIENT_CATEGORIES.join(', ')} 중 하나만 사용한다. 완성 음식명, 조리도구, 광고 상품, 해시태그는 제외한다. ` +
+  '재료를 확실히 찾을 수 없으면 []. 다른 설명은 붙이지 말 것.'
+
+const ingredientCache = new Map<string, DetectedIngredient[]>()
+
+/** 요리 설명문에서 중복 없는 재료명과 카테고리를 추출한다. */
+export async function parseRecipeIngredients(description: string): Promise<DetectedIngredient[]> {
+  const desc = (description || '').trim()
+  if (!desc) return []
+  const cached = ingredientCache.get(desc)
+  if (cached) return cached
+  const m = getModel()
+  if (!m) return []
+  try {
+    const result = await m.generateContent(`${INGREDIENT_PROMPT}\n\n${desc}`)
+    bumpAiUsage()
+    const parsed = JSON.parse(result.response.text() || '[]') as unknown
+    if (!Array.isArray(parsed)) return []
+    const seen = new Set<string>()
+    const output: DetectedIngredient[] = []
+    for (const value of parsed) {
+      if (!value || typeof value !== 'object') continue
+      const item = value as Record<string, unknown>
+      const name = String(item.name ?? '').trim().slice(0, 50)
+      const key = name.replace(/\s+/g, '').toLocaleLowerCase('ko-KR')
+      if (!name || seen.has(key)) continue
+      seen.add(key)
+      const requestedCategory = String(item.category ?? '')
+      const category = INGREDIENT_CATEGORIES.includes(requestedCategory as typeof INGREDIENT_CATEGORIES[number]) ? requestedCategory : '기타'
+      output.push({ name, category })
+    }
+    ingredientCache.set(desc, output)
+    return output
+  } catch {
+    return []
   }
 }
