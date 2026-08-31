@@ -10,17 +10,23 @@ export default function EventSheetHeader({
   ev,
   place,
   showDetails = true,
+  inlineDateTime = false,
 }: {
   ev: BandEvent
   place: ResolvedPlace | null
   showDetails?: boolean
+  inlineDateTime?: boolean
 }) {
   const d = parseDate(ev.date)
+  const dateTime = <>{d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}</>
   return (
     <div className="setlist-head">
-      <h2>{ev.title}</h2>
+      <div className="setlist-head-title">
+        <h2>{ev.title}</h2>
+        {inlineDateTime && <span className="setlist-head-datetime">{dateTime}</span>}
+      </div>
       {showDetails && <p>
-          {d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}
+          {dateTime}
           {place && <> · {place.name}</>}
         </p>}
     </div>

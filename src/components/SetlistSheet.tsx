@@ -363,7 +363,7 @@ export default function SetlistSheet({
             <div className="grab" />
           </div>
 
-          <EventSheetHeader ev={ev} place={place} showDetails={false} />
+          <EventSheetHeader ev={ev} place={place} showDetails={false} inlineDateTime />
 
           {/* 파트별 참석 — 참석 현황 모달과 같은 컴포넌트. 펼친 곡 참여자는 볼드로 강조 */}
           <PartTally members={members} att={att} highlightUids={openPartUids} className="setlist-part-tally" />

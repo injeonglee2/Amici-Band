@@ -1979,7 +1979,9 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .event-row.tappable:active .einfo h3 { color: var(--accent); }
 
 .setlist-head { margin: 4px 2px 14px; }
+.setlist-head-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
 .setlist-head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+.setlist-head-datetime { font-size: 11.5px; font-weight: 500; color: var(--ink-faint); white-space: nowrap; }
 .setlist-head p { margin: 5px 0 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
 .setlist-count {
   display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--ink-soft);
