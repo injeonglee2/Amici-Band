@@ -2061,6 +2061,9 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .setlist-rec-head .track-open-chev { flex: none; transition: transform 0.18s ease; }
 .setlist-rec-head[aria-expanded='true'] .track-open-chev { transform: rotate(180deg); }
 .rec-list { margin-top: 10px; }
+.setlist-rec-empty { color: var(--ink-faint); }
+.setlist-rec-empty-title { display: flex; align-items: center; gap: 6px; margin: 0 0 5px; color: var(--ink-soft); font-size: 13px; font-weight: 800; }
+.setlist-rec-empty > p:last-child { margin: 0; font-size: 11.5px; font-weight: 600; line-height: 1.55; }
 
 /* 합주곡 시트 — 이 일정에 연결된 기록(녹음/영상) */
 .setlist-recs { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 12px; }

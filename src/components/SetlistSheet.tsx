@@ -548,7 +548,7 @@ export default function SetlistSheet({
             </div>
           )}
 
-          {/* 추천 합주곡 — 다가오는 공연 셋리스트 중 '보컬 참석' 곡 (지난 일정엔 감춤) */}
+          {/* 추천 합주곡 — 미래 합주에서는 결과가 없어도 이유를 안내한다 */}
           {!isPast && isPractice && nearestShow && recommended.length > 0 && (
             <div className="setlist-rec">
               <button
@@ -649,6 +649,18 @@ export default function SetlistSheet({
                   })}
                 </ol>
               )}
+            </div>
+          )}
+          {!isPast && isPractice && recommended.length === 0 && (
+            <div className="setlist-rec setlist-rec-empty" role="status">
+              <p className="setlist-rec-empty-title">
+                <span aria-hidden="true">💡</span> 추천 합주곡이 없어요
+              </p>
+              <p>
+                {nearestShow
+                  ? `다가오는 공연 ‘${nearestShow.title}’의 곡 중 보컬과 다른 파트 2명 이상이 이번 합주에 참석하는 곡이 아직 없어요.`
+                  : '재생목록이 연결된 다가오는 공연이 없어요. 공연에 재생목록을 연결하면 참석자에 맞춰 곡을 추천해 드려요.'}
+              </p>
             </div>
           )}
 
