@@ -8,13 +8,13 @@ export const MUSIC_FOLDER_CONFIG: FolderModuleConfig = {
     { id: 'project', label: '공연·합주 프로젝트', description: '추천 → 검토 → 투표 → 선정', symbol: '🎸' },
   ],
   labels: {
-    folder: '재생목록', empty: '재생목록이 없어요.', add: '재생목록',
-    createTitle: '새 재생목록', editTitle: '재생목록 수정', name: '재생목록 이름',
+    folder: '폴더', empty: '음악 폴더가 없어요.', add: '폴더',
+    createTitle: '새 음악 폴더', editTitle: '음악 폴더 수정', name: '폴더 이름',
     placeholder: '예) 이번 공연 셋리스트',
-    deleteConfirm: () => '이 재생목록을 삭제할까요? 담아둔 곡도 함께 사라집니다.',
+    deleteConfirm: () => '이 폴더를 삭제할까요? 담아둔 곡도 함께 사라집니다.',
   },
   emptyIcon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>,
-  rowIcon: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>,
+  rowIcon: (folder) => <span className="folder-emoji">{folder.templateId === 'project' ? '🎸' : '🎧'}</span>,
 }
 
 export const playlistRepository: FolderRepository<Playlist> = {

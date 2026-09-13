@@ -1772,9 +1772,6 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .playlist-info h3 { margin: 0; font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .playlist-chev { flex: none; width: 18px; height: 18px; color: var(--ink-faint); }
-.music-folder-back { width: calc(100% + 40px); margin: -6px -20px 12px; appearance: none; cursor: pointer; color: var(--ink); text-align: left; }
-.music-folder-back svg { flex: none; width: 22px; height: 22px; color: var(--ink-soft); }
-.music-folder-back strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; }
 .folder-sync-playlists { margin: 0 0 16px; padding: 0; list-style: none; }
 .folder-sync-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .folder-sync-head h2 { margin: 8px 2px 0; }
