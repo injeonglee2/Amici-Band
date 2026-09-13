@@ -1890,7 +1890,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 }
 .playlist-setlist-row.playing .track-play { opacity: 1; }
 .playlist-setlist-row.playing .track-info h3 { color: var(--accent); }
-.playlist-track-adder { margin: 6px 4px 0 64px; font-size: 11px; color: var(--ink-faint); }
+.playlist-track-adder { flex: none; margin-left: auto; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--ink-faint); }
 .track-mypart {
   flex: none; align-self: center; font-size: 11px; font-weight: 800; color: #fff;
   background: var(--accent); border-radius: 999px; padding: 3px 9px; white-space: nowrap;

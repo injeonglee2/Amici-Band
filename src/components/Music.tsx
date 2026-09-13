@@ -506,6 +506,7 @@ export function PlaylistDetail({
                         {t.artist && <p>{t.artist}</p>}
                       </div>
                     </div>
+                    {(!isProject || showAdder) && <span className="playlist-track-adder">{t.addedByName || memberMap.get(t.addedBy)?.name || '알 수 없는 멤버'}</span>}
                     {myPart && <span className="track-mypart" title="내가 참여하는 파트">{myPart}</span>}
                     {isProject && open && (
                       <button type="button" className={'song-join-mini' + (myPart ? ' on' : '')} onClick={() => setParticipatingId(t.id)}>
@@ -517,7 +518,6 @@ export function PlaylistDetail({
                       <svg className={'track-open-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                     </button>}
                     </div>
-                    {(!isProject || showAdder) && <div className="playlist-track-adder">{t.addedByName || memberMap.get(t.addedBy)?.name || '알 수 없는 멤버'}님이 추가</div>}
                     {isProject && open && <TrackPartGrid track={t} memberMap={memberMap} myUid={myUid} />}
                   </div>
                 })(),
