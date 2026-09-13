@@ -12,6 +12,8 @@ import SetlistPlayer from './SetlistPlayer'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
+import TrackPartGrid from './TrackPartGrid'
+import { isFixedPart, PART_META } from '../types'
 
 /**
  * 공연 일정 카드를 탭하면 열리는 '연결된 재생목록' 시트.
@@ -42,6 +44,7 @@ export default function ShowPlaylistSheet({
   const [unlinking, setUnlinking] = useState(false)
   const [participatingId, setParticipatingId] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   // 뒤로가기: 고르기 화면이면 시트로, 아니면 닫기 (참여/확인창은 각자 먼저 받음)
   useBackHandler(() => (picking ? setPicking(false) : onClose()))
@@ -173,8 +176,11 @@ export default function ShowPlaylistSheet({
                 <ol className="setlist-list">
                   {tracks.map((t, i) => {
                     const joined = Object.keys(t.participants ?? {}).length
+                    const open = openId === t.id
+                    const myPart = member ? t.participants?.[member.uid] : undefined
+                    const myLabel = myPart === undefined ? undefined : isFixedPart(myPart) ? PART_META[myPart].label : myPart
                     return (
-                      <li key={t.id} className={'setlist-row' + (t.id === playingId ? ' playing' : '')}>
+                      <li key={t.id} className={'setlist-row playlist-setlist-row' + (myLabel ? ' mine' : '') + (t.id === playingId ? ' playing' : '')}>
                         <div className="setlist-rowhead">
                           <span className="setlist-no">{i + 1}</span>
                           <button type="button" className="track-thumb-btn" onClick={() => setPlayingId(t.id)} aria-label="재생">
@@ -191,20 +197,20 @@ export default function ShowPlaylistSheet({
                               </span>
                             </div>
                           </button>
-                          <button type="button" className="track-open" onClick={() => setParticipatingId(t.id)} aria-label="파트 참여 보기">
+                          <div className="setlist-body">
                             <div className="track-info">
                               <h3>{t.title || '(제목 없음)'}</h3>
                               {t.artist && <p>{t.artist}</p>}
                             </div>
-                            {joined > 0 && (
-                              <span className="track-partcount" title={`참여 ${joined}명`}>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                                {joined}
-                              </span>
-                            )}
-                            <svg className="track-open-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                          </div>
+                          {myLabel && <span className="track-mypart" title="내 파트">{myLabel}</span>}
+                          {open && <button className={'song-join-mini' + (myLabel ? ' on' : '')} onClick={() => setParticipatingId(t.id)}>참여</button>}
+                          <button type="button" className="setlist-toggle" aria-expanded={open} aria-label={`${t.title} 참여자 ${open ? '접기' : '펼치기'}`} onClick={() => setOpenId(open ? null : t.id)}>
+                            <span className="setlist-joined">{joined}</span>
+                            <svg className={'track-open-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
                           </button>
                         </div>
+                        {open && <TrackPartGrid track={t} memberMap={memberMap} myUid={member?.uid} />}
                       </li>
                     )
                   })}

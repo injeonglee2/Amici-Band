@@ -53,6 +53,7 @@ export default function EventForm({
   const [placeId, setPlaceId] = useState(seed.placeId)
   // 직접 입력 장소(이 일정만, 장소 목록에는 저장 안 함). 등록 장소 미선택일 때만 사용
   const [loc, setLoc] = useState(seed.loc)
+  const [locAddress, setLocAddress] = useState(editing?.placeId ? '' : editing?.locAddress ?? '')
 
   // 유형 버튼을 누르면 그 유형의 기본값을 채운다(합주=포도나무·18~22, 나머지=초기화)
   function chooseType(t: EventType) {
@@ -60,6 +61,7 @@ export default function EventForm({
     const p = presetFor(t)
     setPlaceId(p.placeId)
     setLoc(p.loc)
+    setLocAddress('')
     setRehStart(p.rehStart)
     setRehEnd(p.rehEnd)
   }
@@ -85,6 +87,7 @@ export default function EventForm({
   }
   function pickPlace(h: PlaceHit) {
     setLoc(h.name)
+    setLocAddress(h.address)
     setPlaceResults([])
   }
 
@@ -107,6 +110,7 @@ export default function EventForm({
         // 등록 장소를 골랐으면 placeId, 아니면 직접 입력(loc). 둘 중 하나만 저장
         placeId: placeId || undefined,
         loc: placeId ? undefined : loc.trim() || undefined,
+        locAddress: placeId || !loc.trim() ? undefined : locAddress.trim() || undefined,
         note: note.trim(),
         // 관리자만 설정 가능. 일반 일정은 필드를 생략해 기존 데이터와 같은 공개 상태로 저장한다.
         adminOnly: member?.admin && adminOnly ? true : undefined,
@@ -196,6 +200,7 @@ export default function EventForm({
                 setPlaceId(v)
                 if (v) {
                   setLoc('')
+                  setLocAddress('')
                   setPlaceResults([])
                 }
               }}
@@ -209,7 +214,7 @@ export default function EventForm({
                 <input
                   type="text"
                   value={loc}
-                  onChange={(e) => setLoc(e.target.value)}
+                  onChange={(e) => { setLoc(e.target.value); setLocAddress(''); setPlaceResults([]) }}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runPlaceSearch() } }}
                   placeholder="장소 검색"
                   maxLength={60}
@@ -220,6 +225,12 @@ export default function EventForm({
               </div>
             )}
           </div>
+          {!placeId && loc.trim() && (
+            <div className="field">
+              <label htmlFor="f-place-address">주소</label>
+              <input id="f-place-address" type="text" value={locAddress} onChange={(e) => setLocAddress(e.target.value)} placeholder="검색 결과를 선택하거나 주소를 입력하세요" />
+            </div>
+          )}
           {!placeId && placeResults.length > 0 && (
             <ul className="place-results">
               {placeResults.map((r, i) => (

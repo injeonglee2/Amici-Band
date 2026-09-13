@@ -13,7 +13,13 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
   // preview_start(autoPort) 가 할당한 포트를 사용. 없으면 기본 5173.
-  server: { port: process.env.PORT ? Number(process.env.PORT) : 5173 },
+  // Firebase Auth는 개발용 승인 도메인으로 localhost를 사용한다.
+  // 127.0.0.1로 열면 auth/unauthorized-domain이 발생할 수 있으므로
+  // Vite가 브라우저에 안내하는 주소도 localhost로 고정한다.
+  server: {
+    host: 'localhost',
+    port: process.env.PORT ? Number(process.env.PORT) : 5173,
+  },
   plugins: [
     react(),
     VitePWA({

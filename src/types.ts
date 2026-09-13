@@ -39,6 +39,7 @@ export interface BandEvent {
   rehEnd: string // HH:MM 합주 종료 (기본 22:00)
   placeId?: string // 설정에서 관리하는 장소 참조
   loc?: string // 레거시/직접입력 장소명 (placeId 없을 때 표시용)
+  locAddress?: string // 장소 목록에 저장하지 않은 일회성 장소의 주소
   playlistId?: string // (공연 전용) 연결된 재생목록 — 공연 셋리스트를 재생목록으로 대신함
   note: string
   adminOnly?: boolean // 관리자 일정 목록·캘린더에만 표시
@@ -59,6 +60,9 @@ export interface Place {
 
 /** 음악 재생목록 (폴더 개념) — 하단 네비의 '음악' 탭 */
 export interface Playlist {
+  templateId?: 'general' | 'project'
+  folderName?: string
+  reviewParts?: string[]
   id: string
   name: string // 재생목록 이름
   showAdder?: boolean // 곡 추가한 사람 이름 표시 여부 (기본: 표시)
@@ -68,6 +72,10 @@ export interface Playlist {
 
 /** 재생목록 안의 곡 (유튜브 링크로 추가) — playlists/{id}/tracks/{trackId} */
 export interface Track {
+  candidateStatus?: 'review' | 'voting' | 'selected' | 'held'
+  recommendation?: string
+  reviews?: Record<string, { part: string; result: string; note: string; name: string }>
+  votes?: Record<string, boolean>
   id: string
   url: string // 원본 유튜브 링크
   videoId: string // 유튜브 영상 ID (임베드·썸네일용)

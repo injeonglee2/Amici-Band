@@ -670,6 +670,37 @@ export async function savePersonalVideo(video: PersonalVideo): Promise<void> {
   }, { merge: true })
 }
 
+const demoMusicFolders = new Set<string>()
+const musicFolderListeners = new Set<(names: string[]) => void>()
+export function watchMusicFolders(cb: (names: string[]) => void, onError: (error: Error) => void): () => void {
+  if (DEMO) { musicFolderListeners.add(cb); cb([...demoMusicFolders]); return () => { musicFolderListeners.delete(cb) } }
+  return onSnapshot(bandCol('musicFolders'), (snap) => cb(snap.docs.map((d) => String(d.get('name')))), onError)
+}
+export async function saveMusicFolder(name: string): Promise<void> {
+  if (DEMO) { demoMusicFolders.add(name); musicFolderListeners.forEach((cb) => cb([...demoMusicFolders])); return }
+  await setDoc(bandDoc('musicFolders', encodeURIComponent(name)), { name })
+}
+
+export async function classifyMusicPlaylist(p: Playlist, project: boolean): Promise<void> {
+  const fields = { templateId: project ? 'project' as const : 'general' as const, folderName: p.folderName || (project ? '공연·합주' : '함께 듣는 음악') }
+  if (DEMO) { await demoDb.savePlaylist({ ...p, ...fields }); return }
+  const ref = bandDoc('playlists', p.id)
+  await runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(ref)
+    if (snapshot.exists() && !snapshot.get('templateId')) tx.update(ref, fields)
+  })
+}
+
+export async function getMusicEventReferences(events: BandEvent[]): Promise<Set<string>> {
+  const ids = new Set(events.flatMap((event) => event.playlistId ? [event.playlistId] : []))
+  if (DEMO) return ids
+  for (const event of events.filter((e) => e.type === 'practice')) {
+    const songs = await getDocs(bandCol('events', event.id, 'setlist'))
+    songs.forEach((song) => { const id = song.get('playlistId'); if (id) ids.add(String(id)) })
+  }
+  return ids
+}
+
 export async function updatePersonalVideoTitles(folderId: string, updates: { id: string; title: string }[]): Promise<void> {
   if (DEMO || !updates.length) return
   for (let offset = 0; offset < updates.length; offset += 400) {
@@ -826,7 +857,7 @@ export async function deletePlaylist(id: string): Promise<void> {
 }
 
 /* ---------------- tracks (bands/{band}/playlists/{id}/tracks/{trackId}) ---------------- */
-export function watchTracks(
+export function watchAllMusicTracks(
   playlistId: string,
   cb: (tracks: Track[]) => void,
   onError?: (e: Error) => void,
@@ -845,6 +876,29 @@ export function watchTracks(
       onError?.(err)
     },
   )
+}
+
+/** Candidates must not appear in players, event pickers or performance setlists. */
+export function watchTracks(playlistId: string, cb: (tracks: Track[]) => void, onError?: (e: Error) => void): () => void {
+  return watchAllMusicTracks(playlistId, (tracks) => cb(tracks.filter((t) => !t.candidateStatus || t.candidateStatus === 'selected')), onError)
+}
+
+export async function updateMusicTrack(playlistId: string, trackId: string, fields: Record<string, unknown>): Promise<void> {
+  if (DEMO) {
+    let current: Track | undefined
+    const unsub = demoDb.watchTracks(playlistId, (tracks) => { current = tracks.find((t) => t.id === trackId) })
+    unsub()
+    if (!current) throw new Error('곡을 찾을 수 없어요')
+    const next = { ...current } as unknown as Record<string, unknown>
+    for (const [key, value] of Object.entries(fields)) {
+      const [parent, child] = key.split('.')
+      if (child) next[parent] = { ...(next[parent] as object ?? {}), [child]: value }
+      else next[parent] = value
+    }
+    await demoDb.saveTrack(playlistId, next as unknown as Track)
+    return
+  }
+  await updateDoc(bandDoc('playlists', playlistId, 'tracks', trackId), fields)
 }
 
 export async function saveTrack(playlistId: string, t: Track): Promise<void> {

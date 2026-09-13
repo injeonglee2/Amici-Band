@@ -19,7 +19,7 @@ import { useEffect, useRef } from 'react'
  * '한 번 경고 → 다음에 종료'(안드로이드 표준 방식)까지만 가능하고, 창이 지난 뒤의
  * 재-경고는 이 환경에서 지원되지 않는다.
  *
- * iOS: 시스템 뒤로가기 버튼이 없어 '종료' 부분은 트리거되지 않는다(무해).
+ * 데스크톱·iOS에서는 이 컨트롤러를 설치하지 않고 브라우저의 기본 기록을 유지한다.
  */
 
 type Handler = { id: number; fn: () => void; consumed: boolean }
@@ -80,6 +80,10 @@ export function useAndroidBack(showExitToast: () => void) {
   const toastRef = useRef(showExitToast)
   toastRef.current = showExitToast
   useEffect(() => {
+    // 데스크톱 Chrome에서 상세 화면 닫기·개발 중 재마운트가 브라우저
+    // 뒤로가기를 일으키지 않도록 물리 뒤로가기 처리는 Android에만 적용한다.
+    if (!/Android/i.test(window.navigator.userAgent)) return
+
     let armed = false
     let armTimer: number | undefined
     let cleaning = 0 // cleanupMarker 가 부른 history.back() 의 popstate 를 걸러내기 위한 카운터

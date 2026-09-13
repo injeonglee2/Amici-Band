@@ -31,54 +31,16 @@ import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
 import { DEMO } from '../demo'
 import { exportErrorMessage, exportPlaylistToYouTube, YouTubeExportError, type ExportResult } from '../ytexport'
-import FolderModule, { type FolderModuleConfig, type FolderRepository } from './FolderModule'
+import MusicLibrary from './MusicLibrary'
+import MusicCandidates from './MusicCandidates'
 import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
 import Sheet from './Sheet'
-import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlaylistTitle } from '../playlistImport'
+import TrackPartGrid from './TrackPartGrid'
 
-const MUSIC_FOLDER_CONFIG: FolderModuleConfig = {
-  labels: {
-    folder: '재생목록', empty: '재생목록이 없어요.', add: '재생목록',
-    createTitle: '새 재생목록', editTitle: '재생목록 수정', name: '재생목록 이름',
-    placeholder: '예) 이번 공연 셋리스트',
-    deleteConfirm: () => '이 재생목록을 삭제할까요? 담아둔 곡도 함께 사라집니다.',
-  },
-  emptyIcon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>,
-  rowIcon: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>,
-}
-
-const playlistRepository: FolderRepository<Playlist> = {
-  watch: watchPlaylists,
-  create: (name, creatorUid) => ({ id: newId(), name, createdBy: creatorUid, createdAt: Date.now() }),
-  save: savePlaylist,
-  remove: (playlist) => deletePlaylist(playlist.id),
-  // 새 재생목록을 만들 때 유튜브 재생목록 링크를 넣으면 제목·곡을 그대로 가져온다(선택).
-  playlistImport: {
-    templateIds: [''], // 템플릿이 없는 재생목록: templateId 미지정('')일 때 허용
-    resolveName: resolveYouTubePlaylistTitle,
-    errorMessage: playlistImportErrorMessage,
-    run: (playlist, url, onProgress) => importYouTubePlaylist({
-      input: url,
-      save: (song, index) => saveTrack(playlist.id, {
-        id: newId(),
-        url: song.url,
-        videoId: song.videoId,
-        title: song.title,
-        artist: song.artist,
-        thumbnail: song.thumbnail,
-        order: Date.now() + index,
-        addedBy: playlist.createdBy,
-        addedAt: Date.now() + index,
-      }),
-      onProgress: ({ current, total }) => onProgress(`${current}/${total}곡 담는 중…`),
-    }),
-  },
-}
 
 /** 음악 뷰 — 하단 네비 '음악' 탭. 재생목록(폴더) 목록 + 상세(곡 목록) */
 export default function MusicView({ toast }: { toast: ToastState }) {
-  return <FolderModule config={MUSIC_FOLDER_CONFIG} repository={playlistRepository}
-    renderDetail={(playlist, onBack) => <PlaylistDetail playlist={playlist} toast={toast} onBack={onBack} />} />
+  return <MusicLibrary toast={toast} />
 }
 
 /** Android 공유 목록에서 받은 유튜브 링크를 담을 밴드 재생목록을 먼저 고른다. */
@@ -137,7 +99,7 @@ export function SharedTrackImport({
 }
 
 /* ---------------- 재생목록 상세 (곡 목록) ---------------- */
-function PlaylistDetail({
+export function PlaylistDetail({
   playlist,
   toast,
   onBack,
@@ -147,6 +109,8 @@ function PlaylistDetail({
   onBack: () => void
 }) {
   const { member } = useAuth()
+  const isProject = playlist.templateId !== 'general'
+  const [section, setSection] = useState<'selected' | 'candidates'>('selected')
   // 재생목록별 옵션: 곡 추가한 사람 표시 (기본 표시)
   const showAdder = playlist.showAdder !== false
   const [tracks, setTracks] = useState<Track[]>([])
@@ -159,6 +123,7 @@ function PlaylistDetail({
   const [editMode, setEditMode] = useState(false)
   // '내 참여곡만' 필터 (내가 참여한 곡만 보기)
   const [mineOnly, setMineOnly] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(null)
   const [titleDraft, setTitleDraft] = useState(playlist.name)
   const [editingTrack, setEditingTrack] = useState<Track | null>(null)
   // 파트 참여 팝업(시트)을 띄운 곡 id. 곡 데이터는 tracks 에서 최신값을 다시 찾아 전달
@@ -402,6 +367,8 @@ function PlaylistDetail({
         backLabel="재생목록 목록으로" onBack={back} onEdit={enterEdit} onDraftChange={setTitleDraft}
         onDone={() => void exitEdit()} editActions={<FolderDeleteButton onClick={removePlaylistNow} label="재생목록 삭제" />} />
 
+      {isProject && <div className="music-tabs"><button className={'chip' + (section === 'selected' ? ' on' : '')} onClick={() => setSection('selected')}>선정곡</button><button className={'chip' + (section === 'candidates' ? ' on' : '')} onClick={() => setSection('candidates')}>추천곡 · 검토·투표</button></div>}
+      {section === 'candidates' && isProject ? <MusicCandidates playlist={playlist} toast={toast} /> : <>
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
 
@@ -460,7 +427,7 @@ function PlaylistDetail({
                 </button>
               </div>
             )}
-            {!editMode && myUid && myCount > 0 && (
+            {!editMode && isProject && myUid && myCount > 0 && (
               <div className="track-filter">
                 <button
                   type="button"
@@ -513,10 +480,14 @@ function PlaylistDetail({
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h16M4 16h16" /></svg>
                     </div>
                   </div>
-                ) : (
-                  <div key={t.id} className={'track-row' + (t.id === playingId ? ' playing' : '') + (myPartOf(t) ? ' mine' : '')}>
+                ) : (() => {
+                  const open = openId === t.id
+                  const joined = Object.keys(t.participants ?? {}).length
+                  const myPart = isProject ? myPartOf(t) : undefined
+                  return <div key={t.id} className={'setlist-row playlist-setlist-row' + (t.id === playingId ? ' playing' : '') + (myPart ? ' mine' : '')}>
+                    <div className="setlist-rowhead">
                     <button className="track-thumb-btn" onClick={() => playTrack(t.id)} aria-label="재생">
-                      <div className="track-thumb">
+                      <div className="track-thumb sm">
                         {t.thumbnail || t.videoId ? (
                           <img src={t.thumbnail || thumbnailUrl(t.videoId)} alt="" loading="lazy" />
                         ) : null}
@@ -529,30 +500,27 @@ function PlaylistDetail({
                         </span>
                       </div>
                     </button>
-                    <button className="track-open" onClick={() => setParticipatingId(t.id)} aria-label="파트 참여 보기">
+                    <div className="setlist-body">
                       <div className="track-info">
                         <h3>{t.title || '(제목 없음)'}</h3>
                         {t.artist && <p>{t.artist}</p>}
                       </div>
-                      {myPartOf(t) && (
-                        <span className="track-mypart" title="내 파트">{myPartOf(t)}</span>
-                      )}
-                      {(() => {
-                        const c = Object.keys(t.participants ?? {}).length
-                        return c > 0 ? (
-                          <span className="track-partcount" title={`참여 ${c}명`}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                            {c}
-                          </span>
-                        ) : null
-                      })()}
-                      {showAdder && t.addedByName && (
-                        <span className="track-adder" title={`${t.addedByName}님이 추가`}>{t.addedByName}</span>
-                      )}
-                      <svg className="track-open-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
-                    </button>
+                    </div>
+                    {myPart && <span className="track-mypart" title="내가 참여하는 파트">{myPart}</span>}
+                    {isProject && open && (
+                      <button type="button" className={'song-join-mini' + (myPart ? ' on' : '')} onClick={() => setParticipatingId(t.id)}>
+                        참여
+                      </button>
+                    )}
+                    {isProject && <button type="button" className="setlist-toggle" onClick={() => setOpenId(open ? null : t.id)} aria-expanded={open} aria-label={`${t.title || '곡'} 참여자 ${open ? '접기' : '펼치기'}`}>
+                      <span className="setlist-joined">{joined}</span>
+                      <svg className={'track-open-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                    </button>}
+                    </div>
+                    {(!isProject || showAdder) && <div className="playlist-track-adder">{t.addedByName || memberMap.get(t.addedBy)?.name || '알 수 없는 멤버'}님이 추가</div>}
+                    {isProject && open && <TrackPartGrid track={t} memberMap={memberMap} myUid={myUid} />}
                   </div>
-                ),
+                })(),
               )}
             </div>
           </>
@@ -563,6 +531,7 @@ function PlaylistDetail({
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
         곡 추가
       </button>
+      </>}
 
       {adding && (
         <TrackForm playlistId={playlist.id} toast={toast} onClose={() => setAdding(false)} />
@@ -642,7 +611,7 @@ function PlaylistDetail({
   )
 }
 
-/* ---------------- 곡 정보 수정 시트 (제목·가수) ---------------- */
+/* ---------------- 곡 정보 수정 시트 (링크·제목·가수) ---------------- */
 function TrackEditForm({
   playlistId,
   track,
@@ -658,18 +627,27 @@ function TrackEditForm({
   useBackHandler(onClose) // 뒤로가기로 곡 정보 수정 시트 닫기
   const [title, setTitle] = useState(track.title)
   const [artist, setArtist] = useState(track.artist)
+  const [url, setUrl] = useState(track.url)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const valid = title.trim().length > 0
+  const nextVideoId = parseVideoId(url.trim())
+  const valid = title.trim().length > 0 && !!nextVideoId
 
   async function save() {
     if (!valid || busy) return
     setBusy(true)
     setErr('')
     try {
-      // saveTrack 은 문서 전체를 덮어쓰므로 기존 필드를 유지한 채 제목·가수만 교체
-      await saveTrack(playlistId, { ...track, title: title.trim(), artist: artist.trim() })
+      // 링크를 바꾸면 영상 ID와 썸네일도 함께 갱신한다.
+      await saveTrack(playlistId, {
+        ...track,
+        url: url.trim(),
+        videoId: nextVideoId!,
+        thumbnail: thumbnailUrl(nextVideoId!),
+        title: title.trim(),
+        artist: artist.trim(),
+      })
       toast.show('곡 정보를 수정했어요')
       onClose()
     } catch (e) {
@@ -698,6 +676,18 @@ function TrackEditForm({
             <img src={track.thumbnail || thumbnailUrl(track.videoId)} alt="" />
           </div>
         )}
+
+        <div className="field">
+          <label htmlFor="te-url">유튜브 링크</label>
+          <input
+            id="te-url"
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=…"
+          />
+          {url.trim() && !nextVideoId && <p className="err small">유효한 유튜브 영상 링크를 입력해 주세요.</p>}
+        </div>
 
         <div className="field">
           <label htmlFor="te-title">곡 제목</label>

@@ -1813,6 +1813,11 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 
 /* ---------- 음악: 곡 목록 ---------- */
 .track-list { margin-top: 12px; gap: 8px; }
+.music-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 20px; }
+.music-tabs label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+.music-tabs select { max-width: 190px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); }
+.music-tabs input { min-width: 0; flex: 1; }
+.music-tabs .chip.on { background: var(--accent); color: white; }
 .track-row {
   display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm); padding: 8px 8px 8px 8px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow);
@@ -1875,6 +1880,17 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
   box-shadow: inset 3px 0 0 var(--accent), var(--shadow);
   background: color-mix(in srgb, var(--accent) 7%, var(--surface));
 }
+.setlist-row.mine {
+  box-shadow: inset 3px 0 0 var(--accent), var(--shadow);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+.playlist-setlist-row.playing {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+.playlist-setlist-row.playing .track-play { opacity: 1; }
+.playlist-setlist-row.playing .track-info h3 { color: var(--accent); }
+.playlist-track-adder { margin: 6px 4px 0 64px; font-size: 11px; color: var(--ink-faint); }
 .track-mypart {
   flex: none; align-self: center; font-size: 11px; font-weight: 800; color: #fff;
   background: var(--accent); border-radius: 999px; padding: 3px 9px; white-space: nowrap;

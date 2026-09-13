@@ -8,7 +8,7 @@ export interface ResolvedPlace {
 
 /** 일정의 장소를 해석: placeId 우선(장소 관리), 없으면 레거시 loc 텍스트 */
 export function resolvePlace(
-  ev: Pick<BandEvent, 'placeId' | 'loc'>,
+  ev: Pick<BandEvent, 'placeId' | 'loc' | 'locAddress'>,
   places: Map<string, Place>,
 ): ResolvedPlace | null {
   if (ev.placeId) {
@@ -16,7 +16,7 @@ export function resolvePlace(
     if (p) return { name: p.name, address: p.address, memo: p.memo }
     return null // 삭제된 장소
   }
-  if (ev.loc) return { name: ev.loc, address: '' } // 레거시 직접 입력 (주소 없음)
+  if (ev.loc) return { name: ev.loc, address: ev.locAddress?.trim() || '' }
   return null
 }
 

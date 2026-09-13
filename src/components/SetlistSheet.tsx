@@ -15,7 +15,6 @@ import {
 import {
   isFixedPart,
   PART_META,
-  PART_ORDER,
   type Attendance,
   type BandEvent,
   type Member,
@@ -36,6 +35,7 @@ import { recordingThumbnail as recThumb } from '../recordingUtils'
 import type { ToastState } from './Toast'
 import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
+import TrackPartGrid from './TrackPartGrid'
 
 /** 원본 곡을 찾기 위한 키 (재생목록이 달라도 곡 id 가 겹칠 수 있으므로 둘을 합쳐 쓴다) */
 const trackKey = (playlistId: string, trackId: string) => playlistId + '/' + trackId
@@ -418,6 +418,9 @@ export default function SetlistSheet({
                 {items.map((s) => {
                   const track = tracks.get(trackKey(s.playlistId, s.id))
                   const joined = Object.keys(track?.participants ?? {}).length
+                  const myPart = user ? track?.participants?.[user.uid] : undefined
+                  const isMine = myPart !== undefined
+                  const myPartLabel = myPart === undefined ? '' : isFixedPart(myPart) ? PART_META[myPart].label : myPart
                   // 제목·가수는 원본 곡(라이브)을 우선 표시, 삭제됐으면 스냅샷으로 폴백
                   const songTitle = track?.title || s.title || '(제목 없음)'
                   const songArtist = track?.artist || s.artist
@@ -426,7 +429,7 @@ export default function SetlistSheet({
                     <li
                       key={s.id}
                       className={
-                        'setlist-row' + (editMode ? ' editing' : '') + (s.id === dragId ? ' dragging' : '')
+                        'setlist-row' + (isMine ? ' mine' : '') + (editMode ? ' editing' : '') + (s.id === dragId ? ' dragging' : '')
                       }
                       style={s.id === dragId ? { transform: `translateY(${dragDy}px)` } : undefined}
                     >
@@ -471,6 +474,11 @@ export default function SetlistSheet({
                           </>
                         ) : (
                           <>
+                            {isMine && (
+                              <span className="track-mypart" title="내가 참여하는 파트" aria-label={`내 참여곡 · ${myPartLabel || '참여 중'}`}>
+                                {myPartLabel || '참여 중'}
+                              </span>
+                            )}
                             {/* 펼쳤을 때 드롭다운 바로 왼쪽에 작은 '참여' 버튼 (지난 일정엔 숨김) */}
                             {open && !isPast && (
                               <button
@@ -508,7 +516,7 @@ export default function SetlistSheet({
                       </div>
                       {/* 편집 중에는 접어 둔다 — 드래그 위치 계산이 고른 행 높이에 기댄다 */}
                       {!editMode && open && (
-                        <PartGrid track={track} memberMap={memberMap} attendingUids={attendingUids} myUid={user?.uid} />
+                        <TrackPartGrid track={track} memberMap={memberMap} attendingUids={attendingUids} myUid={user?.uid} />
                       )}
                     </li>
                   )
@@ -637,7 +645,7 @@ export default function SetlistSheet({
                           </button>
                         </div>
                         {open && (
-                          <PartGrid
+                          <TrackPartGrid
                             track={t}
                             memberMap={memberMap}
                             attendingUids={attendingUids}
@@ -720,60 +728,6 @@ export default function SetlistSheet({
  * 고정 파트 5칸은 인원이 없어도 늘 그리고, 임의 라벨(코러스·MC 등)은 뒤에 덧붙인다.
  * 곡 참여자 중 실제 오는 사람(파트별 참석에 포함)은 이름을 볼드로 강조한다.
  */
-function PartGrid({
-  track,
-  memberMap,
-  attendingUids,
-  myUid,
-}: {
-  track: Track | undefined
-  memberMap: Map<string, Member>
-  attendingUids: Set<string>
-  myUid: string | undefined
-}) {
-  if (!track) return <p className="song-empty">원본 곡을 찾을 수 없어요</p>
-
-  const parts = track.participants ?? {}
-  const uids = Object.keys(parts)
-  const fixed = PART_ORDER.map((p) => ({
-    key: p as string,
-    label: PART_META[p].label,
-    uids: uids.filter((u) => parts[u] === p),
-  }))
-  const labels: string[] = []
-  uids.forEach((u) => {
-    const v = parts[u]
-    if (!isFixedPart(v) && !labels.includes(v)) labels.push(v)
-  })
-  const custom = labels.map((label) => ({
-    key: 'custom:' + label,
-    label,
-    uids: uids.filter((u) => parts[u] === label),
-  }))
-
-  return (
-    <div className="song-parts">
-      {[...fixed, ...custom].map((g) => (
-        <div key={g.key} className="song-part-cell">
-          <div className="sp-lbl">{g.label} <b>{g.uids.length}</b></div>
-          <ul>
-            {g.uids.length === 0 && <li className="muted">-</li>}
-            {g.uids.map((u) => {
-              const cls =
-                (attendingUids.has(u) ? 'attending' : '') + (u === myUid ? ' me' : '')
-              return (
-                <li key={u} className={cls.trim() || undefined}>
-                  {memberMap.get(u)?.name ?? '(탈퇴)'}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 /** 곡 고르기 — 재생목록을 먼저 고르고, 그 안의 곡을 담는다 (관리자 전용) */
 function SongPicker({
   ev,

@@ -197,11 +197,32 @@ service cloud.firestore {
 
       match /playlists/{playlistId} {
         allow read: if isDeveloper() || isBandMember(bandId);
-        allow write: if isBandMember(bandId);
+        allow create, delete: if isBandMember(bandId);
+        allow update: if isBandMember(bandId) && (isBandAdmin(bandId)
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewParts']));
         match /tracks/{trackId} {
           allow read: if isDeveloper() || isBandMember(bandId);
-          allow write: if isBandMember(bandId);
+          allow create: if isBandMember(bandId)
+            && (isBandAdmin(bandId) || request.resource.data.get('candidateStatus', '') in ['', 'review'])
+            && request.resource.data.get('votes', {}) == {}
+            && request.resource.data.get('reviews', {}) == {};
+          allow update: if isBandMember(bandId)
+            && (isBandAdmin(bandId) || request.resource.data.get('candidateStatus', '') == resource.data.get('candidateStatus', ''))
+            && (request.resource.data.get('votes', {}) == resource.data.get('votes', {})
+              || (resource.data.get('candidateStatus', '') == 'voting'
+                && request.resource.data.get('votes', {}).diff(resource.data.get('votes', {})).affectedKeys().hasOnly([request.auth.uid])))
+            && (request.resource.data.get('reviews', {}) == resource.data.get('reviews', {})
+              || (resource.data.get('candidateStatus', '') == 'review'
+                && request.resource.data.get('reviews', {}).diff(resource.data.get('reviews', {})).affectedKeys().hasOnly([request.auth.uid])
+                && get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.part in get(/databases/$(database)/documents/bands/$(bandId)/playlists/$(playlistId)).data.get('reviewParts', ['keyboard', 'guitar'])
+                && request.resource.data.reviews[request.auth.uid].part == get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.part));
+          allow delete: if isBandMember(bandId) && (isBandAdmin(bandId) || !('candidateStatus' in resource.data) || resource.data.addedBy == request.auth.uid);
         }
+      }
+
+      match /musicFolders/{folderId} {
+        allow read: if isDeveloper() || isBandMember(bandId);
+        allow write: if isBandMember(bandId);
       }
 
       // 개인 템플릿 영상 라이브러리: 폴더와 하위 유튜브 링크

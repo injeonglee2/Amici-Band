@@ -113,6 +113,7 @@ const fullBand: Record<string, TrackPart> = { 'demo-user': 'keyboard', 'm-kym': 
 
 const initialTracks: Record<string, Track[]> = {
   'pl-sep': [
+    { id: 'tr-candidate-demo', ...yt('dQw4w9WgXc'), title: 'Never Gonna Give You Up', artist: 'Rick Astley', addedBy: 'm-pjh', addedByName: '박정환', addedAt: now + 20, candidateStatus: 'review', recommendation: '함께 연주할 후보곡이에요.', reviews: { 'm-pjh': { part: 'guitar', name: '박정환', result: '조건부 가능', note: '리듬 편곡이 필요해요.' } } },
     { id: 'tr-fly', ...yt('AuuMtPdKUf0'), title: 'Fly away', artist: '권진아', order: now + 0, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 0 },
     { id: 'tr-pink', ...yt('FsJDnrY1Cuk'), title: 'PINKTOP', artist: 'The Volunteers', order: now + 1, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 1 },
     { id: 'tr-romeo', ...yt('KMwFTUV6u1M'), title: 'romeo n juliet', artist: '죠지, 유라', order: now + 2, addedBy: 'demo-user', addedByName: '오남규', addedAt: now + 2, participants: { ...fullBand, 'm-khe': 'vocal' } },
