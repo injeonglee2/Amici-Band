@@ -670,17 +670,6 @@ export async function savePersonalVideo(video: PersonalVideo): Promise<void> {
   }, { merge: true })
 }
 
-const demoMusicFolders = new Set<string>()
-const musicFolderListeners = new Set<(names: string[]) => void>()
-export function watchMusicFolders(cb: (names: string[]) => void, onError: (error: Error) => void): () => void {
-  if (DEMO) { musicFolderListeners.add(cb); cb([...demoMusicFolders]); return () => { musicFolderListeners.delete(cb) } }
-  return onSnapshot(bandCol('musicFolders'), (snap) => cb(snap.docs.map((d) => String(d.get('name')))), onError)
-}
-export async function saveMusicFolder(name: string): Promise<void> {
-  if (DEMO) { demoMusicFolders.add(name); musicFolderListeners.forEach((cb) => cb([...demoMusicFolders])); return }
-  await setDoc(bandDoc('musicFolders', encodeURIComponent(name)), { name })
-}
-
 export async function classifyMusicPlaylist(p: Playlist, project: boolean): Promise<void> {
   const fields = { templateId: project ? 'project' as const : 'general' as const, folderName: p.folderName || (project ? '공연·합주' : '함께 듣는 음악') }
   if (DEMO) { await demoDb.savePlaylist({ ...p, ...fields }); return }

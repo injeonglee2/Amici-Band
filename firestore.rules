@@ -220,11 +220,6 @@ service cloud.firestore {
         }
       }
 
-      match /musicFolders/{folderId} {
-        allow read: if isDeveloper() || isBandMember(bandId);
-        allow write: if isBandMember(bandId);
-      }
-
       // 개인 템플릿 영상 라이브러리: 폴더와 하위 유튜브 링크
       match /videoFolders/{folderId} {
         allow read: if isDeveloper() || isBandOwner(bandId);
