@@ -45,6 +45,7 @@ export interface FolderModuleConfig {
   emptyIcon?: ReactNode
   rowIcon?: (folder: FolderEntity) => ReactNode
   templates?: { id: string; label: string; description: string; symbol: string }[]
+  filters?: { id: string; label: string; match: (folder: FolderEntity) => boolean }[]
   reorderable?: boolean // 편집 모드에서 폴더 순서 변경 허용
   taggable?: boolean // 일정 유형 태그 적용 허용(개인 채널 전용)
 }
@@ -53,16 +54,19 @@ export default function FolderModule<TFolder extends FolderEntity>({
   config,
   repository,
   renderDetail,
+  initialOpenId,
 }: {
   config: FolderModuleConfig
   repository: FolderRepository<TFolder>
   renderDetail: (folder: TFolder, onBack: () => void) => ReactNode
+  initialOpenId?: string | null
 }) {
   const [folders, setFolders] = useState<TFolder[]>([])
   const [loadErr, setLoadErr] = useState('')
-  const [openId, setOpenId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null)
   const [editing, setEditing] = useState<TFolder | 'new' | null>(null)
   const [reorderMode, setReorderMode] = useState(false)
+  const [filterId, setFilterId] = useState(() => config.filters?.[0]?.id ?? 'all')
   const [tags, setTags] = useState<CustomEventType[]>([])
   useEffect(() => (config.taggable ? watchEventTypes(setTags, () => {}) : undefined), [config.taggable])
   const tagMap = new Map(tags.map((t) => [t.id, t]))
@@ -88,12 +92,14 @@ export default function FolderModule<TFolder extends FolderEntity>({
   )
 
   const open = folders.find((folder) => folder.id === openId) ?? null
+  const visibleFolders = filterId === 'all' ? folders : folders.filter((folder) => config.filters?.find((filter) => filter.id === filterId)?.match(folder))
   if (open) return renderDetail(open, () => setOpenId(null))
 
   return (
     <>
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
+        {config.filters && <div className="music-tabs folder-filter-tabs">{config.filters.map((filter) => <button key={filter.id} className={'chip' + (filterId === filter.id ? ' on' : '')} onClick={() => setFilterId(filter.id)}>{filter.label}</button>)}</div>}
         {config.reorderable && folders.length > 1 && (
           <div className="folder-list-head">
             <button type="button" className={'folder-edit-toggle' + (reorderMode ? ' on' : '')} onClick={() => setReorderMode((v) => !v)}>
@@ -101,14 +107,14 @@ export default function FolderModule<TFolder extends FolderEntity>({
             </button>
           </div>
         )}
-        {folders.length === 0 && !loadErr ? (
+        {visibleFolders.length === 0 && !loadErr ? (
           <div className="empty-state">
             {config.emptyIcon ?? <FolderIcon />}
             <p>{config.labels.empty}<br />아래 <b>+ {config.labels.add}</b>로 시작하세요.</p>
           </div>
         ) : (
           <div className="list playlist-list">
-            {folders.map((folder, index) => reorderMode ? (
+            {visibleFolders.map((folder, index) => reorderMode ? (
               <div key={folder.id} className="playlist-row reorder">
                 <div className="playlist-ico" aria-hidden="true">{config.rowIcon?.(folder) ?? <FolderIcon />}</div>
                 <div className="playlist-info">

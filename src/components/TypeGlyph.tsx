@@ -43,5 +43,12 @@ export function TypeGlyph({ type, className }: { type: EventType; className?: st
           <path d="M17 9h2a2 2 0 0 1 2 2v9l-3-3h-4a2 2 0 0 1-2-2v-.5" />
         </svg>
       )
+    case 'other': // 기타 (별표)
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v10M7 12h10" />
+        </svg>
+      )
   }
 }

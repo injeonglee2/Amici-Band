@@ -4,9 +4,11 @@ import {
   deletePlaylist,
   deleteTrack,
   newId,
+  saveEvent,
   savePlaylist,
   saveTrack,
   watchMembers,
+  watchAllMusicTracks,
   watchPlaylists,
   watchTracks,
 } from '../data'
@@ -36,6 +38,8 @@ import MusicCandidates from './MusicCandidates'
 import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
 import Sheet from './Sheet'
 import TrackPartGrid from './TrackPartGrid'
+import ThemeSelect from './ThemeSelect'
+import { shareRecommendationRequest, shareRecommendationVoteRequest } from '../musicShare'
 
 
 /** 음악 뷰 — 하단 네비 '음악' 탭. 재생목록(폴더) 목록 + 상세(곡 목록) */
@@ -109,8 +113,10 @@ export function PlaylistDetail({
   onBack: () => void
 }) {
   const { member } = useAuth()
-  const isProject = playlist.templateId !== 'general'
-  const [section, setSection] = useState<'selected' | 'candidates'>('selected')
+  const isRecommendation = playlist.templateId === 'recommendation' || playlist.templateId === 'project'
+  const isPerformance = playlist.templateId === 'performance'
+  const isGeneral = !playlist.templateId || playlist.templateId === 'general'
+  const isProject = isRecommendation || isPerformance
   // 재생목록별 옵션: 곡 추가한 사람 표시 (기본 표시)
   const showAdder = playlist.showAdder !== false
   const [tracks, setTracks] = useState<Track[]>([])
@@ -118,11 +124,23 @@ export function PlaylistDetail({
   const [members, setMembers] = useState<Member[]>([])
   const [loadErr, setLoadErr] = useState('')
   const [adding, setAdding] = useState(false)
+  const [importingExisting, setImportingExisting] = useState(false)
+  const [copyingToRecommendations, setCopyingToRecommendations] = useState(false)
+  const [voteSettingsOpen, setVoteSettingsOpen] = useState(false)
+  const [recommendationRequestOpen, setRecommendationRequestOpen] = useState(false)
+  const [recommendationLimit, setRecommendationLimit] = useState(playlist.recommendationLimit ?? 1)
+  const [recommendationDeadline, setRecommendationDeadline] = useState(() => {
+    const date = new Date()
+    const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    if (playlist.recommendationDeadline && playlist.recommendationDeadline >= today) return playlist.recommendationDeadline
+    date.setDate(date.getDate() + 7)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  })
   const [playingId, setPlayingId] = useState<string | null>(null)
   // 편집 모드: 제목 인라인 수정 + 곡 드래그 정렬 + 삭제 + 곡 정보 수정
   const [editMode, setEditMode] = useState(false)
   // '내 참여곡만' 필터 (내가 참여한 곡만 보기)
-  const [mineOnly, setMineOnly] = useState(false)
+  const [participantUid, setParticipantUid] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
   const [titleDraft, setTitleDraft] = useState(playlist.name)
   const [editingTrack, setEditingTrack] = useState<Track | null>(null)
@@ -173,16 +191,14 @@ export function PlaylistDetail({
 
   // 내 참여곡: 각 곡의 participants 에 내 uid 가 있으면 참여. 파트 라벨은 고정 파트면 한글, 임의 라벨이면 그대로.
   const myUid = member?.uid
-  const myPartOf = (t: Track): string | undefined => {
-    const v = myUid ? t.participants?.[myUid] : undefined
+  const participantPartOf = (t: Track, uid?: string): string | undefined => {
+    const v = uid ? t.participants?.[uid] : undefined
     return v === undefined ? undefined : isFixedPart(v) ? PART_META[v].label : v
   }
   const myCount = myUid ? items.filter((t) => t.participants?.[myUid] !== undefined).length : 0
-  // 편집 모드에선 항상 전체(순서 변경용). 아니면 '내 참여곡만' 필터 적용(내 곡이 없으면 전체)
-  const rows =
-    editMode || !mineOnly || myCount === 0
-      ? items
-      : items.filter((t) => myUid && t.participants?.[myUid] !== undefined)
+  const participantMembers = members.filter((person) => items.some((track) => track.participants?.[person.uid] !== undefined))
+  // 참여자 필터는 곡을 숨기지 않고, 선택한 멤버가 참여한 곡을 목록 안에서 강조한다.
+  const rows = items
 
   function playTrack(id: string) {
     setPlayingId(id)
@@ -259,6 +275,40 @@ export function PlaylistDetail({
     } catch (e) {
       console.error(e)
     }
+  }
+  async function requestRecommendations() {
+    try {
+      await Promise.all([
+        savePlaylist({ ...playlist, recommendationLimit, recommendationDeadline }),
+        saveEvent({
+          id: `recommendation-deadline-${playlist.id}`,
+          type: 'practice',
+          title: '추천곡 추가 마감',
+          date: recommendationDeadline,
+          rehStart: '23:59',
+          rehEnd: '23:59',
+          recommendationPlaylistId: playlist.id,
+          recommendationPlaylistName: playlist.name,
+          recommendationLimit,
+          musicDeadlineKind: 'recommendation',
+          note: '',
+          createdBy: member?.uid ?? '',
+          createdAt: Date.now(),
+        }),
+      ])
+    } catch {
+      toast.show('추천 마감 일정을 저장하지 못했어요')
+      return
+    }
+    const result = await shareRecommendationRequest(playlist, recommendationLimit, recommendationDeadline)
+    if (result === 'copied') toast.show('추천곡 요청 문구를 복사했어요')
+    else if (result === 'shared') toast.show('추천곡 요청을 공유했어요')
+    if (result !== 'cancelled') setRecommendationRequestOpen(false)
+  }
+  async function requestRecommendationVotes() {
+    const result = await shareRecommendationVoteRequest(playlist)
+    if (result === 'copied') toast.show('추천곡 투표 요청 문구를 복사했어요')
+    else if (result === 'shared') toast.show('추천곡 투표 요청을 공유했어요')
   }
   // 삭제 확인은 앱 자체 다이얼로그 사용 (일부 환경에서 window.confirm 이 무시됨)
   function removePlaylistNow() {
@@ -365,10 +415,9 @@ export function PlaylistDetail({
     <>
       <FolderDetailHeader title={playlist.name} editing={editMode} draft={titleDraft} editable
         backLabel="재생목록 목록으로" onBack={back} onEdit={enterEdit} onDraftChange={setTitleDraft}
-        onDone={() => void exitEdit()} editActions={<FolderDeleteButton onClick={removePlaylistNow} label="재생목록 삭제" />} />
+        onDone={() => void exitEdit()} viewActions={isRecommendation && member?.admin ? <div className="folder-header-actions"><button className="vote-share-btn recommendation-request-btn" onClick={() => playlist.voteOpen ? void requestRecommendationVotes() : setRecommendationRequestOpen(true)} aria-label={playlist.voteOpen ? '추천곡 투표 요청' : '추천곡 추가 요청'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4Z"/></svg><span>{playlist.voteOpen ? '투표 요청' : '추가 요청'}</span></button></div> : undefined} editActions={<FolderDeleteButton onClick={removePlaylistNow} label="재생목록 삭제" />} />
 
-      {isProject && <div className="music-tabs"><button className={'chip' + (section === 'selected' ? ' on' : '')} onClick={() => setSection('selected')}>선정곡</button><button className={'chip' + (section === 'candidates' ? ' on' : '')} onClick={() => setSection('candidates')}>추천곡 · 검토·투표</button></div>}
-      {section === 'candidates' && isProject ? <MusicCandidates playlist={playlist} toast={toast} /> : <>
+      {isRecommendation ? <MusicCandidates playlist={playlist} toast={toast} editMode={editMode} onEditTrack={setEditingTrack} onDeleteTrack={removeTrack} onAdd={() => setAdding(true)} settingsOpen={voteSettingsOpen} onSettingsOpen={() => setVoteSettingsOpen(true)} onSettingsClose={() => setVoteSettingsOpen(false)} /> : <>
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
 
@@ -427,20 +476,21 @@ export function PlaylistDetail({
                 </button>
               </div>
             )}
-            {!editMode && isProject && myUid && myCount > 0 && (
+            {!editMode && isProject && participantMembers.length > 0 && (
               <div className="track-filter">
-                <button
+                {myUid && myCount > 0 && <button
                   type="button"
-                  className={'chip mine-filter' + (mineOnly ? ' on' : '')}
-                  aria-pressed={mineOnly}
-                  onClick={() => setMineOnly((v) => !v)}
+                  className={'chip mine-filter' + (participantUid === myUid ? ' on' : '')}
+                  aria-pressed={participantUid === myUid}
+                  onClick={() => setParticipantUid((uid) => uid === myUid ? '' : myUid)}
                 >
-                  내 참여곡만 <b>{myCount}</b>
-                </button>
+                  내 참여곡 <b>{myCount}</b>
+                </button>}
+                <ThemeSelect variant="pill" value={participantUid && participantUid !== myUid ? participantUid : ''} onChange={setParticipantUid} title="참여자별 곡 보기" placeholder="참여자 선택" options={[{ value: '', label: '전체 참여곡' }, ...participantMembers.map((person) => ({ value: person.uid, label: `${person.name} · ${items.filter((track) => track.participants?.[person.uid] !== undefined).length}곡` }))]} />
               </div>
             )}
             <div className="list track-list">
-              {rows.map((t) =>
+              {rows.map((t, trackIndex) =>
                 editMode ? (
                   <div
                     key={t.id}
@@ -452,6 +502,7 @@ export function PlaylistDetail({
                     style={t.id === dragId ? { transform: `translateY(${dragDy}px)` } : undefined}
                   >
                     <button className="track-link" onClick={() => setEditingTrack(t)} aria-label="곡 정보 수정">
+                      {isPerformance && <span className="performance-track-no">{trackIndex + 1}</span>}
                       <div className="track-thumb sm">
                         {t.thumbnail || t.videoId ? (
                           <img src={t.thumbnail || thumbnailUrl(t.videoId)} alt="" loading="lazy" />
@@ -462,7 +513,7 @@ export function PlaylistDetail({
                         {t.artist && <p>{t.artist}</p>}
                       </div>
                       <span className="track-edit-ico" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 20-3.5-3.5a2.1 2.1 0 0 1 0-3L14 3a2.1 2.1 0 0 1 3 0l4 4a2.1 2.1 0 0 1 0 3L11 20Z" /><path d="m10 7 7 7" /><path d="M7 20h14" /></svg>
                       </span>
                     </button>
                     <button className="edit-btn track-del" onClick={() => removeTrack(t)} aria-label="곡 빼기">
@@ -483,10 +534,12 @@ export function PlaylistDetail({
                 ) : (() => {
                   const open = openId === t.id
                   const joined = Object.keys(t.participants ?? {}).length
-                  const myPart = isProject ? myPartOf(t) : undefined
-                  return <div key={t.id} className={'setlist-row playlist-setlist-row' + (t.id === playingId ? ' playing' : '') + (myPart ? ' mine' : '')}>
-                    <div className="setlist-rowhead">
-                    <button className="track-thumb-btn" onClick={() => playTrack(t.id)} aria-label="재생">
+                  const focusedPart = isProject ? participantPartOf(t, participantUid || myUid) : undefined
+                  const myPart = isProject ? participantPartOf(t, myUid) : undefined
+                  return <div key={t.id} className={'setlist-row playlist-setlist-row' + (isGeneral ? ' card-play-target' : '') + (t.id === playingId ? ' playing' : '') + (focusedPart ? ' mine' : '')} role={isGeneral ? 'button' : undefined} tabIndex={isGeneral ? 0 : undefined} onClick={isGeneral ? () => playTrack(t.id) : undefined} onKeyDown={isGeneral ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playTrack(t.id) } } : undefined}>
+                    <div className={'setlist-rowhead' + (isPerformance ? ' card-play-target performance-play-target' : '')} role={isPerformance ? 'button' : undefined} tabIndex={isPerformance ? 0 : undefined} onClick={isPerformance ? () => playTrack(t.id) : undefined} onKeyDown={isPerformance ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playTrack(t.id) } } : undefined}>
+                    {isPerformance && <span className="performance-track-no">{trackIndex + 1}</span>}
+                    <button className="track-thumb-btn" onClick={(e) => { e.stopPropagation(); playTrack(t.id) }} aria-label="재생">
                       <div className="track-thumb sm">
                         {t.thumbnail || t.videoId ? (
                           <img src={t.thumbnail || thumbnailUrl(t.videoId)} alt="" loading="lazy" />
@@ -507,13 +560,13 @@ export function PlaylistDetail({
                       </div>
                     </div>
                     {(!isProject || showAdder) && <span className="playlist-track-adder">{t.addedByName || memberMap.get(t.addedBy)?.name || '알 수 없는 멤버'}</span>}
-                    {myPart && <span className="track-mypart" title="내가 참여하는 파트">{myPart}</span>}
+                    {focusedPart && <span className="track-mypart" title="선택한 멤버가 참여하는 파트">{focusedPart}</span>}
                     {isProject && open && (
-                      <button type="button" className={'song-join-mini' + (myPart ? ' on' : '')} onClick={() => setParticipatingId(t.id)}>
+                      <button type="button" className={'song-join-mini' + (myPart ? ' on' : '')} onClick={(e) => { e.stopPropagation(); setParticipatingId(t.id) }}>
                         참여
                       </button>
                     )}
-                    {isProject && <button type="button" className="setlist-toggle" onClick={() => setOpenId(open ? null : t.id)} aria-expanded={open} aria-label={`${t.title || '곡'} 참여자 ${open ? '접기' : '펼치기'}`}>
+                    {isProject && <button type="button" className="setlist-toggle" onClick={(e) => { e.stopPropagation(); setOpenId(open ? null : t.id) }} aria-expanded={open} aria-label={`${t.title || '곡'} 참여자 ${open ? '접기' : '펼치기'}`}>
                       <span className="setlist-joined">{joined}</span>
                       <svg className={'track-open-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                     </button>}
@@ -527,15 +580,30 @@ export function PlaylistDetail({
         )}
       </main>
 
-      <button className="fab" onClick={() => setAdding(true)}>
+      {!isRecommendation && <button className="fab" onClick={() => setAdding(true)}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
         곡 추가
-      </button>
+      </button>}
       </>}
 
       {adding && (
-        <TrackForm playlistId={playlist.id} toast={toast} onClose={() => setAdding(false)} />
+        <TrackForm playlistId={playlist.id} toast={toast} candidateMode={isRecommendation} onImportExisting={isPerformance ? () => { setAdding(false); setImportingExisting(true) } : undefined} onImportGeneral={isRecommendation ? () => { setAdding(false); setCopyingToRecommendations(true) } : undefined} onClose={() => setAdding(false)} />
       )}
+      {importingExisting && <ExistingPlaylistImport playlist={playlist} existingVideoIds={new Set(items.map((item) => item.videoId))} toast={toast} onClose={() => setImportingExisting(false)} />}
+      {copyingToRecommendations && <CopyToRecommendations playlist={playlist} toast={toast} onClose={() => setCopyingToRecommendations(false)} />}
+
+      {recommendationRequestOpen && member?.admin && <Sheet onClose={() => setRecommendationRequestOpen(false)}>
+        <h2>추천곡 추가 요청</h2>
+        <section className="vote-setting-section recommendation-request-section">
+          <div className="vote-setting-head"><span className="vote-setting-step">1</span><h3>인당 추천 곡 수</h3></div>
+          <div className="vote-count-control"><button type="button" onClick={() => setRecommendationLimit((value) => Math.max(1, value - 1))} disabled={recommendationLimit <= 1} aria-label="한 곡 줄이기">−</button><strong>{recommendationLimit}</strong><span>곡</span><button type="button" onClick={() => setRecommendationLimit((value) => Math.min(20, value + 1))} disabled={recommendationLimit >= 20} aria-label="한 곡 늘리기">+</button></div>
+        </section>
+        <section className="vote-setting-section recommendation-request-section">
+          <div className="vote-setting-head"><span className="vote-setting-step">2</span><h3>마감 기한</h3></div>
+          <div className="field recommendation-deadline-field"><input aria-label="추천곡 추가 마감일" type="date" value={recommendationDeadline} min={new Date().toLocaleDateString('sv-SE')} onChange={(e) => setRecommendationDeadline(e.target.value)} /></div>
+        </section>
+        <div className="actions"><button className="btn subtle" onClick={() => setRecommendationRequestOpen(false)}>취소</button><button className="btn primary request-share-btn" disabled={!recommendationDeadline} onClick={() => void requestRecommendations()}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4Z"/></svg>요청 공유</button></div>
+      </Sheet>}
 
       {editingTrack && (
         <TrackEditForm
@@ -609,6 +677,79 @@ export function PlaylistDetail({
       )}
     </>
   )
+}
+
+function ExistingPlaylistImport({ playlist, existingVideoIds, toast, onClose }: { playlist: Playlist; existingVideoIds: Set<string>; toast: ToastState; onClose: () => void }) {
+  const { member } = useAuth()
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [sourceId, setSourceId] = useState('')
+  const [sourceTracks, setSourceTracks] = useState<Track[]>([])
+  const [busyId, setBusyId] = useState<string | null>(null)
+  useEffect(() => watchPlaylists((items) => setPlaylists(items.filter((item) => item.id !== playlist.id)), () => {}), [playlist.id])
+  useEffect(() => sourceId ? watchAllMusicTracks(sourceId, setSourceTracks, () => {}) : undefined, [sourceId])
+  return <Sheet onClose={onClose}>
+    <h2>기존 재생목록에서 가져오기</h2>
+    <div className="field"><label>재생목록</label><ThemeSelect value={sourceId} onChange={setSourceId} title="가져올 재생목록" placeholder="선택해 주세요" options={playlists.map((item) => ({ value: item.id, label: item.name }))} /></div>
+    <div className="picker-list">{sourceTracks.filter((track) => !track.candidateStatus || track.candidateStatus === 'selected').map((track) => {
+      const exists = existingVideoIds.has(track.videoId)
+      return <div className="picker-row" key={track.id}>
+        <div className="track-thumb sm"><img src={track.thumbnail || thumbnailUrl(track.videoId)} alt="" /></div>
+        <span className="track-info"><h3>{track.title}</h3>{track.artist && <p>{track.artist}</p>}</span>
+        <button className="btn subtle" disabled={exists || busyId === track.id} onClick={() => {
+          setBusyId(track.id)
+          const now = Date.now()
+          void saveTrack(playlist.id, { ...track, id: newId(), order: now, addedAt: now, addedBy: member?.uid ?? '', addedByName: member?.name, candidateStatus: undefined, votes: undefined, reviews: undefined, recommendation: undefined })
+            .then(() => toast.show('공연곡에 추가했어요')).finally(() => setBusyId(null))
+        }}>{exists ? '추가됨' : '추가'}</button>
+      </div>
+    })}</div>
+    {sourceId && sourceTracks.length === 0 && <p className="setlist-empty">가져올 곡이 없어요.</p>}
+    <div className="actions"><button className="btn subtle" onClick={onClose}>닫기</button></div>
+  </Sheet>
+}
+
+function CopyToRecommendations({ playlist, toast, onClose }: { playlist: Playlist; toast: ToastState; onClose: () => void }) {
+  const { member } = useAuth()
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [sourceId, setSourceId] = useState('')
+  const [tracks, setTracks] = useState<Track[]>([])
+  const [chosen, setChosen] = useState<string[]>([])
+  const [targetTracks, setTargetTracks] = useState<Track[]>([])
+  const [busy, setBusy] = useState(false)
+  useEffect(() => watchPlaylists((items) => setPlaylists(items.filter((item) => !item.templateId || item.templateId === 'general')), () => {}), [])
+  useEffect(() => sourceId ? watchAllMusicTracks(sourceId, setTracks, () => {}) : undefined, [sourceId])
+  useEffect(() => watchAllMusicTracks(playlist.id, setTargetTracks, () => {}), [playlist.id])
+  const existingIds = new Set(targetTracks.map((track) => track.videoId))
+  const selectable = tracks.filter((track) => !existingIds.has(track.videoId))
+  async function copy() {
+    if (!chosen.length || busy) return
+    setBusy(true)
+    try {
+      const now = Date.now()
+      await Promise.all(tracks.filter((track) => chosen.includes(track.id)).map((track, index) => saveTrack(playlist.id, {
+        ...track, id: newId(), order: now + index, addedAt: now + index,
+        addedBy: member?.uid ?? '', addedByName: member?.name,
+        candidateStatus: 'review', votes: undefined, reviews: undefined, recommendation: undefined,
+      })))
+      toast.show(`${chosen.length}곡을 추천곡에 담았어요`)
+      onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <Sheet onClose={onClose}>
+    <h2>일반 곡목록에서 가져오기</h2>
+    <div className="field"><label>일반 곡목록</label><ThemeSelect value={sourceId} onChange={(value) => { setSourceId(value); setChosen([]) }} title="일반 곡목록" placeholder="선택해 주세요" options={playlists.map((item) => ({ value: item.id, label: item.name }))} /></div>
+    {sourceId && <>
+      <label className="vote-select-all"><span><input type="checkbox" checked={selectable.length > 0 && chosen.length === selectable.length} onChange={(e) => setChosen(e.target.checked ? selectable.map((track) => track.id) : [])} /><b>전체 선택</b></span><em>{chosen.length}곡</em></label>
+      <div className="vote-vocal-list">{tracks.map((track) => {
+        const exists = existingIds.has(track.videoId)
+        const checked = chosen.includes(track.id)
+        return <label className={'vote-vocal-row copy-track-choice' + (checked ? ' selected' : '')} key={track.id}><span><input type="checkbox" disabled={exists} checked={checked} onChange={(e) => setChosen((ids) => e.target.checked ? [...ids, track.id] : ids.filter((id) => id !== track.id))} /><strong>{track.title}</strong></span><em>{exists ? '추가됨' : track.artist}</em></label>
+      })}</div>
+    </>}
+    <div className="actions"><button className="btn subtle" onClick={onClose}>취소</button><button className="btn primary" disabled={!sourceId || !chosen.length || busy} onClick={() => void copy()}>{busy ? '담는 중…' : `${chosen.length}곡 담기`}</button></div>
+  </Sheet>
 }
 
 /* ---------------- 곡 정보 수정 시트 (링크·제목·가수) ---------------- */
@@ -745,12 +886,18 @@ function TrackForm({
   playlistId,
   initialUrl,
   toast,
+  candidateMode = false,
+  onImportExisting,
+  onImportGeneral,
   onClose,
   onSaved,
 }: {
   playlistId: string
   initialUrl?: string
   toast: ToastState
+  candidateMode?: boolean
+  onImportExisting?: () => void
+  onImportGeneral?: () => void
   onClose: () => void
   onSaved?: () => void
 }) {
@@ -879,6 +1026,7 @@ function TrackForm({
           addedBy: member?.uid ?? '',
           addedByName: member?.name,
           addedAt: base + done,
+          ...(candidateMode ? { candidateStatus: 'review' as const } : {}),
         }
         await saveTrack(playlistId, t)
         done++
@@ -923,9 +1071,10 @@ function TrackForm({
         addedBy: member?.uid ?? '',
         addedByName: member?.name, // 추가한 사람 이름 스냅샷 (undefined 면 saveTrack 이 제거)
         addedAt: nowMs,
+        ...(candidateMode ? { candidateStatus: 'review' as const } : {}),
       }
       await saveTrack(playlistId, t)
-      toast.show('곡을 담았어요')
+      toast.show(candidateMode ? '추천곡을 추가했어요' : '곡을 담았어요')
       closeAfterSave()
     } catch (e) {
       const code = (e as { code?: string })?.code ?? ''
@@ -947,6 +1096,8 @@ function TrackForm({
           <div className="grab" />
         </div>
         <h2>곡 추가</h2>
+        {onImportExisting && <button type="button" className="btn subtle block track-import-existing" onClick={onImportExisting}>기존 재생목록에서 가져오기</button>}
+        {onImportGeneral && <button type="button" className="btn subtle block track-import-existing" onClick={onImportGeneral}>일반 곡목록에서 가져오기</button>}
 
         <div className="field">
           <label htmlFor="tr-search">유튜브에서 검색</label>

@@ -185,10 +185,10 @@ export default function AttendanceModal({
             </div>
           ) : <h2>{heading}</h2>}
 
-          <div className={'modal-evhead' + (mode === 'summary' ? ' summary-card' : '')} style={{ ['--k' as string]: TYPE_META[ev.type].color }}>
+          <div className={'modal-evhead' + (mode === 'summary' ? ' summary-card' : '')} style={{ ['--k' as string]: ev.color || TYPE_META[ev.type].color }}>
             <div className="tag"><TypeGlyph type={ev.type} className="type-ico" />{TYPE_META[ev.type].label}</div>
             <h3>{ev.title}</h3>
-            <p>{d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}</p>
+            <p>{d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}){ev.allDay ? '' : ` · ${ev.rehStart}–${ev.rehEnd}`}</p>
           </div>
 
           {/* ── 투표 모드 ── */}

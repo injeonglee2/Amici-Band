@@ -4,7 +4,6 @@ import { useAuth } from '../auth'
 import { isStandaloneApp, mobileOS, notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
 import ThemeSelect from './ThemeSelect'
-import FeedbackSheet from './FeedbackSheet'
 import ConfirmDialog from './ConfirmDialog'
 import Segmented from './Segmented'
 import Toast, { useToast } from './Toast'
@@ -25,14 +24,13 @@ const fmtDay = (ms?: number) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-export default function Settings({ onClose }: { onClose: () => void }) {
+export default function Settings({ onClose, initialTab = 'general' }: { onClose: () => void; initialTab?: 'general' | 'band' }) {
   const { user, member, bandId, workspace, isDeveloper } = useAuth()
   const isAdmin = !!member?.admin
   const toast = useToast()
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [devPopup, setDevPopup] = useState<null | 'firebase' | 'feedback'>(null)
   const [devFeedback, setDevFeedback] = useState<Feedback[]>([])
-  const [tab, setTab] = useState<'general' | 'band' | 'dev'>('general')
+  const [tab, setTab] = useState<'general' | 'band' | 'dev'>(initialTab === 'band' && isAdmin && bandId && workspace?.templateId !== 'personal' ? 'band' : 'general')
   const tabs: { k: 'general' | 'band' | 'dev'; label: string }[] = [
     { k: 'general', label: '일반' },
     ...(isAdmin && bandId && workspace?.templateId !== 'personal' ? [{ k: 'band' as const, label: '관리' }] : []),
@@ -42,7 +40,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
     if (!isDeveloper) return
     return watchFeedback(setDevFeedback, () => {})
   }, [isDeveloper])
-  useBackHandler(() => (devPopup ? setDevPopup(null) : feedbackOpen ? setFeedbackOpen(false) : onClose()))
+  useBackHandler(() => (devPopup ? setDevPopup(null) : onClose()))
   return (
     <div className="app">
       <header className="top">
@@ -65,10 +63,6 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           <>
             <NotifCard />
             <CalendarExportCard />
-            <button type="button" className="set-entry" onClick={() => setFeedbackOpen(true)}>
-              <span>의견 보내기 · 버그 제보</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-            </button>
           </>
         )}
 
@@ -100,7 +94,6 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         <p className="app-ver">{versionLabel()}</p>
       </main>
 
-      {feedbackOpen && <FeedbackSheet toast={toast} onClose={() => setFeedbackOpen(false)} />}
       {devPopup === 'firebase' && (
         <DeveloperPopup
           title="Firebase 서비스별 사용량"

@@ -8,21 +8,25 @@ export default function Segmented({
   onChange,
   className,
   ariaLabel,
+  semantics = 'tabs',
 }: {
   tabs: { k: string; label: string; badge?: number }[]
   value: string
   onChange: (k: string) => void
   className?: string
   ariaLabel?: string
+  /** 화면 전환은 tabs, 폼의 단일 선택은 single-select를 사용한다. */
+  semantics?: 'tabs' | 'single-select'
 }) {
+  const isTabs = semantics === 'tabs'
   return (
-    <div className={'segmented' + (className ? ' ' + className : '')} role="tablist" aria-label={ariaLabel}>
+    <div className={'segmented' + (className ? ' ' + className : '')} role={isTabs ? 'tablist' : 'radiogroup'} aria-label={ariaLabel}>
       {tabs.map((t) => (
         <button
           key={t.k}
           type="button"
-          role="tab"
-          aria-selected={value === t.k}
+          role={isTabs ? 'tab' : 'radio'}
+          {...(isTabs ? { 'aria-selected': value === t.k } : { 'aria-checked': value === t.k })}
           className={value === t.k ? 'on' : ''}
           onClick={() => onChange(t.k)}
         >

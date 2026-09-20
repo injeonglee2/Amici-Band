@@ -69,7 +69,7 @@ export function weekday(dateStr: string): string {
   return WD[parseDate(dateStr).getDay()]
 }
 
-export function longWhen(ev: { date: string; rehStart: string; rehEnd: string }): string {
+export function longWhen(ev: { date: string; rehStart: string; rehEnd: string; allDay?: boolean }): string {
   const d = parseDate(ev.date)
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${weekday(ev.date)}) · ${ev.rehStart}–${ev.rehEnd}`
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${weekday(ev.date)})${ev.allDay ? '' : ` · ${ev.rehStart}–${ev.rehEnd}`}`
 }

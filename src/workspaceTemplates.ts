@@ -103,7 +103,7 @@ export const WORKSPACE_TEMPLATES: Record<WorkspaceTemplateId, WorkspaceTemplate>
     description: '음악, 악보, 합주 기록을 함께 관리해요.',
     navigation: [
       { id: 'music', label: '음악', slot: 1 }, { id: 'scores', label: '악보', slot: 2 },
-      { id: 'home', label: '일정', slot: 3 }, { id: 'recordings', label: '영상', slot: 4 }, { id: 'places', label: '장소', slot: 5 },
+      { id: 'home', label: '일정', slot: 3 }, { id: 'recordings', label: '기록', slot: 4 }, { id: 'places', label: '장소', slot: 5 },
     ],
     theme: darkTheme('#ff5da2', '#7b68ee', '#38c4e8', '#fb708a', '#ffdf8a', '#9184e3'),
   },

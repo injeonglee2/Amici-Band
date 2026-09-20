@@ -1,10 +1,11 @@
-export type EventType = 'practice' | 'show' | 'flash' | 'meeting'
+export type EventType = 'practice' | 'show' | 'flash' | 'meeting' | 'other'
 
 export const TYPE_META: Record<EventType, { label: string; color: string }> = {
   practice: { label: '합주', color: 'var(--c-practice)' },
   show: { label: '공연', color: 'var(--c-show)' },
   flash: { label: '번개', color: 'var(--c-flash)' },
   meeting: { label: '회의', color: 'var(--c-meeting)' },
+  other: { label: '기타', color: '#a7a9b3' },
 }
 
 /** 개인 채널의 사용자 정의 일정 유형(플래그). 밴드의 고정 TYPE_META 대체. 경로: bands/{bandId}/eventTypes/{id} */
@@ -33,6 +34,10 @@ export const PASTEL_PALETTE: { name: string; color: string }[] = [
 export interface BandEvent {
   id: string
   type: EventType
+  color?: string // 기타 일정에서 직접 지정한 색상
+  allDay?: boolean // 시간 없이 날짜만 표시하는 일정
+  recurrenceGroupId?: string // 반복 생성된 일정 묶음
+  recurrenceIndex?: number // 반복 일정 회차(첫 일정만 생성 알림 전송)
   title: string
   date: string // YYYY-MM-DD
   rehStart: string // HH:MM 합주 시작 (기본 18:00)
@@ -41,6 +46,11 @@ export interface BandEvent {
   loc?: string // 레거시/직접입력 장소명 (placeId 없을 때 표시용)
   locAddress?: string // 장소 목록에 저장하지 않은 일회성 장소의 주소
   playlistId?: string // (공연 전용) 연결된 재생목록 — 공연 셋리스트를 재생목록으로 대신함
+  recommendationPlaylistId?: string // 추천곡 마감 일정에서 연결할 추천곡 폴더
+  recommendationPlaylistName?: string // 추천곡 폴더 이름 스냅샷
+  recommendationLimit?: number // 추천곡 마감 일정의 인당 최대 추천 곡 수
+  musicDeadlineKind?: 'recommendation' | 'vote'
+  voteSelectionCount?: number // 추천곡 투표 마감 일정의 인당 선택 곡 수
   note: string
   adminOnly?: boolean // 관리자 일정 목록·캘린더에만 표시
   createdBy: string
@@ -60,12 +70,22 @@ export interface Place {
 
 /** 음악 재생목록 (폴더 개념) — 하단 네비의 '음악' 탭 */
 export interface Playlist {
-  templateId?: 'general' | 'project'
+  templateId?: 'general' | 'project' | 'recommendation' | 'performance'
   folderName?: string
   reviewParts?: string[]
   id: string
   name: string // 재생목록 이름
   showAdder?: boolean // 곡 추가한 사람 이름 표시 여부 (기본: 표시)
+  voteOpen?: boolean // 추천곡 투표 진행 중 여부
+  voteSelectionCount?: number // 이번 투표에서 선정할 곡 수
+  voteVoterLimits?: Record<string, number> // 투표 가능한 보컬 uid → 최대 선택 곡 수
+  voteTargetPlaylistId?: string // 투표 종료 후 선정곡을 복사할 공연곡 재생목록
+  lastSelectedTrackIds?: string[] // 최근 투표에서 선정된 추천곡
+  voteLinkedPlaylistIds?: string[] // 최근 선정 결과를 이미 연결한 공연곡 재생목록
+  voteOpenedAt?: number
+  voteDeadline?: string // 추천곡 투표 마감일 (YYYY-MM-DD)
+  recommendationLimit?: number // 추천곡 추가 요청 시 인당 최대 곡 수
+  recommendationDeadline?: string // 추천곡 추가 마감일 (YYYY-MM-DD)
   createdBy: string
   createdAt: number
 }

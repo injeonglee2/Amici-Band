@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth'
-import { classifyMusicPlaylist, getMusicEventReferences, watchAllMusicTracks, watchEvents, watchPlaylists } from '../data'
+import { classifyMusicPlaylist, getMusicEventReferences, savePlaylist, watchAllMusicTracks, watchEvents, watchPlaylists } from '../data'
 import type { Playlist } from '../types'
 import FolderModule from './FolderModule'
 import { PlaylistDetail } from './Music'
@@ -13,6 +13,14 @@ export default function MusicLibrary({ toast }: { toast: ToastState }) {
   const [linked, setLinked] = useState<Set<string> | null>(null)
 
   useEffect(() => watchPlaylists(setLists, () => {}), [])
+  // 기존 프로젝트는 추천곡 템플릿으로 승계한다. 요청된 2026 11월 공연도 이름 기준으로 함께 전환한다.
+  useEffect(() => {
+    if (!member) return
+    lists.filter((playlist) => playlist.templateId === 'project' || (playlist.name.trim() === '2026 11월 공연' && playlist.templateId !== 'recommendation'))
+      .forEach((playlist) => { void savePlaylist({ ...playlist, templateId: 'recommendation' }).catch(() => {}) })
+    lists.filter((playlist) => playlist.name.trim() === '2026 9월 공연' && playlist.templateId !== 'performance')
+      .forEach((playlist) => { void savePlaylist({ ...playlist, templateId: 'performance' }).catch(() => {}) })
+  }, [lists, member])
   useEffect(() => {
     let alive = true
     const unsub = watchEvents((events) => {
@@ -42,6 +50,7 @@ export default function MusicLibrary({ toast }: { toast: ToastState }) {
   return <FolderModule
     config={MUSIC_FOLDER_CONFIG}
     repository={playlistRepository}
+    initialOpenId={typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('playlist')}
     renderDetail={(playlist, onBack) => <PlaylistDetail key={playlist.id + playlist.templateId} playlist={playlist} toast={toast} onBack={onBack} />}
   />
 }

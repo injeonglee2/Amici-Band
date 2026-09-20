@@ -27,6 +27,9 @@ const webPushPublicKey = defineSecret('WEB_PUSH_PUBLIC_KEY')
 const webPushPrivateKey = defineSecret('WEB_PUSH_PRIVATE_KEY')
 const webPushSecrets = [webPushPublicKey, webPushPrivateKey]
 const youtubeApiKey = defineSecret('YOUTUBE_API_KEY')
+const myboxPat = defineSecret('MYBOX_PAT')
+// 사용자가 공유한 소유 폴더 링크에 이미 공개된 리소스 식별자. 접근 권한은 PAT로만 부여된다.
+const MYBOX_FOLDER_ID = 'aWxvYjc5fDM0NzI1OTY5MDQ2OTYxNDM2OTZ8RHww'
 // 모듈 최상위에서 생성하면 배포 분석(로드) 시 자격증명 탐색으로 멈춰 타임아웃 → 지연 생성.
 let _monitoringClient
 function monitoringClient() {
@@ -39,6 +42,93 @@ setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 })
 
 /** 밴드 문서 참조 */
 const bandRef = (bandId) => db.collection('bands').doc(bandId)
+
+async function requireBandMember(req) {
+  if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
+  const bandId = String(req.data && req.data.bandId || '')
+  if (!bandId) throw new HttpsError('invalid-argument', '채널 정보가 필요해요.')
+  const member = await bandRef(bandId).collection('members').doc(req.auth.uid).get()
+  const band = await bandRef(bandId).get()
+  const isDeveloper = String(req.auth.token.email || '').toLowerCase() === 'dlwjd123123@gmail.com'
+  if (!member.exists && !isDeveloper) throw new HttpsError('permission-denied', '채널 멤버만 이용할 수 있어요.')
+  return { bandId, member: member.exists ? member.data() : {}, band: band.data() || {}, isDeveloper }
+}
+
+async function myboxRequest(path, options = {}) {
+  const response = await fetch(`https://open-api.mybox.naver.com${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${myboxPat.value()}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    console.error('MYBOX API error', response.status, body && body.code, body && body.requestId)
+    const message = response.status === 401 ? 'MYBOX 연결 토큰을 갱신해 주세요.' : 'MYBOX 요청을 처리하지 못했어요.'
+    throw new HttpsError(response.status === 401 ? 'failed-precondition' : 'unavailable', message)
+  }
+  return body
+}
+
+function configuredMyboxFolderId() {
+  return MYBOX_FOLDER_ID
+}
+
+exports.listMyboxMedia = onCall({ secrets: [myboxPat] }, async (req) => {
+  await requireBandMember(req)
+  const folderId = String(req.data && req.data.folderId || configuredMyboxFolderId())
+  const cursor = String(req.data && req.data.cursor || '')
+  const params = new URLSearchParams({ sort: 'modifiedAt,desc', count: '200' })
+  if (cursor) params.set('cursor', cursor)
+  const data = await myboxRequest(`/v1/drive/folders/${encodeURIComponent(folderId)}/resources?${params}`)
+  const resources = (Array.isArray(data.resources) ? data.resources : [])
+    .filter((item) => item && (item.type === 'folder' || (item.type === 'file' && ['image', 'video'].includes(item.category))))
+    .map((item) => ({
+      id: String(item.resourceId),
+      name: String(item.name || ''),
+      type: item.type,
+      category: item.category || '',
+      size: Number(item.size || 0),
+      modifiedAt: String(item.modifiedAt || item.createdAt || ''),
+    }))
+  return { resources, nextCursor: String(data.responseMetaData && data.responseMetaData.nextCursor || '') }
+})
+
+exports.getMyboxMediaUrl = onCall({ secrets: [myboxPat] }, async (req) => {
+  await requireBandMember(req)
+  const fileId = String(req.data && req.data.fileId || '')
+  if (!fileId) throw new HttpsError('invalid-argument', '파일 정보가 필요해요.')
+  const data = await myboxRequest(`/v1/drive/files/${encodeURIComponent(fileId)}/download`)
+  return { url: String(data.downloadUrl || ''), expiresIn: Number(data.expiresIn || 600) }
+})
+
+exports.createMyboxUpload = onCall({ secrets: [myboxPat] }, async (req) => {
+  const { member, isDeveloper } = await requireBandMember(req)
+  if (!member.admin && !isDeveloper) throw new HttpsError('permission-denied', '관리자만 MYBOX에 올릴 수 있어요.')
+  const fileName = String(req.data && req.data.fileName || '').trim().slice(0, 240)
+  const fileSize = Number(req.data && req.data.fileSize || 0)
+  const contentType = String(req.data && req.data.contentType || '')
+  const parentId = String(req.data && req.data.parentId || configuredMyboxFolderId())
+  if (!fileName || !Number.isFinite(fileSize) || fileSize <= 0) throw new HttpsError('invalid-argument', '올바른 파일이 필요해요.')
+  if (!/^image\//.test(contentType) && !/^video\//.test(contentType)) throw new HttpsError('invalid-argument', '사진과 영상만 올릴 수 있어요.')
+  const data = await myboxRequest('/v1/drive/files', {
+    method: 'POST',
+    body: JSON.stringify({ fileName, fileSize, parentId, isOverwrite: false }),
+  })
+  return { uploadUrl: String(data.uploadUrl || ''), offset: Number(data.offset || 0) }
+})
+
+exports.createMyboxFolder = onCall({ secrets: [myboxPat] }, async (req) => {
+  const { member, isDeveloper } = await requireBandMember(req)
+  if (!member.admin && !isDeveloper) throw new HttpsError('permission-denied', '관리자만 MYBOX 폴더를 만들 수 있어요.')
+  const folderName = String(req.data && req.data.folderName || '').trim().slice(0, 100)
+  const parentId = String(req.data && req.data.parentId || configuredMyboxFolderId())
+  if (!folderName) throw new HttpsError('invalid-argument', '폴더 이름이 필요해요.')
+  const data = await myboxRequest('/v1/drive/folders', { method: 'POST', body: JSON.stringify({ folderName, parentId }) })
+  return { id: String(data.resourceId || ''), name: String(data.name || folderName) }
+})
 
 const healthSyncSessionRef = (hash) => db.collection('healthSyncSessions').doc(hash)
 const healthSyncHash = (token) => crypto.createHash('sha256').update(token).digest('hex')
@@ -460,14 +550,20 @@ exports.notifyOnEventCreate = onDocumentCreated(
   async (event) => {
   const data = event.data && event.data.data()
   if (!data) return
+  if (Number(data.recurrenceIndex || 0) > 0) return
   const { bandId, eventId } = event.params
   const membersSnap = await bandRef(bandId).collection('members').get()
-  const isPractice = data.type === 'practice'
+  const isRecommendationDeadline = !!data.recommendationPlaylistId
+  const isPractice = data.type === 'practice' && !isRecommendationDeadline
   const delivery = await sendAllPush(eventAudience(membersSnap.docs, data), {
-    title: isPractice
+    title: isRecommendationDeadline
+      ? `추천곡 일정: ${data.title || '추천곡 마감'}`
+      : isPractice
       ? `참석 투표 요청: ${data.title || '합주 일정'}`
       : `새 일정: ${data.title || '일정'}`,
-    body: isPractice
+    body: isRecommendationDeadline
+      ? `${data.date || ''} 추천곡 일정을 확인해 주세요.`
+      : isPractice
       ? `${data.date || ''} 합주 일정이 추가됐어요. 참석 여부를 투표해 주세요.`
       : `${data.date || ''} 새 일정이 추가됐어요. 확인해 주세요.`,
     eventId,

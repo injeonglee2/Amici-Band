@@ -199,23 +199,25 @@ service cloud.firestore {
         allow read: if isDeveloper() || isBandMember(bandId);
         allow create, delete: if isBandMember(bandId);
         allow update: if isBandMember(bandId) && (isBandAdmin(bandId)
-          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewParts']));
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewParts', 'voteOpen', 'voteSelectionCount', 'voteVoterLimits', 'voteTargetPlaylistId', 'lastSelectedTrackIds', 'voteLinkedPlaylistIds', 'voteOpenedAt']));
         match /tracks/{trackId} {
           allow read: if isDeveloper() || isBandMember(bandId);
           allow create: if isBandMember(bandId)
             && (isBandAdmin(bandId) || request.resource.data.get('candidateStatus', '') in ['', 'review'])
             && request.resource.data.get('votes', {}) == {}
             && request.resource.data.get('reviews', {}) == {};
-          allow update: if isBandMember(bandId)
+          allow update: if isDeveloper() || (isBandMember(bandId)
             && (isBandAdmin(bandId) || request.resource.data.get('candidateStatus', '') == resource.data.get('candidateStatus', ''))
             && (request.resource.data.get('votes', {}) == resource.data.get('votes', {})
-              || (resource.data.get('candidateStatus', '') == 'voting'
+              || (get(/databases/$(database)/documents/bands/$(bandId)/playlists/$(playlistId)).data.get('voteOpen', false) == true
+                && get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.part == 'vocal'
+                && get(/databases/$(database)/documents/bands/$(bandId)/playlists/$(playlistId)).data.get('voteVoterLimits', {}).get(request.auth.uid, 0) > 0
                 && request.resource.data.get('votes', {}).diff(resource.data.get('votes', {})).affectedKeys().hasOnly([request.auth.uid])))
             && (request.resource.data.get('reviews', {}) == resource.data.get('reviews', {})
               || (resource.data.get('candidateStatus', '') == 'review'
                 && request.resource.data.get('reviews', {}).diff(resource.data.get('reviews', {})).affectedKeys().hasOnly([request.auth.uid])
                 && get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.part in get(/databases/$(database)/documents/bands/$(bandId)/playlists/$(playlistId)).data.get('reviewParts', ['keyboard', 'guitar'])
-                && request.resource.data.reviews[request.auth.uid].part == get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.part));
+                && request.resource.data.reviews[request.auth.uid].part == get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.part)));
           allow delete: if isBandMember(bandId) && (isBandAdmin(bandId) || !('candidateStatus' in resource.data) || resource.data.addedBy == request.auth.uid);
         }
       }

@@ -670,6 +670,39 @@ export async function savePersonalVideo(video: PersonalVideo): Promise<void> {
   }, { merge: true })
 }
 
+export interface MyboxMedia {
+  id: string
+  name: string
+  type: 'file' | 'folder'
+  category: 'image' | 'video' | ''
+  size: number
+  modifiedAt: string
+}
+
+export async function listMyboxMedia(folderId = '', cursor = ''): Promise<{ resources: MyboxMedia[]; nextCursor: string }> {
+  const call = httpsCallable<{ bandId: string; folderId: string; cursor: string }, { resources: MyboxMedia[]; nextCursor: string }>(requireFunctions(), 'listMyboxMedia')
+  return (await call({ bandId: getCurrentBand(), folderId, cursor })).data
+}
+
+export async function getMyboxMediaUrl(fileId: string): Promise<{ url: string; expiresIn: number }> {
+  const call = httpsCallable<{ bandId: string; fileId: string }, { url: string; expiresIn: number }>(requireFunctions(), 'getMyboxMediaUrl')
+  return (await call({ bandId: getCurrentBand(), fileId })).data
+}
+
+export async function uploadMyboxMedia(file: File, parentId: string): Promise<void> {
+  const call = httpsCallable<{ bandId: string; parentId: string; fileName: string; fileSize: number; contentType: string }, { uploadUrl: string }>(requireFunctions(), 'createMyboxUpload')
+  const { data } = await call({ bandId: getCurrentBand(), parentId, fileName: file.name, fileSize: file.size, contentType: file.type })
+  const form = new FormData()
+  form.append('Filedata', file, file.name)
+  const response = await fetch(data.uploadUrl, { method: 'POST', body: form })
+  if (!response.ok) throw new Error(`MYBOX upload failed (${response.status})`)
+}
+
+export async function createMyboxFolder(folderName: string, parentId: string): Promise<{ id: string; name: string }> {
+  const call = httpsCallable<{ bandId: string; parentId: string; folderName: string }, { id: string; name: string }>(requireFunctions(), 'createMyboxFolder')
+  return (await call({ bandId: getCurrentBand(), parentId, folderName })).data
+}
+
 export async function classifyMusicPlaylist(p: Playlist, project: boolean): Promise<void> {
   const fields = { templateId: project ? 'project' as const : 'general' as const, folderName: p.folderName || (project ? '공연·합주' : '함께 듣는 음악') }
   if (DEMO) { await demoDb.savePlaylist({ ...p, ...fields }); return }

@@ -20,6 +20,7 @@ export default function CalendarView({
   members,
   toast,
   onEdit,
+  onOpenRecommendation,
   cursor,
   selected,
   onSelect,
@@ -32,6 +33,7 @@ export default function CalendarView({
   members: Member[]
   toast: ToastState
   onEdit: (ev: BandEvent) => void
+  onOpenRecommendation?: (playlistId: string) => void
   cursor: { y: number; m: number } // m: 0-based
   selected: string
   onSelect: (date: string) => void
@@ -94,7 +96,7 @@ export default function CalendarView({
               {evs && evs.length > 0 && (
                 <span className="cal-evs">
                   {evs.slice(0, 3).map((e) => (
-                    <span key={e.id} className="cal-ev" style={{ ['--k' as string]: resolveType(e.type).color }}>
+                    <span key={e.id} className="cal-ev" style={{ ['--k' as string]: e.color || resolveType(e.type).color }}>
                       {e.title}
                     </span>
                   ))}
@@ -123,6 +125,7 @@ export default function CalendarView({
                 place={resolvePlace(ev, placesMap)}
                 members={members}
                 onEdit={() => onEdit(ev)}
+                onOpenRecommendation={onOpenRecommendation}
                 toast={toast}
               />
             ),

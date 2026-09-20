@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
-import { addRecordingFolderPlaylist, deleteRecording, deleteRecordingFolder, getRecImportPlaylists, newId, removeRecordingFolderPlaylist, saveRecording, saveRecordingFolder, setRecImportAuto, watchEvents, watchPlaylists, watchRecordingFolders, watchRecordings, watchTracks } from '../data'
+import { addRecordingFolderPlaylist, deleteRecording, deleteRecordingFolder, getRecImportPlaylists, newId, removeRecordingFolderPlaylist, saveRecording, saveRecordingFolder, setRecImportAuto, watchEvents, watchRecordingFolders, watchRecordings, watchTracks } from '../data'
 import { TYPE_META, type BandEvent, type Member, type Recording, type RecordingFolder, type Track } from '../types'
 import { fetchVideoDescription, fetchYouTubeMeta, parsePlaylistId, parseVideoId, thumbnailUrl } from '../youtube'
 import { importYouTubePlaylist, playlistImportErrorMessage, resolveYouTubePlaylistTitle } from '../playlistImport'
@@ -8,7 +8,6 @@ import { todayStr } from '../time'
 import { parseCredits } from '../gemini'
 import { Icon } from '../icons'
 import ConfirmDialog from './ConfirmDialog'
-import MusicPicker from './MusicPicker'
 import Sheet from './Sheet'
 import ThemeSelect from './ThemeSelect'
 import type { ToastState } from './Toast'
@@ -16,7 +15,8 @@ import { useSheetSwipe } from './useSheetSwipe'
 import { useBackHandler } from '../backnav'
 import { BAND_RECORDING_MODULE, compareRecordings, type RecordingModuleConfig, type RecordingSortId } from '../recordingModules'
 import FolderDetailHeader, { FolderDeleteButton } from './FolderDetailHeader'
-import { creditRank, dateFromRecordingTitle as dateFromTitle, driveThumbnail as driveThumb, formatRecordingDate as fmtDate, inferMusicFromTitle as musicFromTitleAsync, matchMusicFromTitle as musicFromTitle, parseDriveId, recordingThumbnail as recThumb, youtubeEmbed as ytEmbed, type MatchTrack } from '../recordingUtils'
+import MyboxMediaFolder from './MyboxMedia'
+import { creditRank, dateFromRecordingTitle as dateFromTitle, driveThumbnail as driveThumb, formatRecordingDate as fmtDate, parseDriveId, recordingThumbnail as recThumb, youtubeEmbed as ytEmbed } from '../recordingUtils'
 
 /** 기록 탭 — 합주 녹음/영상 갤러리 (링크 기반). 전체 멤버 공개(보기·추가 가능, 삭제·수정은 올린 사람/관리자) */
 export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }: { toast: ToastState; config?: RecordingModuleConfig }) {
@@ -233,24 +233,18 @@ export default function RecordingsView({ toast, config = BAND_RECORDING_MODULE }
 
         {useFolders && !openNamedFolder ? (
           // ===== Level 1: 이름 폴더 목록 =====
-          namedList.length === 0 ? (
-            <div className="empty-state">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
-              <p>폴더가 없어요.<br />아래 <b>+ 폴더</b>로 폴더를 만들어 시작하세요.</p>
-            </div>
-          ) : (
-            <div className="rec-grid">
-              {namedList.map((f) => (
-                <button key={f.id} type="button" className="rec-card rec-folder" onClick={() => { setOpenNamedFolder(f.id); setOpenFolder(null); setMusicFilter(''); setMemberFilter('') }}>
-                  <div className="rec-thumb">
-                    {recThumb(f.recs[0]) ? <img src={recThumb(f.recs[0]) ?? ''} alt="" loading="lazy" /> : <span className="rec-thumb-none" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></span>}
-                    <span className="rec-folder-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>{f.recs.length}</span>
-                  </div>
-                  <div className="rec-meta"><h3>{f.name}</h3></div>
-                </button>
-              ))}
-            </div>
-          )
+          <div className="rec-grid">
+            <MyboxMediaFolder toast={toast} />
+            {namedList.map((f) => (
+              <button key={f.id} type="button" className="rec-card rec-folder" onClick={() => { setOpenNamedFolder(f.id); setOpenFolder(null); setMusicFilter(''); setMemberFilter('') }}>
+                <div className="rec-thumb">
+                  {f.recs[0] && recThumb(f.recs[0]) ? <img src={recThumb(f.recs[0]) ?? ''} alt="" loading="lazy" /> : <span className="rec-thumb-none" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg></span>}
+                  <span className="rec-folder-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>{f.recs.length}</span>
+                </div>
+                <div className="rec-meta"><h3>{f.name}</h3></div>
+              </button>
+            ))}
+          </div>
         ) : items.length === 0 && !loadErr ? (
           <div className="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
@@ -603,75 +597,15 @@ function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: 
     if (ev) setTitle((prev) => (prev.trim() ? prev : ev.title))
   }
 
-  // 음악 연결(선택) — 악보 탭과 같은 곡 고르기(MusicPicker)로 재생목록/곡을 고른다
-  const [playlistId, setPlaylistId] = useState(editing?.playlistId ?? '')
-  const [playlistName, setPlaylistName] = useState(editing?.playlistName ?? '')
-  const [trackId, setTrackId] = useState(editing?.trackId ?? '')
-  const [trackTitle, setTrackTitle] = useState(editing?.trackTitle ?? '')
-  const [trackArtist, setTrackArtist] = useState(editing?.trackArtist ?? '')
-  const [musicPickerOpen, setMusicPickerOpen] = useState(false)
-  function clearMusic() {
-    setPlaylistId('')
-    setPlaylistName('')
-    setTrackId('')
-    setTrackTitle('')
-    setTrackArtist('')
-    musicAuto.current = false // 직접 해제했으면 제목 유추로 다시 채우지 않음
-  }
-
-  // 제목→일자·음악 유추용: 모든 재생목록의 곡 목록 로드 (ImportPlaylistSheet 와 동일)
-  const [matchTracks, setMatchTracks] = useState<MatchTrack[]>([])
-  useEffect(() => {
-    const trackUnsubs: (() => void)[] = []
-    const byPl = new Map<string, MatchTrack[]>()
-    const plUnsub = watchPlaylists((pls) => {
-      trackUnsubs.splice(0).forEach((u) => u())
-      byPl.clear()
-      pls.forEach((p) =>
-        trackUnsubs.push(
-          watchTracks(p.id, (list) => {
-            byPl.set(p.id, list.map((t) => ({ id: t.id, title: t.title, artist: t.artist, playlistId: p.id, playlistName: p.name })))
-            setMatchTracks([...byPl.values()].flat())
-          }),
-        ),
-      )
-    })
-    return () => {
-      plUnsub()
-      trackUnsubs.forEach((u) => u())
-    }
-  }, [])
-
   // 사용자가 일자를 직접 고르면 제목 유추가 덮어쓰지 않게 잠근다
   const dateTouched = useRef(false)
-  // 음악은 비었거나 유추로 채운 상태에서만 제목 유추로 바꾼다(직접 고르거나 해제하면 잠금)
-  const musicAuto = useRef(!editing?.trackId)
 
-  function setMusicFromMatch(m: MatchTrack) {
-    setPlaylistId(m.playlistId)
-    setPlaylistName(m.playlistName)
-    setTrackId(m.id)
-    setTrackTitle(m.title)
-    setTrackArtist(m.artist || '')
-  }
-
-  // 주어진 제목으로 일자·음악을 유추해 채운다(직접 정한 값은 유지, 음악은 비었을 때만).
-  // 제목을 타이핑할 때마다가 아니라, 폼이 열릴 때·유튜브에서 제목이 채워질 때 한 번씩 호출한다.
-  function inferFrom(t: string, tracks: MatchTrack[]) {
+  // 제목에서 일자만 유추한다. 기록 추가에서는 음악 재생목록을 연결하지 않는다.
+  function inferFrom(t: string) {
     if (!dateTouched.current) {
       const d = dateFromTitle(t)
       if (d) setDate(d)
     }
-    if (!musicAuto.current || playlistId) return
-    const direct = musicFromTitle(t, tracks)
-    if (direct) {
-      setMusicFromMatch(direct)
-      return
-    }
-    // 문자열로 못 잡으면 번역해서 유추(언어가 달라도)
-    void musicFromTitleAsync(t, tracks).then((m) => {
-      if (m && musicAuto.current && !playlistId) setMusicFromMatch(m)
-    })
   }
 
   // 폼이 열리는 즉시 제목으로 일자를 유추한다(수정 버튼을 누르자마자 반영). 곡 목록은 필요 없음.
@@ -685,23 +619,6 @@ function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // 곡 목록이 준비되면 한 번, 제목으로 음악을 유추한다(문자열→번역, 비어 있고 자동 허용일 때만)
-  const didInferMusic = useRef(false)
-  useEffect(() => {
-    if (didInferMusic.current || matchTracks.length === 0) return
-    didInferMusic.current = true
-    if (!musicAuto.current || playlistId) return
-    const direct = musicFromTitle(title, matchTracks)
-    if (direct) {
-      setMusicFromMatch(direct)
-      return
-    }
-    void musicFromTitleAsync(title, matchTracks).then((m) => {
-      if (m && musicAuto.current && !playlistId) setMusicFromMatch(m)
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchTracks])
 
   const videoId = parseVideoId(url)
   const driveId = videoId ? null : parseDriveId(url)
@@ -723,7 +640,7 @@ function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: 
         if (!meta.title) return
         setTitle((prev) => (prev.trim() ? prev : meta.title))
         // 제목이 비어 있어 유튜브 제목으로 채운 경우엔 그 제목으로 일자·음악도 유추
-        if (!hadTitle) inferFrom(meta.title, matchTracks)
+        if (!hadTitle) inferFrom(meta.title)
       })
       .catch(() => {})
   }
@@ -742,7 +659,6 @@ function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: 
         existingVideoIds,
         onProgress: ({ current, total }) => setImportProgress(`추가 중 ${current}/${total}`),
         save: async (s) => {
-          const m = await musicFromTitleAsync(s.title, matchTracks)
           const recDate = dateFromTitle(s.title) || s.publishedAt || todayStr()
           const onDate = events.filter((e) => e.date === recDate)
           const ev = onDate.length === 1 ? onDate[0] : null
@@ -751,7 +667,6 @@ function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: 
             id: newId(), title: s.title || '(제목 없음)', date: recDate, url: s.url,
             videoId: s.videoId, thumbnail: s.thumbnail,
             ...(ev ? { eventId: ev.id, eventTitle: ev.title } : {}),
-            ...(m ? { playlistId: m.playlistId, playlistName: m.playlistName, trackId: m.id, trackTitle: m.title, trackArtist: m.artist || undefined } : {}),
             ...(folderId ? { folderId } : {}),
             ...(credits ? { credits } : {}), addedBy: member?.uid ?? '', addedByName: member?.name, createdAt: Date.now(),
           })
@@ -793,11 +708,7 @@ function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: 
         note: note.trim() || undefined,
         eventId: eventId || undefined,
         eventTitle: eventId ? linkedEvent?.title ?? editing?.eventTitle : undefined,
-        playlistId: playlistId || undefined,
-        playlistName: playlistId ? playlistName || undefined : undefined,
-        trackId: playlistId && trackId ? trackId : undefined,
-        trackTitle: playlistId && trackId ? trackTitle || undefined : undefined,
-        trackArtist: playlistId && trackId ? trackArtist || undefined : undefined,
+        ...(editing?.playlistId ? { playlistId: editing.playlistId, playlistName: editing.playlistName, trackId: editing.trackId, trackTitle: editing.trackTitle, trackArtist: editing.trackArtist } : {}),
         addedBy: editing?.addedBy ?? member?.uid ?? '',
         addedByName: editing?.addedByName ?? member?.name,
         createdAt: editing?.createdAt ?? now,
@@ -876,34 +787,6 @@ function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: 
             </div>
           ))}
 
-        {!importPid && (
-          <div className="field">
-            <label>음악 연결 (선택)</label>
-            {playlistId ? (
-              (() => {
-                // 현재 등록된 곡 정보(음악 탭) 우선 표시, 없으면 저장된 값 폴백
-                const liveT = trackId ? matchTracks.find((t) => t.id === trackId) : undefined
-                const showTitle = liveT?.title || trackTitle || playlistName
-                const showArtist = liveT?.artist || trackArtist
-                return (
-                  <div className="rec-music-sel">
-                    <span className="rec-music-label">
-                      🎵 {showTitle}
-                      {showArtist && <span className="rec-music-artist">{showArtist}</span>}
-                    </span>
-                    <button type="button" className="btn subtle" onClick={() => setMusicPickerOpen(true)}>변경</button>
-                    <button type="button" className="btn subtle" onClick={clearMusic}>해제</button>
-                  </div>
-                )
-              })()
-            ) : (
-              <button type="button" className="btn subtle block" onClick={() => setMusicPickerOpen(true)}>
-                재생목록에서 곡 고르기
-              </button>
-            )}
-          </div>
-        )}
-
         {err && <p className="err small">{err}</p>}
 
         <div className="actions">
@@ -914,20 +797,6 @@ function RecordingForm({ editing, folderId, existingVideoIds, toast, onClose }: 
         </div>
       </div>
     </div>
-    {musicPickerOpen && (
-      <MusicPicker
-        onClose={() => setMusicPickerOpen(false)}
-        onPick={(sel) => {
-          setPlaylistId(sel.playlistId)
-          setPlaylistName(sel.playlistName)
-          setTrackId(sel.trackId ?? '')
-          setTrackTitle(sel.trackTitle ?? '')
-          setTrackArtist(sel.trackArtist ?? '')
-          musicAuto.current = false // 직접 골랐으면 제목 유추로 덮어쓰지 않음
-          setMusicPickerOpen(false)
-        }}
-      />
-    )}
     </>
   )
 }

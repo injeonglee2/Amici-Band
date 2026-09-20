@@ -20,6 +20,8 @@ import Segmented from './Segmented'
 import EventForm from './EventForm'
 import { TypeGlyph } from './TypeGlyph'
 import Settings from './Settings'
+import FeedbackSheet from './FeedbackSheet'
+import Sheet from './Sheet'
 import PlacesView from './Places'
 import MusicView, { SharedTrackImport } from './Music'
 import RecordingsView from './Recordings'
@@ -87,6 +89,8 @@ export default function Main() {
   const [formOpen, setFormOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<'general' | 'band'>('general')
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [channelOnboarding, setChannelOnboarding] = useState(false)
   const [loadErr, setLoadErr] = useState('')
   const [shareRequest, setShareRequest] = useState(() => readShareRequest())
@@ -98,6 +102,8 @@ export default function Main() {
     }
   })
   const shareHandled = useRef(false)
+  const deepEventId = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('event') ?? ''
+  const deepBandId = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('band') ?? ''
   const toast = useToast()
 
   useEffect(() => {
@@ -113,6 +119,21 @@ export default function Main() {
     const navTimer = sharedTrackSaved ? window.setTimeout(() => setNav('music'), 250) : undefined
     return () => window.clearTimeout(navTimer)
   }, [sharedTrackSaved])
+
+  useEffect(() => {
+    if (!deepBandId || !bandId || deepBandId === bandId || !channels.some((channel) => channel.id === deepBandId)) return
+    void switchChannel(deepBandId).then(() => window.location.reload())
+  }, [deepBandId, bandId, channels, switchChannel])
+
+  useEffect(() => {
+    if (!deepEventId) return
+    const target = events.find((event) => event.id === deepEventId)
+    if (!target) return
+    setNav('home')
+    setView('list')
+    setFilter('all')
+    setTab(dayDiff(target.date) < 0 ? 'past' : 'upcoming')
+  }, [deepEventId, events])
 
   useEffect(() => {
     if (!shareRequest || shareHandled.current) return
@@ -221,12 +242,13 @@ export default function Main() {
   const upcoming = useMemo(() => sorted.filter((e) => dayDiff(e.date) >= 0), [sorted])
   // 지난 일정: 최신순(방금 끝난 것부터)
   const past = useMemo(() => sorted.filter((e) => dayDiff(e.date) < 0).reverse(), [sorted])
-  const next = upcoming[0]
+  const matchesFilter = (event: BandEvent) => filter === 'all' || (!event.recommendationPlaylistId && event.type === filter)
+  const next = upcoming.find(matchesFilter)
   const base = tab === 'upcoming' ? upcoming : past
-  const list = base.filter((e) => filter === 'all' || e.type === filter)
+  const list = base.filter(matchesFilter)
   // 캘린더 뷰: 지난/다가오는 구분 없이 유형 필터만 적용한 전체 일정
   const calEvents = useMemo(
-    () => sorted.filter((e) => filter === 'all' || e.type === filter),
+    () => sorted.filter((e) => filter === 'all' || (!e.recommendationPlaylistId && e.type === filter)),
     [sorted, filter],
   )
 
@@ -278,9 +300,17 @@ export default function Main() {
     setEditing(ev)
     setFormOpen(true)
   }
+  function openRecommendationDeadline(playlistId: string) {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('event')
+    url.searchParams.set('nav', 'music')
+    url.searchParams.set('playlist', playlistId)
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+    setNav('music')
+  }
 
   if (channelOnboarding) return <Onboarding onCancel={() => setChannelOnboarding(false)} />
-  if (settingsOpen) return <Settings onClose={() => setSettingsOpen(false)} />
+  if (settingsOpen) return <Settings initialTab={settingsTab} onClose={() => setSettingsOpen(false)} />
 
   // <전체> 다음은 무지개(빨강→보라) 순: 공연(코랄) · 번개(옐로) · 합주(시안) · 회의(인디고)
   const TYPE_ORDER: EventType[] = ['show', 'flash', 'practice', 'meeting']
@@ -306,38 +336,15 @@ export default function Main() {
             <span className="workspace-context"><i>{workspaceTemplate.symbol}</i>{workspaceTemplate.label}</span>
             <h1>{nav === 'home' ? (workspace?.name || 'Amici Band') : workspaceTemplate.navigation.find((item) => item.id === nav)?.label}</h1>
           </div>
-          <button className="ghost-btn icon" onClick={() => setSettingsOpen(true)} aria-label="설정" title="설정">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-            </svg>
+          <button className="ghost-btn feedback-top-btn" onClick={() => setFeedbackOpen(true)} aria-label="의견 보내기" title="의견 보내기">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h7" /><path d="m16 5 3 3" /><path d="m14 10 6-6a1.4 1.4 0 0 1 2 2l-6 6-3 1Z" /></svg>
+            <span>의견 보내기</span>
           </button>
           <div className="usermenu">
             <button className="ghost-btn" onClick={() => setMenuOpen((v) => !v)}>
               {member?.name}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="m6 9 6 6 6-6" /></svg>
             </button>
-            {menuOpen && (
-              <div className="menu" onMouseLeave={() => setMenuOpen(false)}>
-                {channels.length > 1 && (['personal', 'shared'] as const).map((group) => {
-                  const grouped = channels.filter((channel) => group === 'personal' ? channel.templateId === 'personal' : channel.templateId !== 'personal')
-                  if (!grouped.length) return null
-                  return (
-                    <div className="menu-channel-group" key={group}>
-                      <div className="menu-group-label">{group === 'personal' ? '개인 채널' : '공동 채널'}</div>
-                      {grouped.map((channel) => (
-                        <button key={channel.id} className={channel.id === bandId ? 'active' : ''} onClick={() => void selectChannel(channel.id)}>
-                          <span>{channel.name}</span>{channel.id === bandId && <small>사용 중</small>}
-                        </button>
-                      ))}
-                    </div>
-                  )
-                })}
-                {channels.length > 1 && <div className="menu-divider" />}
-                <button onClick={() => { setMenuOpen(false); setChannelOnboarding(true) }}>채널 추가</button>
-                <button onClick={signOutUser}>로그아웃</button>
-              </div>
-            )}
           </div>
         </div>
       </header>
@@ -398,18 +405,18 @@ export default function Main() {
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
         {view === 'calendar' ? (
-          <CalendarView events={calEvents} placesMap={placesMap} members={members} toast={toast} onEdit={openEdit} cursor={calCursor} selected={calSelected} onSelect={setCalSelected} />
+          <CalendarView events={calEvents} placesMap={placesMap} members={members} toast={toast} onEdit={openEdit} onOpenRecommendation={openRecommendationDeadline} cursor={calCursor} selected={calSelected} onSelect={setCalSelected} />
         ) : (
         <>
         {tab === 'upcoming' && (next ? (
-          <div className="hero" style={{ ['--k' as string]: TYPE_META[next.type].color }}>
+          <div className="hero" style={{ ['--k' as string]: next.recommendationPlaylistId ? '#b7bac3' : next.color || TYPE_META[next.type].color }}>
             <TypeGlyph type={next.type} className="wm" />
-            <div className="eyebrow">다음 일정 · {TYPE_META[next.type].label}</div>
+            <div className="eyebrow">다음 일정 · {next.recommendationPlaylistId ? '마감' : TYPE_META[next.type].label}</div>
             <div className="dday">
               <b>{ddayLabel(dayDiff(next.date))}</b>
               <span>{longWhen(next)}</span>
             </div>
-            <h2>{next.title}</h2>
+            <h2>{next.recommendationPlaylistId ? next.musicDeadlineKind === 'vote' ? '추천곡 투표 마감' : '추천곡 추가 마감' : next.title}</h2>
             {nextPlace && (
               <div className="meta">
                 <span className="loc-line">
@@ -452,7 +459,9 @@ export default function Main() {
                     place={resolvePlace(ev, placesMap)}
                     members={members}
                     onEdit={() => openEdit(ev)}
+                    onOpenRecommendation={openRecommendationDeadline}
                     toast={toast}
+                    autoOpenVote={ev.id === deepEventId}
                   />
                 ))}
               </div>
@@ -505,6 +514,30 @@ export default function Main() {
         <EventForm editing={editing} places={places} onClose={() => setFormOpen(false)} />
       )}
 
+      {menuOpen && <Sheet onClose={() => setMenuOpen(false)} className="account-menu-sheet">
+        <div className="account-menu-profile">
+          <span className="account-menu-avatar">{member?.name?.trim().charAt(0) || '?'}</span>
+          <div><strong>{member?.name}</strong><small>{workspace?.name || '채널'}</small></div>
+        </div>
+        <section className="account-menu-section">
+          <h3>채널</h3>
+          <div className="account-channel-list">
+            {channels.map((channel) => <button key={channel.id} type="button" className={channel.id === bandId ? 'active' : ''} onClick={() => void selectChannel(channel.id)}>
+              <span><i>{getWorkspaceTemplate(channel.templateId).symbol}</i>{channel.name}</span>
+              {channel.id === bandId && <b>사용 중</b>}
+            </button>)}
+          </div>
+        </section>
+        <div className="account-menu-actions">
+          <button type="button" onClick={() => { setMenuOpen(false); setChannelOnboarding(true) }}><span className="account-action-icon">＋</span><span>채널 추가</span></button>
+          {isAdmin && workspace?.templateId !== 'personal' && <button type="button" onClick={() => { setMenuOpen(false); setSettingsTab('band'); setSettingsOpen(true) }}><span className="account-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span><span>채널 관리</span></button>}
+          <button type="button" onClick={() => { setMenuOpen(false); setSettingsTab('general'); setSettingsOpen(true) }}><span className="account-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.5 6A7 7 0 0 0 9 7L6.6 6 4.6 9.5 6.7 11a7 7 0 0 0 0 2L4.6 14.5l2 3.5L9 17a7 7 0 0 0 1.5 1l.2 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1Z"/></svg></span><span>설정</span></button>
+          <button type="button" className="account-signout" onClick={signOutUser}><span className="account-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></svg></span><span>로그아웃</span></button>
+        </div>
+      </Sheet>}
+
+      {feedbackOpen && <FeedbackSheet toast={toast} onClose={() => setFeedbackOpen(false)} />}
+
       {workspaceTemplate.id === 'band' && shareRequest?.youtubeUrl && (
         <SharedTrackImport
           initialUrl={shareRequest.youtubeUrl}
@@ -531,7 +564,7 @@ export default function Main() {
 function NavIcon({ id }: { id: WorkspaceNavId }) {
   if (id === 'music') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
   if (id === 'scores') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" /></svg>
-  if (id === 'recordings') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3z" /></svg>
+  if (id === 'recordings') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
   if (id === 'journal') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
   if (id === 'places') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>

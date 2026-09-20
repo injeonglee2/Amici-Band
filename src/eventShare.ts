@@ -2,8 +2,17 @@ import { copyText } from './clipboard'
 import type { ResolvedPlace } from './place'
 import { parseDate, weekday } from './time'
 import { TYPE_META, type BandEvent } from './types'
+import { getCurrentBand } from './band'
 
 const APP_URL = 'https://amicicalender.web.app/'
+
+function eventUrl(eventId: string): string {
+  const url = new URL(APP_URL)
+  url.searchParams.set('event', eventId)
+  const bandId = getCurrentBand()
+  if (bandId) url.searchParams.set('band', bandId)
+  return url.toString()
+}
 
 export function voteRequestMessage(event: BandEvent, place: ResolvedPlace | null, undecidedCount: number): string {
   const date = parseDate(event.date)
@@ -15,7 +24,7 @@ export function voteRequestMessage(event: BandEvent, place: ResolvedPlace | null
     `현재 미정 ${undecidedCount}명`,
     '',
     '아래 Amici 앱에서 참석 여부를 선택해 주세요.',
-    APP_URL,
+    eventUrl(event.id),
   ].join('\n')
 }
 

@@ -18,7 +18,7 @@ export default function EventSheetHeader({
   inlineDateTime?: boolean
 }) {
   const d = parseDate(ev.date)
-  const dateTime = <>{d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}) · {ev.rehStart}–{ev.rehEnd}</>
+  const dateTime = <>{d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}){ev.allDay ? '' : ` · ${ev.rehStart}–${ev.rehEnd}`}</>
   return (
     <div className="setlist-head">
       <div className="setlist-head-title">

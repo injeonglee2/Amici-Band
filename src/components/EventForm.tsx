@@ -13,8 +13,11 @@ import { todayStr, toMin } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import ThemeSelect from './ThemeSelect'
 import Sheet from './Sheet'
+import ColorPicker from './ColorPicker'
 import { useBackHandler } from '../backnav'
 import { searchPlaces, type PlaceHit } from '../mapsearch'
+
+const OTHER_COLORS = ['#b7bac3', '#ef6f91', '#e7a94b', '#68b985', '#55a8d8', '#7e9ae6', '#a98bd4', '#d17dba']
 
 export default function EventForm({
   editing,
@@ -46,6 +49,7 @@ export default function EventForm({
     : presetFor('practice')
 
   const [type, setType] = useState<EventType>(editing?.type ?? 'practice')
+  const [otherColor, setOtherColor] = useState(editing?.color ?? OTHER_COLORS[0])
   const [title, setTitle] = useState(editing?.title ?? '')
   const [date, setDate] = useState(editing?.date ?? todayStr())
   const [rehStart, setRehStart] = useState(seed.rehStart)
@@ -92,7 +96,7 @@ export default function EventForm({
   }
 
   const canDelete = editing && user && editing.createdBy === user.uid
-  const timeValid = toMin(rehEnd) > toMin(rehStart)
+  const timeValid = type === 'other' || toMin(rehEnd) > toMin(rehStart)
   const valid = title.trim() && date && timeValid
 
   async function submit() {
@@ -100,24 +104,24 @@ export default function EventForm({
     setBusy(true)
     setErr('')
     try {
-      const ev: BandEvent = {
-        id: editing?.id ?? newId(),
+      const baseEvent: Omit<BandEvent, 'id' | 'date'> = {
         type,
+        color: type === 'other' ? otherColor : undefined,
         title: title.trim(),
-        date,
-        rehStart,
-        rehEnd,
+        rehStart: type === 'other' ? '00:00' : rehStart,
+        rehEnd: type === 'other' ? '00:01' : rehEnd,
+        allDay: type === 'other' ? true : undefined,
         // 등록 장소를 골랐으면 placeId, 아니면 직접 입력(loc). 둘 중 하나만 저장
-        placeId: placeId || undefined,
-        loc: placeId ? undefined : loc.trim() || undefined,
-        locAddress: placeId || !loc.trim() ? undefined : locAddress.trim() || undefined,
-        note: note.trim(),
+        placeId: type === 'other' ? undefined : placeId || undefined,
+        loc: type === 'other' ? undefined : placeId ? undefined : loc.trim() || undefined,
+        locAddress: type === 'other' ? undefined : placeId || !loc.trim() ? undefined : locAddress.trim() || undefined,
+        note: type === 'other' ? '' : note.trim(),
         // 관리자만 설정 가능. 일반 일정은 필드를 생략해 기존 데이터와 같은 공개 상태로 저장한다.
         adminOnly: member?.admin && adminOnly ? true : undefined,
         createdBy: editing?.createdBy ?? user.uid,
         createdAt: editing?.createdAt ?? Date.now(),
       }
-      await saveEvent(ev)
+      await saveEvent({ ...baseEvent, id: editing?.id ?? newId(), date })
       onClose()
     } catch (e) {
       const code = (e as { code?: string })?.code ?? ''
@@ -156,7 +160,7 @@ export default function EventForm({
                 key={k}
                 type="button"
                 aria-pressed={type === k}
-                style={{ ['--k' as string]: TYPE_META[k].color }}
+                style={{ ['--k' as string]: k === 'other' ? otherColor : TYPE_META[k].color }}
                 onClick={() => chooseType(k)}
               >
                 <TypeGlyph type={k} className="type-ico" />
@@ -165,6 +169,11 @@ export default function EventForm({
             ))}
           </div>
         </div>
+
+        {type === 'other' && <div className="field">
+          <label>기타 일정 색상</label>
+          <ColorPicker colors={OTHER_COLORS} value={otherColor} onChange={setOtherColor} />
+        </div>}
 
         {/* 제목 + 날짜 한 줄: 제목이 남는 공간, 날짜는 내용 너비 */}
         <div className="evt-title-date">
@@ -178,6 +187,7 @@ export default function EventForm({
           </div>
         </div>
 
+        {type !== 'other' && <>
         {/* 진행 시간 (제목·날짜 바로 아래) */}
         <div className="field">
           <label>진행 시간</label>
@@ -249,6 +259,7 @@ export default function EventForm({
           <label htmlFor="f-note">메모 (선택)</label>
           <textarea id="f-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={400} rows={5} />
         </div>
+        </>}
 
         {!!member?.admin && (
           <div className="event-visibility-row">
