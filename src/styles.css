@@ -1902,7 +1902,6 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .music-tabs input { min-width: 0; flex: 1; }
 .music-tabs .chip.on { background: var(--accent); color: white; }
 .folder-filter-tabs { margin-top: 0; padding: 12px 0; }
-.folder-detail-tabs { padding: 6px 20px 0; }
 .folder-filter-tabs + .playlist-list { margin-top: 0; }
 .vote-vocal-list { display: grid; gap: 8px; margin: 14px 0; }
 .vote-vocal-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }

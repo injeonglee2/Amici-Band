@@ -500,7 +500,7 @@ function AddScoreFlow({
   const [progress, setProgress] = useState('')
   const [err, setErr] = useState('')
 
-  useEffect(() => watchPlaylists(setPlaylists), [])
+  useEffect(() => watchPlaylists((all) => setPlaylists(all.filter((p) => p.templateId === 'performance' || p.templateId === 'rehearsal'))), [])
   useEffect(() => {
     if (!openPl) {
       setTracks([])

@@ -104,7 +104,7 @@ export default function FolderModule<TFolder extends FolderEntity>({
     if (matching) setFilterId(matching.id)
   }, [open, config.filters])
   const visibleFolders = filterId === 'all' ? folders : folders.filter((folder) => config.filters?.find((filter) => filter.id === filterId)?.match(folder))
-  if (open) return <><div className="folder-detail-tabs">{filterTabs}</div>{renderDetail(open, () => setOpenId(null))}</>
+  if (open) return renderDetail(open, () => setOpenId(null))
 
   return (
     <>
