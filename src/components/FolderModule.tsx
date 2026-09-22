@@ -104,7 +104,11 @@ export default function FolderModule<TFolder extends FolderEntity>({
     if (matching) setFilterId(matching.id)
   }, [open, config.filters])
   const visibleFolders = filterId === 'all' ? folders : folders.filter((folder) => config.filters?.find((filter) => filter.id === filterId)?.match(folder))
-  if (open) return renderDetail(open, () => setOpenId(null))
+  if (open) {
+    // 칩이 직접 열어준 폴더(합주곡)에서만 칩이 탐색 수단으로 남는다
+    const openedByFilter = config.filters?.find((filter) => filter.id === filterId)?.openFolderId === open.id
+    return <>{openedByFilter && <div className="folder-detail-tabs">{filterTabs}</div>}{renderDetail(open, () => setOpenId(null))}</>
+  }
 
   return (
     <>

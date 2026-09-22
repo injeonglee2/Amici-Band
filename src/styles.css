@@ -150,7 +150,10 @@ button { font-family: inherit; }
 .account-menu-sheet { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 .account-menu-profile { display: flex; align-items: center; gap: 12px; margin: 2px 0 18px; }
 .account-menu-avatar { flex: none; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); font-size: 17px; font-weight: 800; }
-.account-menu-profile div { min-width: 0; }
+.account-menu-profile div { flex: 1; min-width: 0; }
+.account-profile-action { flex: none; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--ink-faint); cursor: pointer; }
+.account-profile-action svg { width: 18px; height: 18px; }
+.account-profile-action:hover { color: var(--ink); border-color: var(--line-strong); }
 .account-menu-profile strong, .account-menu-profile small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-menu-profile strong { color: var(--ink); font-size: 16px; }
 .account-menu-profile small { margin-top: 3px; color: var(--ink-faint); font-size: 11.5px; }
@@ -1902,6 +1905,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .music-tabs input { min-width: 0; flex: 1; }
 .music-tabs .chip.on { background: var(--accent); color: white; }
 .folder-filter-tabs { margin-top: 0; padding: 12px 0; }
+.folder-detail-tabs { padding: 6px 20px 0; }
 .folder-filter-tabs + .playlist-list { margin-top: 0; }
 .vote-vocal-list { display: grid; gap: 8px; margin: 14px 0; }
 .vote-vocal-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
