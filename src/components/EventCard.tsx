@@ -61,10 +61,14 @@ export default function EventCard({
   const deadlineTitle = ev.musicDeadlineKind === 'vote' ? '추천곡 투표 마감' : '추천곡 추가 마감'
   const deadlinePlaylistName = ev.recommendationPlaylistName || ev.title.replace(/\s+(추천곡|투표)\s*마감$/, '')
   const deadlineSummary = ev.musicDeadlineKind === 'vote' ? `인당 최대 ${ev.voteSelectionCount ?? 1}곡 선택` : `인당 최대 ${ev.recommendationLimit ?? 1}곡 추천`
-  // 관리자 전용 일정은 관리자만 참석 대상이다. 과거에 남은 일반 멤버 투표도 집계에서 제외한다.
+  // 관리자 전용 일정은 관리자, 그룹 대상 일정은 생성 당시 지정된 멤버만 집계한다.
   const eligibleMembers = useMemo(
-    () => (ev.adminOnly ? members.filter((m) => m.admin) : members),
-    [ev.adminOnly, members],
+    () => ev.adminOnly
+      ? members.filter((m) => m.admin)
+      : ev.targetMemberIds?.length
+        ? members.filter((m) => ev.targetMemberIds!.includes(m.uid))
+        : members,
+    [ev.adminOnly, ev.targetMemberIds, members],
   )
   const eligibleUids = useMemo(() => new Set(eligibleMembers.map((m) => m.uid)), [eligibleMembers])
   const eligibleAtt = useMemo(() => att.filter((a) => eligibleUids.has(a.uid)), [att, eligibleUids])
@@ -149,6 +153,7 @@ export default function EventCard({
               <TypeGlyph type={ev.type} className="type-ico" />
               <h3>{isRecommendationDeadline ? deadlineTitle : ev.title}</h3>
               {ev.adminOnly && isAdmin && <span className="admin-only-badge">관리자</span>}
+              {!ev.adminOnly && ev.targetGroupName && <span className="event-target-badge">{ev.targetGroupName}</span>}
             </div>
             {(!ev.allDay || isRecommendationDeadline || place) && <div className="sub">
               {isRecommendationDeadline ? <>

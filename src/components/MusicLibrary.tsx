@@ -6,6 +6,7 @@ import FolderModule from './FolderModule'
 import { PlaylistDetail } from './Music'
 import { MUSIC_FOLDER_CONFIG, playlistRepository } from './musicRepository'
 import type { ToastState } from './Toast'
+import { REHEARSAL_PLAYLIST_ID, REHEARSAL_PLAYLIST_NAME } from '../musicCatalog'
 
 export default function MusicLibrary({ toast }: { toast: ToastState }) {
   const { member } = useAuth()
@@ -13,6 +14,10 @@ export default function MusicLibrary({ toast }: { toast: ToastState }) {
   const [linked, setLinked] = useState<Set<string> | null>(null)
 
   useEffect(() => watchPlaylists(setLists, () => {}), [])
+  useEffect(() => {
+    if (!member || lists.some((playlist) => playlist.id === REHEARSAL_PLAYLIST_ID)) return
+    void savePlaylist({ id: REHEARSAL_PLAYLIST_ID, name: REHEARSAL_PLAYLIST_NAME, templateId: 'rehearsal', createdBy: member.uid, createdAt: 0 }).catch(() => {})
+  }, [lists, member])
   // 기존 프로젝트는 추천곡 템플릿으로 승계한다. 요청된 2026 11월 공연도 이름 기준으로 함께 전환한다.
   useEffect(() => {
     if (!member) return

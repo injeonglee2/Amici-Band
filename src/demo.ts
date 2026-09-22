@@ -7,7 +7,7 @@
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, Band, BandEvent, CustomEventType, EventType, Member, Place, Playlist, Recording, RecordingFolder, RunningEntry, Score, SetlistSong, Track, TrackPart } from './types'
+import type { Attendance, Band, BandEvent, CustomEventType, EventType, Member, MemberGroup, Place, Playlist, Recording, RecordingFolder, RunningEntry, Score, SetlistSong, Track, TrackPart } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
@@ -171,6 +171,7 @@ const eventTypesCol = makeCollection<CustomEventType>(demoPersonalTypes)
 const isPersonalChannel = () => demoActiveWorkspace().templateId === 'personal'
 const placesCol = makeCollection<Place>(initialPlaces)
 const membersCol = makeCollection<Member>(initialMembers)
+const memberGroupsCol = makeCollection<MemberGroup>([])
 const playlistsCol = makeCollection<Playlist>(initialPlaylists)
 
 // 참석은 이벤트별 컬렉션
@@ -326,6 +327,9 @@ const scoresCol = makeCollection<Score>(initialScores)
 
 export const demoDb = {
   watchMembers: (cb: Sub<Member[]>) => membersCol.watch(cb),
+  watchMemberGroups: (cb: Sub<MemberGroup[]>) => memberGroupsCol.watch(cb),
+  saveMemberGroup: (group: MemberGroup) => memberGroupsCol.upsert(group, (item) => item.id),
+  deleteMemberGroup: (id: string) => memberGroupsCol.remove(id, (item) => item.id),
   watchEvents: (cb: Sub<BandEvent[]>) => (isPersonalChannel() ? personalEventsCol : eventsCol).watch(cb),
   saveEvent: (ev: BandEvent) => (isPersonalChannel() ? personalEventsCol : eventsCol).upsert(ev, (x) => x.id),
   deleteEvent: (id: string) => (isPersonalChannel() ? personalEventsCol : eventsCol).remove(id, (x) => x.id),

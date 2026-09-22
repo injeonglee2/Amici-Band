@@ -1345,6 +1345,8 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 
 /* 일정 폼: 장소(등록 선택 + 직접 지도 검색) 한 줄. (장소 탭의 .place-row 와 충돌 피하려 별도 클래스) */
 .evt-place-row { display: flex; gap: 8px; align-items: stretch; }
+.evt-place-target-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.evt-place-target-grid .field { min-width: 0; }
 .evt-place-row .place-select, .evt-place-row .theme-select { flex: 1; min-width: 0; }
 /* 직접 검색이 함께 보일 때만 select 를 안내문("직접 입력 / 없음") 길이만큼 줄이고, 검색창을 넓힌다 */
 .evt-place-row:has(.place-search) .place-select,
@@ -1652,6 +1654,23 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .mm-tag.admin { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
 .mm-actions { flex: none; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .mm-card .mm-list { margin-top: 12px; }
+.member-groups-head { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.member-groups-head > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.member-groups-head b { font-size: 14px; }
+.member-groups-head span { color: var(--ink-soft); font-size: 11px; }
+.member-group-list { display: flex; flex-direction: column; margin-top: 10px; gap: 6px; }
+.member-group-list > button { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--ink); padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; text-align: left; }
+.member-group-list > button > span:first-child { display: flex; align-items: baseline; gap: 8px; }
+.member-group-list small { color: var(--ink-soft); }
+.member-group-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.member-group-picks > button { min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--ink); padding: 10px; display: flex; align-items: center; gap: 8px; text-align: left; }
+.member-group-picks > button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 11%, var(--surface-2)); }
+.member-group-picks > button > span:last-child { min-width: 0; display: flex; flex-direction: column; }
+.member-group-picks b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-group-picks small { color: var(--ink-soft); }
+.member-group-check { width: 20px; height: 20px; flex: none; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; color: white; }
+.member-group-picks > button.on .member-group-check { border-color: var(--accent); background: var(--accent); }
+.event-target-badge { flex: none; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 800; color: #8ab9ff; background: color-mix(in srgb, #4c91f3 18%, transparent); }
 /* 파트 필터: 아이콘 → 드롭다운 팝업 + 선택 시 활성 뱃지 */
 .mm-filter-wrap { position: relative; flex: none; }
 .mm-filter-menu {
@@ -1883,6 +1902,7 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .music-tabs input { min-width: 0; flex: 1; }
 .music-tabs .chip.on { background: var(--accent); color: white; }
 .folder-filter-tabs { margin-top: -6px; padding: 12px 0; }
+.folder-detail-tabs { padding: 0 20px; }
 .folder-filter-tabs + .playlist-list { margin-top: 0; }
 .vote-vocal-list { display: grid; gap: 8px; margin: 14px 0; }
 .vote-vocal-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
@@ -1890,6 +1910,17 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .vote-vocal-limit { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: 12px; }
 .vote-vocal-limit input { width: 58px; padding: 7px; }
 .vote-setting-section { margin-top: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--surface) 88%, transparent); }
+.vote-setting-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.vote-setting-pair .vote-setting-section { min-width: 0; padding: 14px; }
+.vote-setting-pair .vote-setting-head { align-items: flex-start; gap: 8px; }
+.vote-setting-pair .vote-setting-head h3 { line-height: 1.25; }
+.vote-setting-pair .vote-count-control { grid-template-columns: 34px minmax(0, 1fr) 34px; gap: 4px; margin-bottom: 0; }
+.vote-setting-pair .vote-count-control button { width: 34px; height: 38px; border-radius: 10px; }
+.vote-setting-pair .vote-count-control output { display: flex; align-items: baseline; justify-content: center; gap: 3px; min-width: 0; }
+.vote-setting-pair .vote-count-control output strong { font-size: 22px; }
+.vote-setting-pair .vote-count-control output span { color: var(--ink-soft); font-size: 13px; }
+.vote-setting-pair .recommendation-deadline-field { margin-top: 0; }
+.vote-setting-pair .recommendation-deadline-field input { min-width: 0; padding-inline: 9px; }
 .vote-setting-head { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
 .vote-setting-head h3 { margin: 0 0 3px; font-size: 15px; }
 .vote-setting-step { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 800; }
@@ -2275,6 +2306,8 @@ html[data-template='personal'] .chip[aria-pressed='true'] { color: #fff; }
 .recommendation-vote-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .recommendation-vote-btn svg { width: 16px; height: 16px; }
 .recommendation-vote-btn.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); }
+.recommendation-actions > .btn { min-width: 0; padding-inline: 12px; white-space: nowrap; font-size: 13px; }
+.recommendation-actions .play-all { flex: 1 1 auto; }
 .selected-link-actions .btn { padding-inline: 12px; }
 .selected-link-actions .btn:last-child { flex: 1.45; }
 .recommendation-request-section { margin-top: 14px; }

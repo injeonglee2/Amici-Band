@@ -8,8 +8,10 @@ import type { ToastState } from './Toast'
 import Sheet from './Sheet'
 import ConfirmDialog from './ConfirmDialog'
 import ThemeSelect from './ThemeSelect'
+import Segmented from './Segmented'
+import { REHEARSAL_PLAYLIST_ID } from '../musicCatalog'
 
-export default function MusicCandidates({ playlist, toast, editMode, onEditTrack, onDeleteTrack, onAdd, settingsOpen, onSettingsOpen, onSettingsClose }: { playlist: Playlist; toast: ToastState; editMode: boolean; onEditTrack: (track: Track) => void; onDeleteTrack: (track: Track) => void; onAdd: () => void; settingsOpen: boolean; onSettingsOpen: () => void; onSettingsClose: () => void }) {
+export default function MusicCandidates({ playlist, toast, editMode, onEditTrack, onDeleteTrack, onAdd, onExport, exporting, settingsOpen, onSettingsOpen, onSettingsClose }: { playlist: Playlist; toast: ToastState; editMode: boolean; onEditTrack: (track: Track) => void; onDeleteTrack: (track: Track) => void; onAdd: () => void; onExport: () => void; exporting: boolean; settingsOpen: boolean; onSettingsOpen: () => void; onSettingsClose: () => void }) {
   const { member } = useAuth()
   const [tracks, setTracks] = useState<Track[]>([])
   const [playingId, setPlayingId] = useState<string | null>(null)
@@ -24,13 +26,17 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
   const [cancelConfirm, setCancelConfirm] = useState(false)
   const [openingNewVote, setOpeningNewVote] = useState(false)
   const [voteDeadline, setVoteDeadline] = useState('')
+  const [voteType, setVoteType] = useState<'vocal' | 'instrument'>('vocal')
+  const [rehearsalTracks, setRehearsalTracks] = useState<Track[]>([])
 
   useEffect(() => watchAllMusicTracks(playlist.id, setTracks, (e) => setError(e.message)), [playlist.id])
   useEffect(() => watchMembers(setMembers, () => {}), [])
   useEffect(() => watchPlaylists(setPlaylists, () => {}), [])
+  useEffect(() => watchAllMusicTracks(REHEARSAL_PLAYLIST_ID, setRehearsalTracks, () => {}), [])
   useEffect(() => {
     if (!settingsOpen) return
     setSelectionCount(playlist.voteSelectionCount ?? 1)
+    setVoteType(playlist.voteType ?? 'vocal')
     setVoterLimits(playlist.voteOpen ? (playlist.voteVoterLimits ?? {}) : {})
     setTargetPlaylistId(playlist.voteTargetPlaylistId ?? '')
     const now = new Date()
@@ -40,7 +46,7 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
     setVoteDeadline(playlist.voteDeadline && playlist.voteDeadline >= today ? playlist.voteDeadline : fallback)
     setEditingVote(false)
     setOpeningNewVote(false)
-  }, [settingsOpen, playlist.voteOpen, playlist.voteSelectionCount, playlist.voteVoterLimits, playlist.voteTargetPlaylistId])
+  }, [settingsOpen, playlist.voteOpen, playlist.voteType, playlist.voteSelectionCount, playlist.voteVoterLimits, playlist.voteTargetPlaylistId])
 
   const recommendationTracks = tracks
     .filter((track) => track.candidateStatus)
@@ -55,13 +61,16 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
   const winnerCount = Math.max(1, playlist.voteSelectionCount ?? 1)
   const maxVotes = member ? Math.max(0, playlist.voteVoterLimits?.[member.uid] ?? 0) : 0
   const myVoteCount = member ? candidates.filter((track) => track.votes?.[member.uid]).length : 0
-  const canVote = member?.part === 'vocal' && maxVotes > 0
+  const activeVoteType = playlist.voteType ?? 'vocal'
+  const canVote = maxVotes > 0 && (activeVoteType === 'vocal' ? member?.part === 'vocal' : !!member?.part && member.part !== 'vocal')
   const vocalMembers = members.filter((item) => item.part === 'vocal')
+  const instrumentMembers = members.filter((item) => item.part && item.part !== 'vocal')
   const performancePlaylists = playlists.filter((item) => item.templateId === 'performance')
   const selectedResults = tracks.filter((track) => playlist.lastSelectedTrackIds?.includes(track.id))
   const hasSavedResults = selectedResults.length > 0
   const selectedVocalIds = vocalMembers.filter((vocal) => (voterLimits[vocal.uid] ?? 0) > 0).map((vocal) => vocal.uid)
   const allVocalsSelected = vocalMembers.length > 0 && selectedVocalIds.length === vocalMembers.length
+  const eligibleVoters = voteType === 'vocal' ? selectedVocalIds : instrumentMembers.map((item) => item.uid)
 
   function toggleAllVocals(checked: boolean) {
     setVoterLimits(Object.fromEntries(vocalMembers.map((vocal) => [vocal.uid, checked ? selectionCount : 0])))
@@ -89,9 +98,9 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
   async function openVote() {
     if (!member?.admin || busyId || candidates.length === 0) return
     const count = Math.max(1, Math.min(selectionCount, candidates.length))
-    const enabledLimits = Object.fromEntries(Object.entries(voterLimits).filter(([, limit]) => limit > 0).map(([uid]) => [uid, count]))
+    const enabledLimits = Object.fromEntries(eligibleVoters.map((uid) => [uid, count]))
     if (!Object.keys(enabledLimits).length) {
-      setError('투표에 참여할 보컬을 한 명 이상 선택해 주세요.')
+      setError(voteType === 'vocal' ? '투표에 참여할 보컬을 한 명 이상 선택해 주세요.' : '악기 파트로 등록된 멤버가 없어요.')
       return
     }
     setBusyId('vote-session')
@@ -99,7 +108,7 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
     try {
       await Promise.all(candidates.map((track) => updateMusicTrack(playlist.id, track.id, { votes: {} })))
       await Promise.all([
-        savePlaylist({ ...playlist, voteOpen: true, voteSelectionCount: count, voteVoterLimits: enabledLimits, lastSelectedTrackIds: [], voteLinkedPlaylistIds: [], voteOpenedAt: Date.now(), voteDeadline }),
+        savePlaylist({ ...playlist, voteOpen: true, voteType, voteSelectionCount: count, voteVoterLimits: enabledLimits, lastSelectedTrackIds: [], voteLinkedPlaylistIds: [], voteOpenedAt: Date.now(), voteDeadline }),
         saveEvent({ id: `recommendation-vote-deadline-${playlist.id}`, type: 'practice', title: '추천곡 투표 마감', date: voteDeadline, rehStart: '23:59', rehEnd: '23:59', recommendationPlaylistId: playlist.id, recommendationPlaylistName: playlist.name, musicDeadlineKind: 'vote', voteSelectionCount: count, note: '', createdBy: member.uid, createdAt: Date.now() }),
       ])
       toast.show(`${count}곡 선정 투표를 시작했어요`)
@@ -114,7 +123,7 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
   async function saveVoteChanges() {
     if (!member?.admin || busyId) return
     const count = Math.max(1, Math.min(selectionCount, candidates.length))
-    const enabledLimits = Object.fromEntries(Object.entries(voterLimits).filter(([, limit]) => limit > 0).map(([uid]) => [uid, count]))
+    const enabledLimits = Object.fromEntries(eligibleVoters.map((uid) => [uid, count]))
     if (!Object.keys(enabledLimits).length) return
     setBusyId('vote-session')
     setError('')
@@ -130,7 +139,7 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
         await Promise.all(selected.slice(count).map((track) => updateMusicTrack(playlist.id, track.id, { [`votes.${uid}`]: false })))
       }
       await Promise.all([
-        savePlaylist({ ...playlist, voteOpen: true, voteSelectionCount: count, voteVoterLimits: enabledLimits, voteDeadline }),
+        savePlaylist({ ...playlist, voteOpen: true, voteType, voteSelectionCount: count, voteVoterLimits: enabledLimits, voteDeadline }),
         saveEvent({ id: `recommendation-vote-deadline-${playlist.id}`, type: 'practice', title: '추천곡 투표 마감', date: voteDeadline, rehStart: '23:59', rehEnd: '23:59', recommendationPlaylistId: playlist.id, recommendationPlaylistName: playlist.name, musicDeadlineKind: 'vote', voteSelectionCount: count, note: '', createdBy: member.uid, createdAt: playlist.voteOpenedAt ?? Date.now() }),
       ])
       toast.show('투표 설정을 수정했어요')
@@ -189,12 +198,23 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
     setBusyId('link-results')
     try {
       const now = Date.now()
-      await Promise.all(selectedResults.map((track, index) => saveTrack(targetPlaylistId, {
-        ...track, id: newId(), order: now + index, addedAt: now + index,
-        candidateStatus: undefined, votes: undefined, reviews: undefined, recommendation: undefined,
-      })))
+      await Promise.all(selectedResults.map(async (track, index) => {
+        let source = rehearsalTracks.find((item) => item.videoId && item.videoId === track.videoId)
+        if (!source) {
+          source = {
+            ...track, id: newId(), order: now + index, addedAt: now + index,
+            candidateStatus: undefined, votes: undefined, reviews: undefined, recommendation: undefined,
+          }
+          await saveTrack(REHEARSAL_PLAYLIST_ID, source)
+        }
+        await saveTrack(targetPlaylistId, {
+          ...source, id: newId(), order: now + index, addedAt: now + index,
+          sourcePlaylistId: REHEARSAL_PLAYLIST_ID, sourceTrackId: source.id,
+          candidateStatus: undefined, votes: undefined, reviews: undefined, recommendation: undefined,
+        })
+      }))
       await savePlaylist({ ...playlist, voteLinkedPlaylistIds: [...new Set([...(playlist.voteLinkedPlaylistIds ?? []), targetPlaylistId])] })
-      toast.show('선정곡을 재생목록에 추가했어요')
+      toast.show('선정곡을 합주곡에 저장하고 공연곡에 추가했어요')
       setTargetPlaylistId('')
     } catch {
       setError('선정곡을 추가하지 못했어요.')
@@ -206,8 +226,8 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
   return <>
     <main className="scroll">
       {error && <div className="banner-err">{error}</div>}
-      {voteOpen && <p className="hint">보컬 투표 진행 중{canVote ? ` · 나는 최대 ${maxVotes}곡 선택` : ''}</p>}
-      {voteOpen && member && !canVote && <p className="hint">이번 투표는 보컬 파트 멤버만 참여할 수 있어요.</p>}
+      {voteOpen && <p className="hint">{activeVoteType === 'instrument' ? '악기' : '보컬'} 투표 진행 중{canVote ? ` · 나는 최대 ${maxVotes}곡 선택` : ''}</p>}
+      {voteOpen && member && !canVote && <p className="hint">이번 투표는 {activeVoteType === 'instrument' ? '악기 파트' : '지정된 보컬'} 멤버만 참여할 수 있어요.</p>}
       {playing && <SetlistPlayer
         track={playing}
         index={playingIndex}
@@ -224,10 +244,13 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
         <p>추천곡이 없어요.<br />아래 <b>+ 곡 추가</b>로 추천할 곡을 넣어보세요.</p>
       </div> : <>
-        {!editMode && <div className="setlist-actions">
+        {!editMode && <div className="setlist-actions recommendation-actions">
           <button className="btn primary play-all" onClick={() => setPlayingId(recommendationTracks[0].id)}>
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
             전체 재생
+          </button>
+          <button className="btn subtle export-btn" onClick={onExport} disabled={exporting} title="유튜브 재생목록으로 저장">
+            {exporting ? '저장 중…' : <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>유튜브 저장</>}
           </button>
           {member?.admin && <button className={'btn subtle recommendation-vote-btn' + (playlist.voteOpen ? ' active' : '')} onClick={onSettingsOpen} aria-label={playlist.voteOpen ? '진행 중인 투표 관리' : playlist.lastSelectedTrackIds?.length ? '선정곡 연결' : '투표 열기'}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l2 2 4-4"/><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/></svg>
@@ -274,17 +297,21 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
     {settingsOpen && member?.admin && <Sheet onClose={onSettingsClose}>
       <h2>{voteOpen ? '투표 관리' : hasSavedResults && !openingNewVote ? '선정곡 연결' : '추천곡 투표 열기'}</h2>
       {voteOpen && !editingVote ? <>
-        <p className="hint">선정곡 {playlist.voteSelectionCount ?? 1}곡 · 지정 보컬 {Object.keys(playlist.voteVoterLimits ?? {}).length}명</p>
-        <div className="vote-vocal-list">{vocalMembers.filter((vocal) => (playlist.voteVoterLimits?.[vocal.uid] ?? 0) > 0).map((vocal) => <div className="vote-vocal-row" key={vocal.uid}><strong>{vocal.name}</strong><span>최대 {playlist.voteVoterLimits?.[vocal.uid]}곡</span></div>)}</div>
+        <p className="hint">{activeVoteType === 'instrument' ? '악기' : '보컬'} 투표 · 선정곡 {playlist.voteSelectionCount ?? 1}곡 · 참여 {Object.keys(playlist.voteVoterLimits ?? {}).length}명</p>
+        <div className="vote-vocal-list">{members.filter((person) => (playlist.voteVoterLimits?.[person.uid] ?? 0) > 0).map((person) => <div className="vote-vocal-row" key={person.uid}><strong>{person.name}</strong><span>최대 {playlist.voteVoterLimits?.[person.uid]}곡</span></div>)}</div>
         <div className="vote-manage-actions"><button className="btn subtle" onClick={() => setEditingVote(true)}>설정 수정</button><button className="btn danger" onClick={() => setCancelConfirm(true)}>투표 취소</button></div>
         <div className="actions"><button className="btn subtle" onClick={onSettingsClose}>닫기</button><button className="btn primary" disabled={!!busyId} onClick={() => void closeVote()}>투표 종료 및 선정</button></div>
       </> : hasSavedResults && !openingNewVote ? <>
         <div className="vote-vocal-list">{selectedResults.map((track) => <div className="vote-vocal-row" key={track.id}><strong>{track.title}</strong><span>{track.artist}</span></div>)}</div>
         <div className="field"><label>공연곡 재생목록</label><ThemeSelect value={targetPlaylistId} onChange={setTargetPlaylistId} title="공연곡 재생목록" placeholder="선택해 주세요" options={performancePlaylists.filter((item) => !playlist.voteLinkedPlaylistIds?.includes(item.id)).map((item) => ({ value: item.id, label: item.name }))} /></div>
-        <div className="actions selected-link-actions"><button className="btn subtle" onClick={onSettingsClose}>닫기</button><button className="btn subtle" onClick={() => { setVoterLimits({}); setOpeningNewVote(true) }}>새 투표</button><button className="btn primary" disabled={!targetPlaylistId || !!busyId} onClick={() => void linkSelectedTracks()}>재생목록에 추가</button></div>
+        <div className="actions selected-link-actions"><button className="btn subtle" onClick={onSettingsClose}>닫기</button><button className="btn subtle" onClick={() => { setVoterLimits({}); setOpeningNewVote(true) }}>새 투표</button><button className="btn primary" disabled={!targetPlaylistId || !!busyId} onClick={() => void linkSelectedTracks()}>공연곡에 추가</button></div>
       </> : <>
         <section className="vote-setting-section">
-          <div className="vote-setting-head"><span className="vote-setting-step">1</span><h3>투표할 보컬</h3></div>
+          <div className="vote-setting-head"><span className="vote-setting-step">1</span><h3>투표 유형</h3></div>
+          <Segmented semantics="single-select" ariaLabel="추천곡 투표 유형" value={voteType} onChange={(value) => setVoteType(value as 'vocal' | 'instrument')} tabs={[{ k: 'vocal', label: '보컬 투표' }, { k: 'instrument', label: '악기 투표' }]} />
+        </section>
+        {voteType === 'vocal' && <section className="vote-setting-section">
+          <div className="vote-setting-head"><span className="vote-setting-step">2</span><h3>투표할 보컬</h3></div>
           <label className="vote-select-all"><span><input type="checkbox" checked={allVocalsSelected} onChange={(e) => toggleAllVocals(e.target.checked)} /><b>전체 보컬</b></span><em>{vocalMembers.length}명</em></label>
           <div className="vote-vocal-grid">{vocalMembers.map((vocal) => {
             const enabled = (voterLimits[vocal.uid] ?? 0) > 0
@@ -294,16 +321,19 @@ export default function MusicCandidates({ playlist, toast, editMode, onEditTrack
             </label>
           })}</div>
           {vocalMembers.length === 0 && <p className="setlist-empty">보컬 파트로 등록된 멤버가 없어요.</p>}
-        </section>
-        <section className="vote-setting-section">
-          <div className="vote-setting-head"><span className="vote-setting-step">2</span><h3>1인당 선택 곡 수</h3></div>
-          <div className="vote-count-control"><button type="button" onClick={() => changeSelectionCount(selectionCount - 1)} disabled={selectionCount <= 1} aria-label="한 곡 줄이기">−</button><strong>{selectionCount}</strong><span>곡</span><button type="button" onClick={() => changeSelectionCount(selectionCount + 1)} disabled={selectionCount >= Math.max(1, candidates.length)} aria-label="한 곡 늘리기">+</button></div>
-        </section>
-        <section className="vote-setting-section">
-          <div className="vote-setting-head"><span className="vote-setting-step">3</span><h3>투표 마감일</h3></div>
-          <div className="field recommendation-deadline-field"><input aria-label="추천곡 투표 마감일" type="date" value={voteDeadline} min={new Date().toLocaleDateString('sv-SE')} onChange={(e) => setVoteDeadline(e.target.value)} /></div>
-        </section>
-        <div className="actions"><button className="btn subtle" onClick={() => editingVote ? setEditingVote(false) : hasSavedResults ? setOpeningNewVote(false) : onSettingsClose()}>{editingVote || hasSavedResults ? '돌아가기' : '취소'}</button><button className="btn primary" disabled={!!busyId || candidates.length === 0 || selectedVocalIds.length === 0 || !voteDeadline} onClick={() => void (editingVote ? saveVoteChanges() : openVote())}>{editingVote ? '변경사항 저장' : <>투표 시작 <span>· {selectedVocalIds.length}명</span></>}</button></div>
+        </section>}
+        {voteType === 'instrument' && <p className="hint">악기 파트로 등록된 멤버 {instrumentMembers.length}명이 투표해요.</p>}
+        <div className="vote-setting-pair">
+          <section className="vote-setting-section vote-count-section">
+            <div className="vote-setting-head"><span className="vote-setting-step">{voteType === 'vocal' ? '3' : '2'}</span><h3>1인당 선택 곡 수</h3></div>
+            <div className="vote-count-control"><button type="button" onClick={() => changeSelectionCount(selectionCount - 1)} disabled={selectionCount <= 1} aria-label="한 곡 줄이기">−</button><output aria-label={`1인당 ${selectionCount}곡 선택`}><strong>{selectionCount}</strong><span>곡</span></output><button type="button" onClick={() => changeSelectionCount(selectionCount + 1)} disabled={selectionCount >= Math.max(1, candidates.length)} aria-label="한 곡 늘리기">+</button></div>
+          </section>
+          <section className="vote-setting-section vote-deadline-section">
+            <div className="vote-setting-head"><span className="vote-setting-step">{voteType === 'vocal' ? '4' : '3'}</span><h3>투표 마감일</h3></div>
+            <div className="field recommendation-deadline-field"><input aria-label="추천곡 투표 마감일" type="date" value={voteDeadline} min={new Date().toLocaleDateString('sv-SE')} onChange={(e) => setVoteDeadline(e.target.value)} /></div>
+          </section>
+        </div>
+        <div className="actions"><button className="btn subtle" onClick={() => editingVote ? setEditingVote(false) : hasSavedResults ? setOpeningNewVote(false) : onSettingsClose()}>{editingVote || hasSavedResults ? '돌아가기' : '취소'}</button><button className="btn primary" disabled={!!busyId || candidates.length === 0 || eligibleVoters.length === 0 || !voteDeadline} onClick={() => void (editingVote ? saveVoteChanges() : openVote())}>{editingVote ? '변경사항 저장' : <>투표 시작 <span>· {eligibleVoters.length}명</span></>}</button></div>
       </>}
     </Sheet>}
     {cancelConfirm && <ConfirmDialog message="진행 중인 투표를 취소할까요? 지금까지의 표는 모두 삭제되고 곡은 선정되지 않아요." confirmLabel="투표 취소" cancelLabel="돌아가기" danger onConfirm={() => void cancelVote()} onCancel={() => setCancelConfirm(false)} />}

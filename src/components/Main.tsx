@@ -235,9 +235,9 @@ export default function Main() {
 
   const sorted = useMemo(
     () => [...events, ...olderEvents]
-      .filter((e) => isAdmin || !e.adminOnly)
+      .filter((e) => isAdmin || (!e.adminOnly && (!e.targetMemberIds?.length || (!!member?.uid && e.targetMemberIds.includes(member.uid)))))
       .sort((a, b) => (a.date + a.rehStart).localeCompare(b.date + b.rehStart)),
-    [events, olderEvents, isAdmin],
+    [events, olderEvents, isAdmin, member?.uid],
   )
   const upcoming = useMemo(() => sorted.filter((e) => dayDiff(e.date) >= 0), [sorted])
   // 지난 일정: 최신순(방금 끝난 것부터)
@@ -269,7 +269,7 @@ export default function Main() {
     setLoadingMore(true)
     try {
       const batch = await loadOlderEvents(olderCursor, 20)
-      const visibleBatch = isAdmin ? batch : batch.filter((e) => !e.adminOnly)
+      const visibleBatch = isAdmin ? batch : batch.filter((e) => !e.adminOnly && (!e.targetMemberIds?.length || (!!member?.uid && e.targetMemberIds.includes(member.uid))))
       if (batch.length) {
         setOlderEvents((prev) => [...prev, ...visibleBatch])
         setOlderCursor(batch[batch.length - 1].date) // 다음 '더보기'는 이보다 더 이전

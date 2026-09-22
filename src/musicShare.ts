@@ -47,7 +47,7 @@ export function recommendationVoteRequestMessage(playlist: Playlist): string {
   return [
     '[Amici 추천곡 투표 요청]',
     playlist.name,
-    `보컬 투표 · 인당 최대 ${playlist.voteSelectionCount ?? 1}곡 선택`,
+    `${playlist.voteType === 'instrument' ? '악기' : '보컬'} 투표 · 인당 최대 ${playlist.voteSelectionCount ?? 1}곡 선택`,
     ...(deadlineLabel ? [`${deadlineLabel} 마감`] : []),
     '',
     '아래 Amici 앱에서 추천곡을 선택해 주세요.',

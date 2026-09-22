@@ -540,9 +540,9 @@ async function sendAllPush(memberDocs, payload) {
 }
 
 function eventAudience(memberDocs, eventData) {
-  return eventData && eventData.adminOnly === true
-    ? memberDocs.filter((member) => member.get('admin') === true)
-    : memberDocs
+  if (eventData && eventData.adminOnly === true) return memberDocs.filter((member) => member.get('admin') === true)
+  const targetMemberIds = Array.isArray(eventData && eventData.targetMemberIds) ? eventData.targetMemberIds : []
+  return targetMemberIds.length ? memberDocs.filter((member) => targetMemberIds.includes(member.id)) : memberDocs
 }
 
 exports.notifyOnEventCreate = onDocumentCreated(

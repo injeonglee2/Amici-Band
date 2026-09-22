@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { deleteFeedback, getActiveInviteCode, getBand, getMonthlyPracticeParticipation, kickMember, rotateInviteCode, saveFcmToken, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMembers } from '../data'
+import { deleteFeedback, deleteMemberGroup, getActiveInviteCode, getBand, getMonthlyPracticeParticipation, kickMember, newId, rotateInviteCode, saveFcmToken, saveMemberGroup, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMemberGroups, watchMembers } from '../data'
 import { useAuth } from '../auth'
 import { isStandaloneApp, mobileOS, notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
@@ -12,7 +12,7 @@ import Sheet from './Sheet'
 import { versionLabel } from '../version'
 import { useBackHandler } from '../backnav'
 import { Icon } from '../icons'
-import { PART_META, type Band, type Feedback, type Member, type Part } from '../types'
+import { PART_META, type Band, type Feedback, type Member, type MemberGroup, type Part } from '../types'
 import { getTemplatePreview, getWorkspaceTemplate, setTemplatePreview, WORKSPACE_TEMPLATES, type WorkspaceTemplateId } from '../workspaceTemplates'
 import FirebaseUsage from './FirebaseUsage'
 import { FeedbackReplyComposer, FeedbackReplyList } from './FeedbackReplies'
@@ -217,7 +217,12 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
   const [partFilter, setPartFilter] = useState<Part | 'all'>('all')
   const [filterOpen, setFilterOpen] = useState(false)
   const [practiceCounts, setPracticeCounts] = useState<Record<string, number> | null>(null)
+  const [groups, setGroups] = useState<MemberGroup[]>([])
+  const [groupEdit, setGroupEdit] = useState<MemberGroup | 'new' | null>(null)
+  const [groupName, setGroupName] = useState('')
+  const [groupMemberIds, setGroupMemberIds] = useState<string[]>([])
   useEffect(() => watchMembers(setMembers), [])
+  useEffect(() => watchMemberGroups(setGroups, () => {}), [])
   useEffect(() => {
     getBand(bandId).then((b) => setOwnerUid(b?.ownerUid ?? null)).catch(() => {})
   }, [bandId])
@@ -267,6 +272,30 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
       setBusy('')
     }
   }
+  function openGroup(group: MemberGroup | 'new') {
+    setGroupEdit(group)
+    setGroupName(group === 'new' ? '' : group.name)
+    setGroupMemberIds(group === 'new' ? [] : group.memberIds)
+  }
+  async function storeGroup() {
+    if (!groupName.trim() || groupMemberIds.length === 0) return
+    const previous = groupEdit === 'new' ? null : groupEdit
+    await saveMemberGroup({
+      id: previous?.id ?? newId(),
+      name: groupName.trim(),
+      memberIds: groupMemberIds,
+      createdBy: previous?.createdBy ?? myUid,
+      createdAt: previous?.createdAt ?? Date.now(),
+    })
+    setGroupEdit(null)
+    toast.show('멤버 그룹을 저장했어요')
+  }
+  async function removeGroup() {
+    if (!groupEdit || groupEdit === 'new' || !confirm(`“${groupEdit.name}” 그룹을 삭제할까요?`)) return
+    await deleteMemberGroup(groupEdit.id)
+    setGroupEdit(null)
+    toast.show('멤버 그룹을 삭제했어요')
+  }
   return (
     <div className={'limits-card mm-card' + (open ? ' open' : '')}>
       <div className="limits-head mm-head">
@@ -313,7 +342,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
         </div>
       </div>
       {open && (
-      <ul className={'mm-list' + (editing ? ' editing' : '')}>
+      <><ul className={'mm-list' + (editing ? ' editing' : '')}>
         {visible.map((m) => {
           const isOwner = m.uid === ownerUid
           const self = m.uid === myUid
@@ -344,6 +373,16 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
           )
         })}
       </ul>
+      <div className="member-groups-head">
+        <div><b>그룹</b><span>합주 참석 투표 대상을 묶어 관리해요.</span></div>
+        <button type="button" className="btn subtle sm" onClick={() => openGroup('new')}>+ 그룹</button>
+      </div>
+      {groups.length > 0 && <div className="member-group-list">{groups.map((group) => (
+        <button type="button" key={group.id} onClick={() => openGroup(group)}>
+          <span><b>{group.name}</b><small>{group.memberIds.length}명</small></span><span aria-hidden="true">›</span>
+        </button>
+      ))}</div>}
+      </>
       )}
       {confirmKick && (
         <ConfirmDialog
@@ -355,6 +394,21 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
           onCancel={() => setConfirmKick(null)}
         />
       )}
+      {groupEdit && <Sheet onClose={() => setGroupEdit(null)}>
+        <h2>{groupEdit === 'new' ? '멤버 그룹 추가' : '멤버 그룹 수정'}</h2>
+        <div className="field"><label htmlFor="member-group-name">그룹 이름</label><input id="member-group-name" value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={30} autoFocus /></div>
+        <div className="field"><label>멤버 선택</label><div className="member-group-picks">{sorted.map((person) => {
+          const selected = groupMemberIds.includes(person.uid)
+          return <button type="button" key={person.uid} className={selected ? 'on' : ''} aria-pressed={selected} onClick={() => setGroupMemberIds((ids) => selected ? ids.filter((id) => id !== person.uid) : [...ids, person.uid])}>
+            <span className="member-group-check">{selected ? '✓' : ''}</span><span><b>{person.name || '(이름 설정 전)'}</b><small>{PART_META[person.part as Part]?.label ?? '파트 미정'}</small></span>
+          </button>
+        })}</div></div>
+        <div className="actions">
+          {groupEdit !== 'new' && <button type="button" className="btn danger" onClick={() => void removeGroup()}>삭제</button>}
+          <button type="button" className="btn subtle" onClick={() => setGroupEdit(null)}>취소</button>
+          <button type="button" className="btn primary" disabled={!groupName.trim() || groupMemberIds.length === 0} onClick={() => void storeGroup()}>저장</button>
+        </div>
+      </Sheet>}
     </div>
   )
 }

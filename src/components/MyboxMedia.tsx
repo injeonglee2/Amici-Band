@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getMyboxMediaUrl, listMyboxMedia, type MyboxMedia } from '../data'
+import { getMyboxMediaUrl, type MyboxMedia } from '../data'
+import { readMyboxCache, syncMyboxCache, type MyboxCacheSnapshot } from '../myboxCache'
 import Sheet from './Sheet'
 import FolderDetailHeader from './FolderDetailHeader'
 import type { ToastState } from './Toast'
@@ -18,26 +19,41 @@ export default function MyboxMediaFolder({ toast }: { toast: ToastState }) {
   const [error, setError] = useState('')
   const [viewer, setViewer] = useState<{ item: MyboxMedia; url: string } | null>(null)
   const [previews, setPreviews] = useState<Record<string, string>>({})
+  const [cache, setCache] = useState<MyboxCacheSnapshot | null>(null)
 
   const currentFolder = path[path.length - 1]
 
-  async function load(folderId = currentFolder.id) {
+  function showFolder(snapshot: MyboxCacheSnapshot, folderId = currentFolder.id) {
+    setItems(snapshot.folders[folderId] ?? [])
+  }
+
+  async function sync(showSuccess = true) {
     setLoading(true); setError('')
     try {
-      const all: MyboxMedia[] = []
-      let cursor = ''
-      do {
-        const page = await listMyboxMedia(folderId, cursor)
-        all.push(...page.resources)
-        cursor = page.nextCursor
-      } while (cursor && all.length < 1000)
-      setItems(all.sort((a, b) => Number(b.type === 'folder') - Number(a.type === 'folder') || a.name.localeCompare(b.name, 'ko')))
+      const snapshot = await syncMyboxCache(root.id)
+      setCache(snapshot)
+      showFolder(snapshot)
+      if (showSuccess) toast.show('MYBOX 전체 목록을 동기화했어요')
     } catch (e) {
-      setError((e as { message?: string })?.message?.replace(/^FirebaseError:\s*/, '') || 'MYBOX를 불러오지 못했어요.')
+      setError((e as { message?: string })?.message?.replace(/^FirebaseError:\s*/, '') || 'MYBOX를 동기화하지 못했어요. 기존 캐시는 유지돼요.')
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { if (open) void load(currentFolder.id) }, [open, currentFolder.id])
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    setLoading(true); setError('')
+    void readMyboxCache().then((snapshot) => {
+      if (!active) return
+      if (snapshot) {
+        setCache(snapshot)
+        showFolder(snapshot)
+        setLoading(false)
+      } else void sync(false)
+    }).catch(() => { if (active) void sync(false) })
+    return () => { active = false }
+  }, [open])
+  useEffect(() => { if (open && cache) showFolder(cache, currentFolder.id) }, [open, cache, currentFolder.id])
   useEffect(() => {
     let active = true
     setPreviews({})
@@ -73,7 +89,7 @@ export default function MyboxMediaFolder({ toast }: { toast: ToastState }) {
   )
 
   return <div className="mybox-browser">
-    <FolderDetailHeader className="rec-folder-bar" title={currentFolder.name} onBack={() => path.length > 1 ? setPath((value) => value.slice(0, -1)) : setOpen(false)} />
+    <FolderDetailHeader className="rec-folder-bar" title={currentFolder.name} onBack={() => path.length > 1 ? setPath((value) => value.slice(0, -1)) : setOpen(false)} onSync={() => void sync()} syncLabel="MYBOX 전체 목록 동기화" />
     {loading ? <p className="setlist-empty">불러오는 중…</p> : error ? <div className="banner-err">{error}</div> : items.length === 0 ? <p className="setlist-empty">사진이나 영상이 없어요.</p> : (
       <div className="mybox-gallery">{items.map((item) => <button key={item.id} type="button" className={'rec-card mybox-gallery-card' + (item.type === 'folder' ? ' folder' : '')} onClick={() => item.type === 'folder' ? setPath((value) => [...value, { id: item.id, name: item.name }]) : void show(item)}>
         <div className="rec-thumb">

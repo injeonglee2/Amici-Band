@@ -222,6 +222,11 @@ service cloud.firestore {
         }
       }
 
+      match /memberGroups/{groupId} {
+        allow read: if isDeveloper() || isBandMember(bandId);
+        allow write: if isBandAdmin(bandId);
+      }
+
       // 개인 템플릿 영상 라이브러리: 폴더와 하위 유튜브 링크
       match /videoFolders/{folderId} {
         allow read: if isDeveloper() || isBandOwner(bandId);
@@ -255,6 +260,9 @@ service cloud.firestore {
           allow read: if isDeveloper() || isBandMember(bandId);
           allow write: if isBandMember(bandId) && request.auth.uid == uid
                        && (get(/databases/$(database)/documents/bands/$(bandId)/events/$(eventId)).data.get('adminOnly', false) == false
+                           || isBandAdmin(bandId))
+                       && (!('targetMemberIds' in get(/databases/$(database)/documents/bands/$(bandId)/events/$(eventId)).data)
+                           || request.auth.uid in get(/databases/$(database)/documents/bands/$(bandId)/events/$(eventId)).data.targetMemberIds
                            || isBandAdmin(bandId));
         }
         match /setlist/{songId} {

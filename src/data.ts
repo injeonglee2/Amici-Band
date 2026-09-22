@@ -23,7 +23,7 @@ import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'fi
 import { db, fbApp, storage } from './firebase'
 import { getCurrentBand, bandCol, bandDoc, bandStoragePath } from './band'
 import { DEMO, demoDb } from './demo'
-import type { Band, Attendance, BandEvent, CustomEventType, Feedback, FeedbackReply, Member, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Band, Attendance, BandEvent, CustomEventType, Feedback, FeedbackReply, Member, MemberGroup, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -668,6 +668,26 @@ export async function savePersonalVideo(video: PersonalVideo): Promise<void> {
     recipe: data.recipe ?? deleteField(),
     ingredientIds: data.ingredientIds ?? deleteField(),
   }, { merge: true })
+}
+
+export function watchMemberGroups(cb: (groups: MemberGroup[]) => void, onError?: (e: Error) => void): () => void {
+  if (DEMO) return demoDb.watchMemberGroups(cb)
+  return onSnapshot(bandCol('memberGroups'), (snap) => {
+    const groups = snap.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<MemberGroup, 'id'>) }))
+    groups.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+    cb(groups)
+  }, (error) => onError?.(error))
+}
+
+export async function saveMemberGroup(group: MemberGroup): Promise<void> {
+  if (DEMO) return demoDb.saveMemberGroup(group)
+  const { id, ...data } = group
+  await setDoc(bandDoc('memberGroups', id), data, { merge: true })
+}
+
+export async function deleteMemberGroup(id: string): Promise<void> {
+  if (DEMO) return demoDb.deleteMemberGroup(id)
+  await deleteDoc(bandDoc('memberGroups', id))
 }
 
 export interface MyboxMedia {

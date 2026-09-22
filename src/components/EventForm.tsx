@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../auth'
-import { deleteEvent, newId, saveEvent } from '../data'
+import { deleteEvent, newId, saveEvent, watchMemberGroups } from '../data'
 import {
   DEFAULT_REH_END,
   DEFAULT_REH_START,
   TYPE_META,
   type BandEvent,
   type EventType,
+  type MemberGroup,
   type Place,
 } from '../types'
 import { todayStr, toMin } from '../time'
@@ -71,6 +72,9 @@ export default function EventForm({
   }
   const [note, setNote] = useState(editing?.note ?? '')
   const [adminOnly, setAdminOnly] = useState(editing?.adminOnly ?? false)
+  const [groups, setGroups] = useState<MemberGroup[]>([])
+  const [targetGroupId, setTargetGroupId] = useState(editing?.targetGroupId ?? '')
+  useEffect(() => watchMemberGroups(setGroups, () => {}), [])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   // 직접 입력 장소 지도 검색 (일회성 — 골라도 장소 목록에는 저장하지 않고 이 일정의 loc 로만 씀)
@@ -118,6 +122,9 @@ export default function EventForm({
         note: type === 'other' ? '' : note.trim(),
         // 관리자만 설정 가능. 일반 일정은 필드를 생략해 기존 데이터와 같은 공개 상태로 저장한다.
         adminOnly: member?.admin && adminOnly ? true : undefined,
+        targetGroupId: type === 'practice' && !adminOnly ? targetGroupId || undefined : undefined,
+        targetGroupName: type === 'practice' && !adminOnly ? groups.find((group) => group.id === targetGroupId)?.name : undefined,
+        targetMemberIds: type === 'practice' && !adminOnly ? groups.find((group) => group.id === targetGroupId)?.memberIds : undefined,
         createdBy: editing?.createdBy ?? user.uid,
         createdAt: editing?.createdAt ?? Date.now(),
       }
@@ -200,9 +207,9 @@ export default function EventForm({
         </div>
 
         {/* 장소: 등록 장소 선택 + 직접 지도 검색(한 줄). 검색 후 고르면 이 일정에만 쓰이고 목록엔 저장 안 함 */}
-        <div className="field">
-          <label htmlFor="f-place">장소</label>
-          <div className="evt-place-row">
+        <div className={type === 'practice' ? 'evt-place-target-grid' : ''}>
+          <div className="field">
+            <label htmlFor="f-place">장소</label>
             <ThemeSelect
               title="장소"
               value={placeId}
@@ -219,7 +226,22 @@ export default function EventForm({
                 ...places.map((p) => ({ value: p.id, label: p.name })),
               ]}
             />
-            {!placeId && (
+          </div>
+          {type === 'practice' && <div className="field">
+            <label>대상</label>
+            <ThemeSelect
+              title="투표 대상"
+              value={targetGroupId}
+              onChange={setTargetGroupId}
+              options={[
+                { value: '', label: '전체 멤버' },
+                ...groups.map((group) => ({ value: group.id, label: group.name })),
+              ]}
+            />
+          </div>}
+        </div>
+        <div className="field">
+          {!placeId && (
               <div className="place-search">
                 <input
                   type="text"
@@ -234,7 +256,6 @@ export default function EventForm({
                 </button>
               </div>
             )}
-          </div>
           {!placeId && loc.trim() && (
             <div className="field">
               <label htmlFor="f-place-address">주소</label>

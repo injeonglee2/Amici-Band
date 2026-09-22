@@ -45,7 +45,8 @@ export interface FolderModuleConfig {
   emptyIcon?: ReactNode
   rowIcon?: (folder: FolderEntity) => ReactNode
   templates?: { id: string; label: string; description: string; symbol: string }[]
-  filters?: { id: string; label: string; match: (folder: FolderEntity) => boolean }[]
+  filters?: { id: string; label: string; match: (folder: FolderEntity) => boolean; openFolderId?: string }[]
+  canCreate?: (filterId: string) => boolean
   reorderable?: boolean // 편집 모드에서 폴더 순서 변경 허용
   taggable?: boolean // 일정 유형 태그 적용 허용(개인 채널 전용)
 }
@@ -91,15 +92,25 @@ export default function FolderModule<TFolder extends FolderEntity>({
     [repository, config.labels.folder],
   )
 
+  const chooseFilter = (id: string) => {
+    setFilterId(id)
+    setOpenId(config.filters?.find((filter) => filter.id === id)?.openFolderId ?? null)
+  }
+  const filterTabs = config.filters && <div className="music-tabs folder-filter-tabs">{config.filters.map((filter) => <button key={filter.id} className={'chip' + (filterId === filter.id ? ' on' : '')} onClick={() => chooseFilter(filter.id)}>{filter.label}</button>)}</div>
   const open = folders.find((folder) => folder.id === openId) ?? null
+  useEffect(() => {
+    if (!open || !config.filters) return
+    const matching = config.filters.find((filter) => filter.match(open))
+    if (matching) setFilterId(matching.id)
+  }, [open, config.filters])
   const visibleFolders = filterId === 'all' ? folders : folders.filter((folder) => config.filters?.find((filter) => filter.id === filterId)?.match(folder))
-  if (open) return renderDetail(open, () => setOpenId(null))
+  if (open) return <><div className="folder-detail-tabs">{filterTabs}</div>{renderDetail(open, () => setOpenId(null))}</>
 
   return (
     <>
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
-        {config.filters && <div className="music-tabs folder-filter-tabs">{config.filters.map((filter) => <button key={filter.id} className={'chip' + (filterId === filter.id ? ' on' : '')} onClick={() => setFilterId(filter.id)}>{filter.label}</button>)}</div>}
+        {filterTabs}
         {config.reorderable && folders.length > 1 && (
           <div className="folder-list-head">
             <button type="button" className={'folder-edit-toggle' + (reorderMode ? ' on' : '')} onClick={() => setReorderMode((v) => !v)}>
@@ -148,10 +159,10 @@ export default function FolderModule<TFolder extends FolderEntity>({
         )}
       </main>
 
-      <button className="fab" onClick={() => setEditing('new')}>
+      {(config.canCreate?.(filterId) ?? true) && <button className="fab" onClick={() => setEditing('new')}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
         {config.labels.add}
-      </button>
+      </button>}
 
       {editing && (
         <FolderForm

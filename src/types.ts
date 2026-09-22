@@ -53,6 +53,9 @@ export interface BandEvent {
   voteSelectionCount?: number // 추천곡 투표 마감 일정의 인당 선택 곡 수
   note: string
   adminOnly?: boolean // 관리자 일정 목록·캘린더에만 표시
+  targetGroupId?: string // 참석 투표 대상 멤버 그룹
+  targetGroupName?: string // 그룹 이름 스냅샷
+  targetMemberIds?: string[] // 일정 생성 시점의 대상 멤버 uid
   createdBy: string
   createdAt: number
 }
@@ -70,15 +73,16 @@ export interface Place {
 
 /** 음악 재생목록 (폴더 개념) — 하단 네비의 '음악' 탭 */
 export interface Playlist {
-  templateId?: 'general' | 'project' | 'recommendation' | 'performance'
+  templateId?: 'general' | 'project' | 'recommendation' | 'performance' | 'rehearsal'
   folderName?: string
   reviewParts?: string[]
   id: string
   name: string // 재생목록 이름
   showAdder?: boolean // 곡 추가한 사람 이름 표시 여부 (기본: 표시)
   voteOpen?: boolean // 추천곡 투표 진행 중 여부
+  voteType?: 'vocal' | 'instrument' // 보컬 투표는 대상 지정, 악기 투표는 비보컬 파트 전체 참여
   voteSelectionCount?: number // 이번 투표에서 선정할 곡 수
-  voteVoterLimits?: Record<string, number> // 투표 가능한 보컬 uid → 최대 선택 곡 수
+  voteVoterLimits?: Record<string, number> // 투표 가능한 멤버 uid → 최대 선택 곡 수
   voteTargetPlaylistId?: string // 투표 종료 후 선정곡을 복사할 공연곡 재생목록
   lastSelectedTrackIds?: string[] // 최근 투표에서 선정된 추천곡
   voteLinkedPlaylistIds?: string[] // 최근 선정 결과를 이미 연결한 공연곡 재생목록
@@ -96,6 +100,8 @@ export interface Track {
   recommendation?: string
   reviews?: Record<string, { part: string; result: string; note: string; name: string }>
   votes?: Record<string, boolean>
+  sourcePlaylistId?: string // 공연곡이 참조하는 원본 곡 저장소
+  sourceTrackId?: string // 원본 곡 문서 id
   id: string
   url: string // 원본 유튜브 링크
   videoId: string // 유튜브 영상 ID (임베드·썸네일용)
@@ -383,6 +389,14 @@ export interface Member {
   fcmTokens?: string[] // 푸시 알림용 기기 토큰들 (기기별로 누적)
   webPushSubscriptions?: WebPushSubscription[] // iPhone PWA 등 표준 Web Push 구독
   admin?: boolean // 관리자 권한 (투표 요청 등). 콘솔에서만 부여 — 스스로 설정 불가
+  createdAt: number
+}
+
+export interface MemberGroup {
+  id: string
+  name: string
+  memberIds: string[]
+  createdBy: string
   createdAt: number
 }
 
