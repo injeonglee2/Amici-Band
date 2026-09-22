@@ -1,16 +1,31 @@
 import { readFileSync } from 'node:fs'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
+const buildTime = new Date().toISOString()
+
+// 서비스워커보다 먼저 서버의 최신 빌드 여부를 확인할 수 있는 작은 무캐시 파일이다.
+function buildVersionAsset(): Plugin {
+  return {
+    name: 'amici-build-version',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ version: pkg.version, buildTime }),
+      })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   // 앱 버전·빌드 시각을 코드에 주입 (배포 최신 여부 확인용)
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
-    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __BUILD_TIME__: JSON.stringify(buildTime),
   },
   // preview_start(autoPort) 가 할당한 포트를 사용. 없으면 기본 5173.
   // Firebase Auth는 개발용 승인 도메인으로 localhost를 사용한다.
@@ -22,8 +37,16 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    buildVersionAsset(),
     VitePWA({
       registerType: 'autoUpdate',
+      // main.tsx에서 즉시 등록·갱신을 제어하므로 자동 삽입 스크립트는 만들지 않는다.
+      injectRegister: false,
+      workbox: {
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
+      },
       includeAssets: ['logo.png'],
       manifest: {
         id: '/',
