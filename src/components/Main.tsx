@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth'
 import { loadOlderEvents, saveFcmToken, saveWebPushSubscription, watchEvents, watchMembers, watchPlaces } from '../data'
 import { TYPE_META, type BandEvent, type EventType, type Member, type Place } from '../types'
-import { dayDiff, ddayLabel, longWhen, parseDate, todayStr } from '../time'
+import { ddayLabelFor, isMultiDay, isPastEvent, parseDate, todayStr, whenLines } from '../time'
 import { copyValue, resolvePlace } from '../place'
 import {
   autoRegisterPush,
@@ -20,6 +20,7 @@ import Segmented from './Segmented'
 import EventForm from './EventForm'
 import { TypeGlyph } from './TypeGlyph'
 import Settings from './Settings'
+import { arrivedToInstall } from '../install'
 import FeedbackSheet from './FeedbackSheet'
 import Sheet from './Sheet'
 import PlacesView from './Places'
@@ -30,7 +31,7 @@ import Toast, { useToast } from './Toast'
 import { CopyButton } from './CopyButton'
 import { versionLabel } from '../version'
 import { useAndroidBack, useBackHandler } from '../backnav'
-import { getTemplatePreview, getWorkspaceTemplate, workspaceThemeStyle, type WorkspaceNavId } from '../workspaceTemplates'
+import { eventTypeLabel, getTemplatePreview, getWorkspaceTemplate, workspaceLogo, workspaceThemeStyle, type WorkspaceNavId } from '../workspaceTemplates'
 import { BAND_RECORDING_MODULE } from '../recordingModules'
 import PersonalVideos from './PersonalVideos'
 import PersonalSchedule from './PersonalSchedule'
@@ -39,6 +40,9 @@ import PersonalRecords from './PersonalRecords'
 import { useWorkspaceTheme } from '../useWorkspaceTheme'
 import { clearShareRequest, readShareRequest } from '../shareTarget'
 import { NOTIFICATION_PROMPTS_ENABLED } from '../features'
+import { Icon } from '../icons'
+import { useDragScroll } from '../useDragScroll'
+import { TemplateSymbol } from './TemplateSymbol'
 
 type Filter = 'all' | EventType
 const SHARED_TRACK_SAVED_KEY = 'amici.sharedTrackSaved'
@@ -51,9 +55,11 @@ function oneYearAgoStr(): string {
 }
 
 export default function Main() {
-  const { member, bandId, workspace, channels, isDeveloper, isChannelMember, switchChannel, signOutUser } = useAuth()
+  const { member, bandId, workspace, channels, isDeveloper, isChannelMember, switchChannel } = useAuth()
   const isAdmin = !!member?.admin
   const workspaceTemplate = getWorkspaceTemplate(isDeveloper ? (getTemplatePreview() ?? workspace?.templateId) : workspace?.templateId)
+  const canManageEvents = isAdmin || !!workspaceTemplate.equalMembers // 친구 채널은 누구나 일정 추가
+  const showNav = workspaceTemplate.navigation.length > 1 // 탭이 하나뿐이면 하단 내비를 숨긴다
   // 모든 채널의 홈은 일정 탭이다. 명시적인 공유 진입(?nav=...)만 해당 탭을 우선한다.
   const defaultNav: WorkspaceNavId = workspaceTemplate.navigation.some((item) => item.id === 'home')
     ? 'home'
@@ -88,7 +94,8 @@ export default function Main() {
   const [editing, setEditing] = useState<BandEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  // 커스텀 탭에서 '앱으로 설치'를 눌러 크롬으로 넘어온 경우, 설치 행이 있는 설정을 바로 연다
+  const [settingsOpen, setSettingsOpen] = useState(arrivedToInstall)
   const [settingsTab, setSettingsTab] = useState<'general' | 'band'>('general')
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [channelOnboarding, setChannelOnboarding] = useState(false)
@@ -105,6 +112,7 @@ export default function Main() {
   const deepEventId = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('event') ?? ''
   const deepBandId = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('band') ?? ''
   const toast = useToast()
+  const filterDrag = useDragScroll<HTMLDivElement>()
 
   useEffect(() => {
     const next = new URL(window.location.href)
@@ -132,7 +140,7 @@ export default function Main() {
     setNav('home')
     setView('list')
     setFilter('all')
-    setTab(dayDiff(target.date) < 0 ? 'past' : 'upcoming')
+    setTab(isPastEvent(target) ? 'past' : 'upcoming')
   }, [deepEventId, events])
 
   useEffect(() => {
@@ -239,9 +247,10 @@ export default function Main() {
       .sort((a, b) => (a.date + a.rehStart).localeCompare(b.date + b.rehStart)),
     [events, olderEvents, isAdmin, member?.uid],
   )
-  const upcoming = useMemo(() => sorted.filter((e) => dayDiff(e.date) >= 0), [sorted])
+  // 여러 날 일정은 종료일이 지나야 '지난 일정'으로 넘어간다(진행 중이면 다가오는 목록 맨 앞)
+  const upcoming = useMemo(() => sorted.filter((e) => !isPastEvent(e)), [sorted])
   // 지난 일정: 최신순(방금 끝난 것부터)
-  const past = useMemo(() => sorted.filter((e) => dayDiff(e.date) < 0).reverse(), [sorted])
+  const past = useMemo(() => sorted.filter((e) => isPastEvent(e)).reverse(), [sorted])
   const matchesFilter = (event: BandEvent) => filter === 'all' || (!event.recommendationPlaylistId && event.type === filter)
   const next = upcoming.find(matchesFilter)
   const base = tab === 'upcoming' ? upcoming : past
@@ -314,11 +323,13 @@ export default function Main() {
 
   // <전체> 다음은 무지개(빨강→보라) 순: 공연(코랄) · 번개(옐로) · 합주(시안) · 회의(인디고)
   const TYPE_ORDER: EventType[] = ['show', 'flash', 'practice', 'meeting']
+  // 템플릿 전용 유형 목록(친구 채널)이 있으면 그 순서를 따른다. '기타'는 필터에 두지 않는다.
+  const filterTypes = workspaceTemplate.eventTypes ? workspaceTemplate.eventTypes.map((item) => item.id).filter((id) => id !== 'other') : TYPE_ORDER
   const filters: { k: Filter; label: string; color: string }[] = [
     { k: 'all', label: '전체', color: 'var(--ink-faint)' },
-    ...TYPE_ORDER.map((k) => ({
+    ...filterTypes.map((k) => ({
       k,
-      label: TYPE_META[k].label,
+      label: eventTypeLabel(k, workspaceTemplate),
       color: TYPE_META[k].color,
     })),
   ]
@@ -326,14 +337,14 @@ export default function Main() {
   const nextPlace = next ? resolvePlace(next, placesMap) : null
 
   return (
-    <div className="app" data-template={workspaceTemplate.id} style={workspaceThemeStyle(workspaceTemplate)}>
+    <div className={'app' + (showNav ? '' : ' no-nav')} data-template={workspaceTemplate.id} style={workspaceThemeStyle(workspaceTemplate)}>
       <header className="top">
         <div className="brandrow">
           <div className="mark">
-            <img src="/logo.png" alt="Amici Band" />
+            <img src={workspaceLogo(workspaceTemplate)} alt="Amici Band" />
           </div>
           <div className="brand">
-            <span className="workspace-context"><i>{workspaceTemplate.symbol}</i>{workspaceTemplate.label}</span>
+            <span className="workspace-context"><i><TemplateSymbol template={workspaceTemplate} /></i>{workspaceTemplate.label}</span>
             <h1>{nav === 'home' ? (workspace?.name || 'Amici Band') : workspaceTemplate.navigation.find((item) => item.id === nav)?.label}</h1>
           </div>
           <button className="ghost-btn feedback-top-btn" onClick={() => setFeedbackOpen(true)} aria-label="의견 보내기" title="의견 보내기">
@@ -356,7 +367,7 @@ export default function Main() {
         <PersonalSchedule toast={toast} />
       ) : (
       <>
-      <div className="filters">
+      <div {...filterDrag} className={`filters ${filterDrag.className}`}>
         {filters.map((f) => (
           <button
             key={f.k}
@@ -409,12 +420,13 @@ export default function Main() {
         ) : (
         <>
         {tab === 'upcoming' && (next ? (
-          <div className="hero" style={{ ['--k' as string]: next.recommendationPlaylistId ? '#b7bac3' : next.color || TYPE_META[next.type].color }}>
+          <div className="hero" style={{ ['--k' as string]: next.recommendationPlaylistId ? 'var(--undecided)' : next.color || TYPE_META[next.type].color }}>
             <TypeGlyph type={next.type} className="wm" />
-            <div className="eyebrow">다음 일정 · {next.recommendationPlaylistId ? '마감' : TYPE_META[next.type].label}</div>
-            <div className="dday">
-              <b>{ddayLabel(dayDiff(next.date))}</b>
-              <span>{longWhen(next)}</span>
+            <div className="eyebrow">다음 일정 · {next.recommendationPlaylistId ? '마감' : eventTypeLabel(next.type, workspaceTemplate)}</div>
+            {/* 여러 날 일정: D-day 한 줄 아래 시작 일시·종료 일시를 각각 한 줄로. 하루 일정은 D-day 옆에 한 줄 */}
+            <div className={'dday' + (isMultiDay(next) ? ' stacked' : '')}>
+              <b>{ddayLabelFor(next)}</b>
+              <span>{whenLines(next).map((line, index) => <span key={index} className="when-line">{line}</span>)}</span>
             </div>
             <h2>{next.recommendationPlaylistId ? next.musicDeadlineKind === 'vote' ? '추천곡 투표 마감' : '추천곡 추가 마감' : next.title}</h2>
             {nextPlace && (
@@ -432,7 +444,7 @@ export default function Main() {
           <div className="hero empty">
             <p>
               다가오는 일정이 없어요.
-              {isAdmin && (
+              {canManageEvents && (
                 <>
                   <br />
                   아래 <b>+ 일정 추가</b>로 첫 일정을 등록해 보세요.
@@ -478,7 +490,7 @@ export default function Main() {
         )}
       </main>
 
-      {isAdmin && (
+      {canManageEvents && (
         <button className="fab" onClick={openAdd}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
           일정 추가
@@ -499,16 +511,18 @@ export default function Main() {
         <MusicView toast={toast} />
       )}
 
-      <nav className="bottom-nav" role="tablist" aria-label="주 메뉴" style={{ gridTemplateColumns: `repeat(${workspaceTemplate.navigation.length}, minmax(0, 1fr))` }}>
-        {workspaceTemplate.navigation.map((item) => (
-          <button key={item.id} role="tab" aria-selected={nav === item.id}
-            className={'navitem' + (nav === item.id ? ' on' : '')}
-            onClick={() => setNav(item.id)}>
-            <NavIcon id={item.id} />
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      {showNav && (
+        <nav className="bottom-nav" role="tablist" aria-label="주 메뉴" style={{ gridTemplateColumns: `repeat(${workspaceTemplate.navigation.length}, minmax(0, 1fr))` }}>
+          {workspaceTemplate.navigation.map((item) => (
+            <button key={item.id} role="tab" aria-selected={nav === item.id}
+              className={'navitem' + (nav === item.id ? ' on' : '')}
+              onClick={() => setNav(item.id)}>
+              <NavIcon id={item.id} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {formOpen && (
         <EventForm editing={editing} places={places} onClose={() => setFormOpen(false)} />
@@ -518,22 +532,22 @@ export default function Main() {
         <div className="account-menu-profile">
           <span className="account-menu-avatar">{member?.name?.trim().charAt(0) || '?'}</span>
           <div><strong>{member?.name}</strong><small>{workspace?.name || '채널'}</small></div>
+          <button type="button" className="account-profile-action" aria-label="설정" onClick={() => { setMenuOpen(false); setSettingsTab('general'); setSettingsOpen(true) }}>
+            <Icon name="gear" />
+          </button>
         </div>
         <section className="account-menu-section">
           <h3>채널</h3>
           <div className="account-channel-list">
             {channels.map((channel) => <button key={channel.id} type="button" className={channel.id === bandId ? 'active' : ''} onClick={() => void selectChannel(channel.id)}>
-              <span><i>{getWorkspaceTemplate(channel.templateId).symbol}</i>{channel.name}</span>
+              <span><i><TemplateSymbol template={getWorkspaceTemplate(channel.templateId)} /></i>{channel.name}</span>
               {channel.id === bandId && <b>사용 중</b>}
             </button>)}
+            <button type="button" className="account-channel-action add" onClick={() => { setMenuOpen(false); setChannelOnboarding(true) }}>
+              <span><i><Icon name="plus" /></i>채널 추가</span>
+            </button>
           </div>
         </section>
-        <div className="account-menu-actions">
-          <button type="button" onClick={() => { setMenuOpen(false); setChannelOnboarding(true) }}><span className="account-action-icon">＋</span><span>채널 추가</span></button>
-          {isAdmin && workspace?.templateId !== 'personal' && <button type="button" onClick={() => { setMenuOpen(false); setSettingsTab('band'); setSettingsOpen(true) }}><span className="account-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span><span>채널 관리</span></button>}
-          <button type="button" onClick={() => { setMenuOpen(false); setSettingsTab('general'); setSettingsOpen(true) }}><span className="account-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.5 6A7 7 0 0 0 9 7L6.6 6 4.6 9.5 6.7 11a7 7 0 0 0 0 2L4.6 14.5l2 3.5L9 17a7 7 0 0 0 1.5 1l.2 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1Z"/></svg></span><span>설정</span></button>
-          <button type="button" className="account-signout" onClick={signOutUser}><span className="account-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></svg></span><span>로그아웃</span></button>
-        </div>
       </Sheet>}
 
       {feedbackOpen && <FeedbackSheet toast={toast} onClose={() => setFeedbackOpen(false)} />}

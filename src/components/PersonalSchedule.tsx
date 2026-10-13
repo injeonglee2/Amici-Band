@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useAuth } from '../auth'
 import { useBackHandler } from '../backnav'
-import { deleteEvent, deleteEventType, newId, saveEvent, saveEventType, watchEventTypes, watchEvents } from '../data'
+import { deleteEvent, deleteEventType, newId, saveDailyMemo, saveEvent, saveEventType, watchDailyMemo, watchEventTypes, watchEvents } from '../data'
 import { PASTEL_PALETTE, type BandEvent, type CustomEventType, type EventType } from '../types'
 import { parseDate, todayStr, weekday } from '../time'
 import { EventIcon, searchIcons } from '../eventIcons'
@@ -82,6 +82,7 @@ export default function PersonalSchedule({ toast }: { toast: ToastState }) {
           resolveType={resolveType}
           renderEvent={(ev) => <PersonalEventCard ev={ev} type={typeMap.get(ev.type)} onEdit={() => openEdit(ev)} toast={toast} />}
         />
+        <DailyMemo key={selected} date={selected} userId={user?.uid ?? ''} />
       </main>
 
       <button className="fab" onClick={openAdd} disabled={!user}>
@@ -100,6 +101,106 @@ export default function PersonalSchedule({ toast }: { toast: ToastState }) {
         />
       )}
     </>
+  )
+}
+
+/** 선택한 날짜에 하나만 저장되는 개인 채널 메모. */
+function DailyMemo({ date, userId }: { date: string; userId: string }) {
+  const [text, setText] = useState('')
+  const [savedText, setSavedText] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const textRef = useRef('')
+  const savedTextRef = useRef('')
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveRequestRef = useRef(0)
+  const dirty = text !== savedText
+
+  useEffect(() => {
+    setLoading(true)
+    setErr('')
+    return watchDailyMemo(date, (memo) => {
+      const next = memo?.text ?? ''
+      if (textRef.current === savedTextRef.current) {
+        textRef.current = next
+        setText(next)
+      }
+      savedTextRef.current = next
+      setSavedText(next)
+      setLoading(false)
+    }, () => {
+      setErr('메모를 불러오지 못했어요.')
+      setLoading(false)
+    })
+  }, [date])
+
+  const saveDraft = useCallback(async (next: string) => {
+    if (!userId || next === savedTextRef.current) return
+    const requestId = ++saveRequestRef.current
+    setBusy(true)
+    setErr('')
+    try {
+      await saveDailyMemo({ date, text: next, updatedBy: userId, updatedAt: Date.now() })
+      if (requestId === saveRequestRef.current) {
+        savedTextRef.current = next
+        setSavedText(next)
+      }
+    } catch {
+      setErr('메모를 저장하지 못했어요.')
+    } finally {
+      if (requestId === saveRequestRef.current) setBusy(false)
+    }
+  }, [date, userId])
+
+  // 입력이 잠시 멈추면 자동 저장한다.
+  useEffect(() => {
+    if (loading || !userId || !dirty) return
+    timerRef.current = setTimeout(() => void saveDraft(text), 700)
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }, [dirty, loading, saveDraft, text, userId])
+
+  // 700ms 안에 날짜를 바꾸거나 화면을 나가도 마지막 초안을 놓치지 않는다.
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (userId && textRef.current !== savedTextRef.current) {
+      void saveDailyMemo({ date, text: textRef.current, updatedBy: userId, updatedAt: Date.now() })
+    }
+  }, [date, userId])
+
+  function changeText(next: string) {
+    textRef.current = next
+    setText(next)
+  }
+
+  function saveOnBlur() {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = null
+    void saveDraft(textRef.current)
+  }
+
+  return (
+    <section className="ps-daily-memo" aria-labelledby="ps-daily-memo-label">
+      <div className="ps-daily-memo-head">
+        <label id="ps-daily-memo-label" htmlFor="ps-daily-memo">오늘의 메모</label>
+        <span aria-live="polite">{loading ? '불러오는 중…' : busy ? '저장 중…' : dirty ? '입력 중…' : savedText ? '자동 저장됨' : '자동 저장'}</span>
+      </div>
+      <textarea
+        id="ps-daily-memo"
+        value={text}
+        onChange={(event) => changeText(event.target.value)}
+        onBlur={saveOnBlur}
+        rows={5}
+        maxLength={4000}
+        placeholder="이 날짜에 기억할 일을 적어 보세요…"
+        disabled={loading || !userId}
+      />
+      {err && <p className="err small" role="alert">{err}</p>}
+      <div className="ps-daily-memo-count">{text.length.toLocaleString()} / 4,000</div>
+    </section>
   )
 }
 
@@ -148,7 +249,7 @@ function PersonalEventCard({ ev, type, onEdit, toast }: { ev: BandEvent; type?: 
       </div>
       {ev.note && <div className="event-note open"><p className="event-note-text">{ev.note}</p></div>}
       {confirmDel && (
-        <ConfirmDialog message={`'${ev.title}' 일정을 삭제할까요?`} confirmLabel="삭제" cancelLabel="닫기" danger onConfirm={() => void doDelete()} onCancel={() => setConfirmDel(false)} />
+        <ConfirmDialog message={`'${ev.title}' 일정을 삭제할까요?`} confirmLabel="삭제" cancelLabel="닫기" confirmVariant="danger-solid" onConfirm={() => void doDelete()} onCancel={() => setConfirmDel(false)} />
       )}
     </div>
   )
@@ -329,7 +430,7 @@ function TypeForm({ editing, nextOrder, creatorUid, toast, onSaved, onDeleted, o
         </div>
       </div>
       {confirmDel && (
-        <ConfirmDialog message={`'${editing?.name}' 유형을 삭제할까요? 이 유형을 쓰던 일정은 기본 색으로 표시돼요.`} confirmLabel="삭제" cancelLabel="닫기" danger onConfirm={() => void doDelete()} onCancel={() => setConfirmDel(false)} />
+        <ConfirmDialog message={`'${editing?.name}' 유형을 삭제할까요? 이 유형을 쓰던 일정은 기본 색으로 표시돼요.`} confirmLabel="삭제" cancelLabel="닫기" confirmVariant="danger-solid" onConfirm={() => void doDelete()} onCancel={() => setConfirmDel(false)} />
       )}
     </>
   )

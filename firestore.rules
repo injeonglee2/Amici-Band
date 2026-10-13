@@ -28,6 +28,25 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/bands/$(bandId))
         && get(/databases/$(database)/documents/bands/$(bandId)).data.ownerUid == request.auth.uid;
     }
+    // 친구 채널(templateId == 'friends'): 관리자가 아닌 멤버도 일정을 만들고 고친다.
+    function isFriendsChannel(bandId) {
+      return get(/databases/$(database)/documents/bands/$(bandId)).data.get('templateId', '') == 'friends';
+    }
+
+    // 내 밴드 멤버 문서의 파트(없으면 빈 문자열)
+    function myBandPart(bandId) {
+      return get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.get('part', '');
+    }
+    // 추천곡 투표 참여 자격: 투표가 열려 있고, 관리자가 내 몫(voteVoterLimits)을 배정했고,
+    // 투표 종류(voteType)에 내 파트가 맞을 것. 보컬 투표=보컬, 악기 투표=보컬 외 파트.
+    // 문서 접근 한도(요청당 10회)를 넘기지 않도록 재생목록/멤버 문서는 호출부에서 한 번만 읽어 넘긴다.
+    function canVote(playlistData, myPart) {
+      return playlistData.get('voteOpen', false) == true
+        && playlistData.get('voteVoterLimits', {}).get(request.auth.uid, 0) > 0
+        && (playlistData.get('voteType', 'vocal') == 'vocal'
+          ? myPart == 'vocal'
+          : (myPart != '' && myPart != 'vocal'));
+    }
 
     // 멤버 프로필: 로그인하면 읽기 가능, 본인 문서만 쓰기
     // 단, admin(관리자) 필드는 스스로 켤 수 없음 — 콘솔에서만 부여
@@ -95,7 +114,9 @@ service cloud.firestore {
     // 초대 코드 → 밴드 매핑. 조회로 코드가 새지 않도록 그 밴드 관리자만 읽기.
     // 발급/회전은 createBand·rotateInviteCode 함수(Admin)만 → 클라 쓰기 금지.
     match /inviteCodes/{code} {
-      allow read: if isDeveloper() || isBandAdmin(resource.data.bandId);
+      // 친구 채널은 역할이 없어 모든 멤버가 초대 코드를 본다
+      allow read: if isDeveloper() || isBandAdmin(resource.data.bandId)
+                  || (isBandMember(resource.data.bandId) && isFriendsChannel(resource.data.bandId));
       allow write: if false;
     }
 
@@ -162,7 +183,8 @@ service cloud.firestore {
 
       match /places/{placeId} {
         allow read: if isDeveloper() || isBandMember(bandId);
-        allow create: if isBandAdmin(bandId);
+        // 친구 채널은 누구나 장소를 등록한다(일정과 같은 원칙)
+        allow create: if isBandAdmin(bandId) || (isBandMember(bandId) && isFriendsChannel(bandId));
         allow update, delete: if isBandMember(bandId);
       }
 
@@ -184,6 +206,12 @@ service cloud.firestore {
         allow write: if isBandMember(bandId);
       }
 
+      // 개인 채널 날짜별 메모. 날짜를 문서 id로 사용해 하루에 하나만 저장한다.
+      match /dailyMemos/{date} {
+        allow read: if isDeveloper() || isBandMember(bandId);
+        allow write: if isBandMember(bandId);
+      }
+
       match /scores/{scoreId} {
         allow read: if isDeveloper() || isBandMember(bandId);
         allow create: if isBandMember(bandId);
@@ -199,7 +227,7 @@ service cloud.firestore {
         allow read: if isDeveloper() || isBandMember(bandId);
         allow create, delete: if isBandMember(bandId);
         allow update: if isBandMember(bandId) && (isBandAdmin(bandId)
-          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewParts', 'voteOpen', 'voteSelectionCount', 'voteVoterLimits', 'voteTargetPlaylistId', 'lastSelectedTrackIds', 'voteLinkedPlaylistIds', 'voteOpenedAt']));
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewParts', 'voteOpen', 'voteType', 'voteSelectionCount', 'voteVoterLimits', 'voteTargetPlaylistId', 'voteDeadline', 'lastSelectedTrackIds', 'voteLinkedPlaylistIds', 'voteOpenedAt']));
         match /tracks/{trackId} {
           allow read: if isDeveloper() || isBandMember(bandId);
           allow create: if isBandMember(bandId)
@@ -209,15 +237,13 @@ service cloud.firestore {
           allow update: if isDeveloper() || (isBandMember(bandId)
             && (isBandAdmin(bandId) || request.resource.data.get('candidateStatus', '') == resource.data.get('candidateStatus', ''))
             && (request.resource.data.get('votes', {}) == resource.data.get('votes', {})
-              || (get(/databases/$(database)/documents/bands/$(bandId)/playlists/$(playlistId)).data.get('voteOpen', false) == true
-                && get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.part == 'vocal'
-                && get(/databases/$(database)/documents/bands/$(bandId)/playlists/$(playlistId)).data.get('voteVoterLimits', {}).get(request.auth.uid, 0) > 0
+              || (canVote(get(/databases/$(database)/documents/bands/$(bandId)/playlists/$(playlistId)).data, myBandPart(bandId))
                 && request.resource.data.get('votes', {}).diff(resource.data.get('votes', {})).affectedKeys().hasOnly([request.auth.uid])))
             && (request.resource.data.get('reviews', {}) == resource.data.get('reviews', {})
               || (resource.data.get('candidateStatus', '') == 'review'
                 && request.resource.data.get('reviews', {}).diff(resource.data.get('reviews', {})).affectedKeys().hasOnly([request.auth.uid])
-                && get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.part in get(/databases/$(database)/documents/bands/$(bandId)/playlists/$(playlistId)).data.get('reviewParts', ['keyboard', 'guitar'])
-                && request.resource.data.reviews[request.auth.uid].part == get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.auth.uid)).data.part)));
+                && myBandPart(bandId) in get(/databases/$(database)/documents/bands/$(bandId)/playlists/$(playlistId)).data.get('reviewParts', ['keyboard', 'guitar'])
+                && request.resource.data.reviews[request.auth.uid].part == myBandPart(bandId))));
           allow delete: if isBandMember(bandId) && (isBandAdmin(bandId) || !('candidateStatus' in resource.data) || resource.data.addedBy == request.auth.uid);
         }
       }
@@ -253,8 +279,9 @@ service cloud.firestore {
 
       match /events/{eventId} {
         allow read: if isDeveloper() || isBandMember(bandId);
-        allow create, update: if isBandAdmin(bandId);
-        allow delete: if isBandAdmin(bandId) || (isBandMember(bandId) && resource.data.createdBy == request.auth.uid);
+        allow create, update: if isBandAdmin(bandId) || (isBandMember(bandId) && isFriendsChannel(bandId));
+        allow delete: if isBandAdmin(bandId)
+                      || (isBandMember(bandId) && (resource.data.createdBy == request.auth.uid || isFriendsChannel(bandId)));
 
         match /attendance/{uid} {
           allow read: if isDeveloper() || isBandMember(bandId);

@@ -15,7 +15,7 @@ import {
   type BandEvent,
   type Member,
 } from '../types'
-import { dayDiff, weekday, parseDate } from '../time'
+import { dayCount, eventEndDate, isMultiDay, isPastEvent, shortDate, weekday, parseDate } from '../time'
 import { copyValue, type ResolvedPlace } from '../place'
 import { addToDeviceCalendar, calendarExportSupported } from '../calendar'
 import { TypeGlyph } from './TypeGlyph'
@@ -25,6 +25,7 @@ import SetlistSheet from './SetlistSheet'
 import ShowPlaylistSheet from './ShowPlaylistSheet'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
+import { getActiveWorkspaceTemplate } from '../workspaceTemplates'
 
 export default function EventCard({
   ev,
@@ -55,8 +56,11 @@ export default function EventCard({
   const deepLinkOpened = useRef(false)
   const t = TYPE_META[ev.type]
   const d = parseDate(ev.date)
-  const past = dayDiff(ev.date) < 0
+  const past = isPastEvent(ev) // 여러 날 일정은 종료일이 지나야 '지난 일정'
+  const multiDay = isMultiDay(ev)
   const isAdmin = !!member?.admin
+  const template = getActiveWorkspaceTemplate()
+  const canEdit = isAdmin || !!template.equalMembers // 친구 채널은 누구나 수정
   const isRecommendationDeadline = !!ev.recommendationPlaylistId
   const deadlineTitle = ev.musicDeadlineKind === 'vote' ? '추천곡 투표 마감' : '추천곡 추가 마감'
   const deadlinePlaylistName = ev.recommendationPlaylistName || ev.title.replace(/\s+(추천곡|투표)\s*마감$/, '')
@@ -72,9 +76,9 @@ export default function EventCard({
   )
   const eligibleUids = useMemo(() => new Set(eligibleMembers.map((m) => m.uid)), [eligibleMembers])
   const eligibleAtt = useMemo(() => att.filter((a) => eligibleUids.has(a.uid)), [att, eligibleUids])
-  const canDelete = !!user && (ev.createdBy === user.uid || isAdmin)
-  // 곡이 필요한 유형: 합주=합주곡(곡 하나씩), 공연=재생목록(통째로 연결)
-  const hasSetlist = !isRecommendationDeadline && (ev.type === 'practice' || ev.type === 'show')
+  const canDelete = !!user && (ev.createdBy === user.uid || isAdmin || !!template.equalMembers) // 친구 채널은 누구나 삭제
+  // 곡이 필요한 유형(밴드 채널만): 합주=합주곡(곡 하나씩), 공연=재생목록(통째로 연결)
+  const hasSetlist = template.id === 'band' && !isRecommendationDeadline && (ev.type === 'practice' || ev.type === 'show')
   const setlistLabel = ev.type === 'show' ? '재생목록' : '합주곡'
 
   function openSetlist() {
@@ -133,7 +137,7 @@ export default function EventCard({
 
   return (
     <>
-      <div className={'event' + (isRecommendationDeadline ? ' recommendation-event' : '')} style={{ ['--k' as string]: isRecommendationDeadline ? '#b7bac3' : ev.color || t.color }}>
+      <div className={'event' + (isRecommendationDeadline ? ' recommendation-event' : '')} style={{ ['--k' as string]: isRecommendationDeadline ? 'var(--undecided)' : ev.color || t.color }}>
         {/* 합주·공연이면 본문(날짜·제목·시간) 탭 → 합주곡 시트. 우측 버튼·장소 복사는 전파를 막아 기존 동작 유지 */}
         <div
           className={'event-row' + (hasSetlist || isRecommendationDeadline ? ' tappable' : '')}
@@ -152,14 +156,18 @@ export default function EventCard({
             <div className="etitle">
               <TypeGlyph type={ev.type} className="type-ico" />
               <h3>{isRecommendationDeadline ? deadlineTitle : ev.title}</h3>
+              {multiDay && <span className="event-duration-badge">{dayCount(ev)}일간</span>}
               {ev.adminOnly && isAdmin && <span className="admin-only-badge">관리자</span>}
               {!ev.adminOnly && ev.targetGroupName && <span className="event-target-badge">{ev.targetGroupName}</span>}
             </div>
-            {(!ev.allDay || isRecommendationDeadline || place) && <div className="sub">
+            {(!ev.allDay || multiDay || isRecommendationDeadline || place) && <div className="sub">
               {isRecommendationDeadline ? <>
                 <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>{deadlinePlaylistName}</span>
                 <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>{deadlineSummary}</span>
-              </> : !ev.allDay && <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>{`${ev.rehStart}–${ev.rehEnd}`}</span>}
+              </> : multiDay ? (
+                // 여러 날: "09:00 – 21일 (수) 18:00" (시작일 시작 시각 ~ 종료일 종료 시각). 종일이면 "– 21일 (수)"
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>{ev.allDay ? `– ${shortDate(eventEndDate(ev), ev.date)}` : `${ev.rehStart} – ${shortDate(eventEndDate(ev), ev.date)} ${ev.rehEnd}`}</span>
+              ) : !ev.allDay && <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>{`${ev.rehStart}–${ev.rehEnd}`}</span>}
               {place && (
                 <span className="loc-wrap" onClick={(e) => e.stopPropagation()}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
@@ -182,7 +190,7 @@ export default function EventCard({
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
                 </button>
               )}
-              {!past && isAdmin && !isRecommendationDeadline && (
+              {!past && canEdit && !isRecommendationDeadline && (
                 <button className="edit-btn" onClick={onEdit} aria-label="수정">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
@@ -263,7 +271,7 @@ export default function EventCard({
           message={`'${ev.title}' 일정을 삭제할까요? 참석 기록도 함께 사라져요.`}
           confirmLabel="삭제"
           cancelLabel="닫기"
-          danger
+          confirmVariant="danger-solid"
           onConfirm={doDelete}
           onCancel={() => setConfirmDelete(false)}
         />

@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
 
 export default function FolderDetailHeader({
-  title, editing = false, draft = title, editable = false, backLabel = '폴더 목록으로',
+  title, titleBadge, editing = false, draft = title, editable = false, backLabel = '폴더 목록으로',
   className = '', viewActions, editActions, onBack, onEdit, onDraftChange, onDone,
   onSync, syncLabel = '동기화',
 }: {
   title: string
+  titleBadge?: ReactNode // 이름 바로 오른쪽 배지(예: 추천곡 투표에서 내가 고를 수 있는 곡 수)
   editing?: boolean
   draft?: string
   editable?: boolean
@@ -28,11 +29,24 @@ export default function FolderDetailHeader({
       {editing ? (
         <input className="detail-title-input" value={draft} onChange={(e) => onDraftChange?.(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onDone?.() } }} maxLength={40} autoFocus />
-      ) : <h2 className="detail-title">{title}</h2>}
-      {editing ? <>{editActions}<button type="button" className="edit-btn done" onClick={onDone} aria-label="편집 완료"><CheckIcon /></button></>
-        : <>{viewActions}{onSync && <button type="button" className="edit-btn folder-sync-btn" onClick={onSync} aria-label={syncLabel} title={syncLabel}><SyncIcon /></button>}{editable && <button type="button" className="edit-btn folder-detail-edit" onClick={onEdit} aria-label="폴더 수정"><EditIcon /><span>편집</span></button>}</>}
+      ) : <h2 className="detail-title"><span className="detail-title-text">{title}</span>{titleBadge}</h2>}
+      {editing ? <>{editActions}<FolderDoneButton onClick={() => onDone?.()} /></>
+        : <>{viewActions}{onSync && <button type="button" className="edit-btn folder-sync-btn" onClick={onSync} aria-label={syncLabel} title={syncLabel}><SyncIcon /></button>}{editable && <FolderEditButton onClick={() => onEdit?.()} />}</>}
     </div>
   )
+}
+
+/**
+ * 폴더 편집 진입 버튼 — 상세 헤더와 칩 줄(합주곡)에서 함께 쓴다.
+ * 같은 동작은 같은 모양이어야 하므로 새로 그리지 말고 이걸 쓸 것.
+ */
+export function FolderEditButton({ onClick, label = '폴더 수정' }: { onClick: () => void; label?: string }) {
+  return <button type="button" className="edit-btn folder-detail-edit" onClick={onClick} aria-label={label}><EditIcon /><span>편집</span></button>
+}
+
+/** 편집 완료 버튼 — FolderEditButton 과 짝을 이룬다 */
+export function FolderDoneButton({ onClick, label = '편집 완료' }: { onClick: () => void; label?: string }) {
+  return <button type="button" className="edit-btn done" onClick={onClick} aria-label={label}><CheckIcon /></button>
 }
 
 export function FolderDeleteButton({ onClick, label = '폴더 삭제' }: { onClick: () => void; label?: string }) {

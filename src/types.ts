@@ -19,6 +19,14 @@ export interface CustomEventType {
   createdAt?: number
 }
 
+/** 개인 채널에서 날짜별로 하나만 저장하는 메모. 문서 id는 YYYY-MM-DD 날짜다. */
+export interface PersonalDailyMemo {
+  date: string
+  text: string
+  updatedBy: string
+  updatedAt: number
+}
+
 /** 개인 채널 일정 유형 색상 팔레트 (파스텔) */
 export const PASTEL_PALETTE: { name: string; color: string }[] = [
   { name: 'Red', color: '#EF404A' },
@@ -39,7 +47,8 @@ export interface BandEvent {
   recurrenceGroupId?: string // 반복 생성된 일정 묶음
   recurrenceIndex?: number // 반복 일정 회차(첫 일정만 생성 알림 전송)
   title: string
-  date: string // YYYY-MM-DD
+  date: string // YYYY-MM-DD 시작일
+  endDate?: string // YYYY-MM-DD 종료일(여러 날 일정). 없거나 date 와 같으면 하루 일정. 시간은 시작일 rehStart ~ 종료일 rehEnd
   rehStart: string // HH:MM 합주 시작 (기본 18:00)
   rehEnd: string // HH:MM 합주 종료 (기본 22:00)
   placeId?: string // 설정에서 관리하는 장소 참조

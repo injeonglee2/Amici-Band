@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -21,7 +22,12 @@ function buildVersionAsset(): Plugin {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // 배포본에서는 데모 샘플 데이터를 빈 껍데기로 바꿔 번들에서 통째로 뺀다.
+  // (demo.ts 는 DEV 가드로 실행만 막혀 있고, 데이터 자체는 번들에 실려 있었다)
+  resolve: command === 'build' ? {
+    alias: [{ find: /^(\.{1,2}\/)+demo$/, replacement: fileURLToPath(new URL('./src/demo.prod.ts', import.meta.url)) }],
+  } : undefined,
   // 앱 버전·빌드 시각을 코드에 주입 (배포 최신 여부 확인용)
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -83,4 +89,4 @@ export default defineConfig({
       },
     }),
   ],
-})
+}))

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/check-theme.cjs && tsc -b && vite build",
+    "theme:check": "node scripts/check-theme.cjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "deploy": "npm run build && firebase deploy --only hosting"

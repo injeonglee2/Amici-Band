@@ -1,10 +1,12 @@
-import { TYPE_META, type BandEvent } from './types'
+import type { BandEvent } from './types'
 import type { ResolvedPlace } from './place'
+import { eventTypeLabel } from './workspaceTemplates'
+import { eventEndDate } from './time'
 
 const ANDROID_PACKAGE = 'app.web.amicicalender.twa'
 
 function eventTitle(ev: BandEvent): string {
-  return `[${TYPE_META[ev.type].label}] ${ev.title}`
+  return `[${eventTypeLabel(ev.type)}] ${ev.title}`
 }
 
 function eventLocation(place: ResolvedPlace | null): string {
@@ -53,7 +55,7 @@ function androidCalendarIntent(ev: BandEvent, place: ResolvedPlace | null): stri
   const params = new URLSearchParams({
     title: eventTitle(ev),
     begin: String(epochMillis(ev.date, ev.rehStart)),
-    end: String(epochMillis(ev.date, ev.rehEnd)),
+    end: String(epochMillis(eventEndDate(ev), ev.rehEnd)), // 여러 날 일정은 종료일 종료 시각까지
     location: eventLocation(place),
     description: ev.note || '',
   })
@@ -91,7 +93,7 @@ function buildIcs(ev: BandEvent, place: ResolvedPlace | null): string {
     `UID:${ev.id}@amici-band`,
     `DTSTAMP:${dtstamp}`,
     `DTSTART:${icsUtc(ev.date, ev.rehStart)}`,
-    `DTEND:${icsUtc(ev.date, ev.rehEnd)}`,
+    `DTEND:${icsUtc(eventEndDate(ev), ev.rehEnd)}`,
     `SUMMARY:${icsEscape(eventTitle(ev))}`,
   ]
   const location = eventLocation(place)

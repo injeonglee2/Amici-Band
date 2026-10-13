@@ -1,8 +1,9 @@
 import { copyText } from './clipboard'
 import type { ResolvedPlace } from './place'
-import { parseDate, weekday } from './time'
-import { TYPE_META, type BandEvent } from './types'
+import { longWhen } from './time'
+import type { BandEvent } from './types'
 import { getCurrentBand } from './band'
+import { eventTypeLabel } from './workspaceTemplates'
 
 const APP_URL = 'https://amicicalender.web.app/'
 
@@ -15,11 +16,10 @@ function eventUrl(eventId: string): string {
 }
 
 export function voteRequestMessage(event: BandEvent, place: ResolvedPlace | null, undecidedCount: number): string {
-  const date = parseDate(event.date)
   return [
     '[Amici 참석 투표 요청]',
-    `${TYPE_META[event.type].label} · ${event.title}`,
-    `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekday(event.date)}) · ${event.rehStart}–${event.rehEnd}`,
+    `${eventTypeLabel(event.type)} · ${event.title}`,
+    longWhen(event),
     ...(place ? [`장소 · ${place.name}`] : []),
     `현재 미정 ${undecidedCount}명`,
     '',

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../auth'
 import { versionLabel } from '../version'
-import { WORKSPACE_TEMPLATES } from '../workspaceTemplates'
+import { WORKSPACE_TEMPLATES, workspaceLogo } from '../workspaceTemplates'
 import { useWorkspaceTheme } from '../useWorkspaceTheme'
 
 function messageFor(code: string): string {
@@ -49,7 +49,7 @@ export default function Login() {
     <div className="centered">
       <div className="login">
         <div className="mark big">
-          <img src="/logo.png" alt="Amici Band" />
+          <img src={workspaceLogo(WORKSPACE_TEMPLATES.personal)} alt="Amici Band" />
         </div>
         <h1>Amici Band</h1>
         <p className="muted">개인 기록과 공동 일정을 한곳에서 관리해요.</p>

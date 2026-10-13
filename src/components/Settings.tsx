@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { deleteFeedback, deleteMemberGroup, getActiveInviteCode, getBand, getMonthlyPracticeParticipation, kickMember, newId, rotateInviteCode, saveFcmToken, saveMemberGroup, saveWebPushSubscription, setFeedbackStatus, setMemberAdmin, watchAllBands, watchFeedback, watchMemberGroups, watchMembers } from '../data'
 import { useAuth } from '../auth'
 import { isStandaloneApp, mobileOS, notificationPermission, pushConfigured, requestNotificationRegistrations } from '../messaging'
+import { canPromptInstall, isRelatedAppInstalled, runInstall, subscribeInstall } from '../install'
 import { getCalendarExportMode, isAndroidDevice, setCalendarExportMode, type CalendarExportMode } from '../calendar'
 import ThemeSelect from './ThemeSelect'
 import ConfirmDialog from './ConfirmDialog'
@@ -16,6 +17,7 @@ import { PART_META, type Band, type Feedback, type Member, type MemberGroup, typ
 import { getTemplatePreview, getWorkspaceTemplate, setTemplatePreview, WORKSPACE_TEMPLATES, type WorkspaceTemplateId } from '../workspaceTemplates'
 import FirebaseUsage from './FirebaseUsage'
 import { FeedbackReplyComposer, FeedbackReplyList } from './FeedbackReplies'
+import { TemplateSymbol } from './TemplateSymbol'
 
 const fmtDay = (ms?: number) => {
   if (!ms) return '-'
@@ -27,13 +29,15 @@ const fmtDay = (ms?: number) => {
 export default function Settings({ onClose, initialTab = 'general' }: { onClose: () => void; initialTab?: 'general' | 'band' }) {
   const { user, member, bandId, workspace, isDeveloper } = useAuth()
   const isAdmin = !!member?.admin
+  // 관리 탭: 공동 채널의 관리자, 또는 역할 없이 모두가 같은 권한인 친구 채널의 모든 멤버
+  const canManageChannel = (isAdmin || !!getWorkspaceTemplate(workspace?.templateId).equalMembers) && !!bandId && workspace?.templateId !== 'personal'
   const toast = useToast()
   const [devPopup, setDevPopup] = useState<null | 'firebase' | 'feedback'>(null)
   const [devFeedback, setDevFeedback] = useState<Feedback[]>([])
-  const [tab, setTab] = useState<'general' | 'band' | 'dev'>(initialTab === 'band' && isAdmin && bandId && workspace?.templateId !== 'personal' ? 'band' : 'general')
+  const [tab, setTab] = useState<'general' | 'band' | 'dev'>(initialTab === 'band' && canManageChannel ? 'band' : 'general')
   const tabs: { k: 'general' | 'band' | 'dev'; label: string }[] = [
     { k: 'general', label: '일반' },
-    ...(isAdmin && bandId && workspace?.templateId !== 'personal' ? [{ k: 'band' as const, label: '관리' }] : []),
+    ...(canManageChannel ? [{ k: 'band' as const, label: '관리' }] : []),
     ...(isDeveloper ? [{ k: 'dev' as const, label: '개발자' }] : []),
   ]
   useEffect(() => {
@@ -63,10 +67,11 @@ export default function Settings({ onClose, initialTab = 'general' }: { onClose:
           <>
             <NotifCard />
             <CalendarExportCard />
+            <InstallAppEntry toast={toast} />
           </>
         )}
 
-        {tab === 'band' && isAdmin && bandId && workspace?.templateId !== 'personal' && (
+        {tab === 'band' && canManageChannel && bandId && (
           <>
             <MemberManageCard bandId={bandId} myUid={user?.uid ?? ''} toast={toast} />
             <InviteCodeCard bandId={bandId} toast={toast} />
@@ -77,13 +82,13 @@ export default function Settings({ onClose, initialTab = 'general' }: { onClose:
           <>
             <TemplatePreviewCard />
             <BandsStatusCard />
-            <button type="button" className="set-entry dev-entry" onClick={() => setDevPopup('firebase')}>
+            <button type="button" className="set-entry" onClick={() => setDevPopup('firebase')}>
               <span><b>Firebase 관리</b><small>사용량과 무료 한도 확인</small></span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
             </button>
-            <button type="button" className="set-entry dev-entry" onClick={() => setDevPopup('feedback')}>
+            <button type="button" className="set-entry" onClick={() => setDevPopup('feedback')}>
               <span><b>받은 의견</b><small>버그 제보와 개선 의견 관리</small></span>
-              <span className="dev-entry-side">
+              <span className="set-entry-side">
                 {devFeedback.filter((f) => f.status === 'new').length > 0 && <b className="fb-newbadge">{devFeedback.filter((f) => f.status === 'new').length}</b>}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
               </span>
@@ -149,7 +154,7 @@ function TemplatePreviewCard() {
           <button key={template.id} type="button" role="radio" aria-checked={active === template.id}
             className={'template-card' + (active === template.id ? ' on' : '')}
             style={{ ['--template-color' as string]: template.theme.accent }} onClick={() => select(template.id)}>
-            <span className="template-symbol">{template.symbol}</span><b>{template.label}</b>
+            <span className="template-symbol"><TemplateSymbol template={template} /></span><b>{template.label}</b>
           </button>
         ))}
       </div>
@@ -159,6 +164,8 @@ function TemplatePreviewCard() {
 
 /** 관리자 전용: 이 밴드 초대 코드 보기 + 재발급(회전) */
 function InviteCodeCard({ bandId, toast }: { bandId: string; toast: ReturnType<typeof useToast> }) {
+  const { workspace } = useAuth()
+  const equal = !!getWorkspaceTemplate(workspace?.templateId).equalMembers // 친구 채널은 모두가 초대 코드를 본다
   const [code, setCode] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -185,7 +192,7 @@ function InviteCodeCard({ bandId, toast }: { bandId: string; toast: ReturnType<t
     <div className="limits-card">
       <div className="limits-head">
         <h3>초대 코드</h3>
-        <span className="guide-badge">관리자</span>
+        {!equal && <span className="guide-badge">관리자</span>}
       </div>
       {code ? (
         <div className="invite-code-row">
@@ -208,6 +215,11 @@ function InviteCodeCard({ bandId, toast }: { bandId: string; toast: ReturnType<t
 
 /** 관리자 전용: 멤버 관리 — 관리자 지정/해제, 강퇴 */
 function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: string; toast: ReturnType<typeof useToast> }) {
+  const { workspace } = useAuth()
+  // 파트·합주 참여 횟수·투표 대상 그룹은 밴드 채널에만 있는 개념이다.
+  const isBandTemplate = getWorkspaceTemplate(workspace?.templateId).id === 'band'
+  // 친구 채널: 역할이 없으므로 관리자 지정·표시 없이 모두가 멤버를 내보낼 수 있다
+  const equal = !!getWorkspaceTemplate(workspace?.templateId).equalMembers
   const [members, setMembers] = useState<Member[]>([])
   const [ownerUid, setOwnerUid] = useState<string | null>(null)
   const [confirmKick, setConfirmKick] = useState<Member | null>(null)
@@ -227,7 +239,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
     getBand(bandId).then((b) => setOwnerUid(b?.ownerUid ?? null)).catch(() => {})
   }, [bandId])
   useEffect(() => {
-    if (!open) return
+    if (!open || !isBandTemplate) return
     const now = new Date()
     const start = new Date(now.getFullYear(), now.getMonth(), 1)
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
@@ -238,7 +250,7 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
       .then((counts) => { if (active) setPracticeCounts(counts) })
       .catch(() => { if (active) setPracticeCounts({}) })
     return () => { active = false }
-  }, [bandId, open])
+  }, [bandId, open, isBandTemplate])
   const sorted = [...members].sort(
     (a, b) => (b.admin ? 1 : 0) - (a.admin ? 1 : 0) || (a.name ?? '').localeCompare(b.name ?? '', 'ko'),
   )
@@ -301,9 +313,9 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
       <div className="limits-head mm-head">
         <button type="button" className="mm-toggle" onClick={() => { setOpen((o) => !o); if (open) setEditing(false) }} aria-expanded={open}>
           <h3>멤버{members.length > 0 && <b className="fb-newbadge"> {members.length}</b>}</h3>
-          <span className="guide-badge">관리자</span>
+          {!equal && <span className="guide-badge">관리자</span>}
         </button>
-        {open && partChips.length > 1 && (
+        {open && isBandTemplate && partChips.length > 1 && (
           <div className="mm-filter-wrap">
             <button type="button" className={'mm-filter-btn' + (filterOpen || partFilter !== 'all' ? ' on' : '')} onClick={() => setFilterOpen((v) => !v)} aria-label="파트 필터" aria-pressed={filterOpen}>
               <Icon name="filter" />
@@ -350,29 +362,32 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
             <li key={m.uid}>
               <span className="mm-name">
                 {m.name || '(이름 설정 전)'}
-                {isOwner && <em className="mm-tag owner">소유자</em>}
-                {m.admin && !isOwner && <em className="mm-tag admin">관리자</em>}
+                {!equal && isOwner && <em className="mm-tag owner">소유자</em>}
+                {!equal && m.admin && !isOwner && <em className="mm-tag admin">관리자</em>}
               </span>
               {editing ? (
                 !self && !isOwner ? (
                   <div className="mm-actions">
-                    <button type="button" className="btn subtle sm" disabled={busy === m.uid} onClick={() => void toggleAdmin(m)}>
-                      {m.admin ? '관리자 해제' : '관리자 지정'}
-                    </button>
+                    {!equal && (
+                      <button type="button" className="btn subtle sm" disabled={busy === m.uid} onClick={() => void toggleAdmin(m)}>
+                        {m.admin ? '관리자 해제' : '관리자 지정'}
+                      </button>
+                    )}
                     <button type="button" className="btn danger sm" disabled={busy === m.uid} onClick={() => setConfirmKick(m)}>내보내기</button>
                   </div>
                 ) : null
-              ) : (
+              ) : isBandTemplate ? (
                 <div className="mm-meta">
                   <span className="mm-part">{PART_META[m.part as Part]?.label ?? '파트 미정'}</span>
                   <span className="mm-sep" aria-hidden="true">·</span>
                   <em className="mm-practice-count" title="참석·늦참·조퇴 포함">이번달 참여 {practiceCounts === null ? '…' : `${practiceCounts[m.uid] ?? 0}회`}</em>
                 </div>
-              )}
+              ) : null}
             </li>
           )
         })}
       </ul>
+      {isBandTemplate && <>
       <div className="member-groups-head">
         <div><b>그룹</b><span>합주 참석 투표 대상을 묶어 관리해요.</span></div>
         <button type="button" className="btn subtle sm" onClick={() => openGroup('new')}>+ 그룹</button>
@@ -382,14 +397,15 @@ function MemberManageCard({ bandId, myUid, toast }: { bandId: string; myUid: str
           <span><b>{group.name}</b><small>{group.memberIds.length}명</small></span><span aria-hidden="true">›</span>
         </button>
       ))}</div>}
+      </>}
       </>
       )}
       {confirmKick && (
         <ConfirmDialog
-          message={`${confirmKick.name ?? '이 멤버'} 님을 밴드에서 내보낼까요?`}
+          message={`${confirmKick.name ?? '이 멤버'} 님을 채널에서 내보낼까요?`}
           confirmLabel="내보내기"
           cancelLabel="닫기"
-          danger
+          confirmVariant="danger-solid"
           onConfirm={() => void doKick()}
           onCancel={() => setConfirmKick(null)}
         />
@@ -419,7 +435,8 @@ function BandsStatusCard() {
   const [open, setOpen] = useState(false)
   useEffect(() => watchAllBands(setBands, () => {}), [])
   const personal = bands.filter((b) => b.templateId === 'personal')
-  const shared = bands.filter((b) => b.templateId !== 'personal')
+  const friends = bands.filter((b) => b.templateId === 'friends')
+  const shared = bands.filter((b) => b.templateId !== 'personal' && b.templateId !== 'friends')
   const renderBands = (items: Band[], personalChannel: boolean) => (
     <ul className="bands-list">
       {items.map((b) => (
@@ -449,7 +466,8 @@ function BandsStatusCard() {
         <p className="app-ver" style={{ textAlign: 'left', margin: 0 }}>밴드가 없어요.</p>
       ) : (
         <div className="bands-groups">
-          {shared.length > 0 && <section><h4>공동 채널 <b>{shared.length}</b></h4>{renderBands(shared, false)}</section>}
+          {shared.length > 0 && <section><h4>밴드 채널 <b>{shared.length}</b></h4>{renderBands(shared, false)}</section>}
+          {friends.length > 0 && <section><h4>친구 채널 <b>{friends.length}</b></h4>{renderBands(friends, false)}</section>}
           {personal.length > 0 && <section><h4>개인 채널 <b>{personal.length}</b></h4>{renderBands(personal, true)}</section>}
         </div>
       ))}
@@ -531,6 +549,121 @@ function shortUA(ua?: string): string {
 }
 
 /** 캘린더 내보내기 방식 선택 — 네이티브 인텐트가 가능한 안드로이드에서만 노출 */
+/**
+ * 앱으로 설치 — 설치 안 된 브라우저에서만 보인다.
+ * 크롬 정식 탭이면 누르는 즉시 네이티브 설치 창이 뜨고, 커스텀 탭처럼 설치 창을
+ * 띄울 수 없는 곳이면 Play 스토어로 보낸다. 아이폰은 API 가 없어 방법만 알려준다.
+ */
+function InstallAppEntry({ toast }: { toast: ReturnType<typeof useToast> }) {
+  const [canPrompt, setCanPrompt] = useState(canPromptInstall())
+  const [appInstalled, setAppInstalled] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
+  useEffect(() => subscribeInstall(() => setCanPrompt(canPromptInstall())), [])
+  useEffect(() => { void isRelatedAppInstalled().then(setAppInstalled) }, [])
+
+  const os = mobileOS()
+  if (isStandaloneApp() || appInstalled) return null
+  if (!canPrompt && os === 'other') return null // 설치 경로가 없는 데스크톱 브라우저
+
+  async function install() {
+    if (busy) return
+    setBusy(true)
+    try {
+      const result = await runInstall()
+      if (result === 'installed') toast.show('설치했어요')
+      else if (result === 'ios') setGuideOpen(true)
+    } catch {
+      toast.show('설치를 시작하지 못했어요')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <button type="button" className="set-entry" onClick={() => void install()} disabled={busy}>
+        <span>
+          <b>{os === 'ios' ? '홈 화면에 추가' : '앱으로 설치'}</b>
+          {!canPrompt && os === 'android' && <small>Chrome으로 열어서 설치</small>}
+        </span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+      </button>
+      {guideOpen && <IosInstallGuide onClose={() => setGuideOpen(false)} />}
+    </>
+  )
+}
+
+/** 단계 하나 — 번호·할 일·그 순간의 화면 조각. */
+function InstallStep({ step, label, children }: { step: number; label: string; children: ReactNode }) {
+  return (
+    <li className="install-step">
+      <div className="install-step-head"><b>Step {step}</b><span>{label}</span></div>
+      <div className="install-step-art" aria-hidden="true">
+        <svg viewBox="0 0 220 44" role="presentation">
+          <rect x="0.8" y="0.8" width="218.4" height="42.4" rx="11" className="art-panel" />
+          {children}
+        </svg>
+      </div>
+    </li>
+  )
+}
+
+/**
+ * 아이폰 설치 안내 — 사파리에는 설치 API 가 없어 사용자가 직접 눌러야 한다.
+ * 어디를 눌러야 하는지 글로만 설명하면 못 찾으므로 단계마다 그 화면 조각을 그려 준다.
+ */
+function IosInstallGuide({ onClose }: { onClose: () => void }) {
+  useBackHandler(onClose)
+  return (
+    <Sheet onClose={onClose} className="ios-install-sheet">
+      <h2>홈 화면에 추가</h2>
+      <ol className="install-steps">
+        <InstallStep step={1} label="Safari로 열기">
+          {/* 주소창 — 카카오톡 인앱 브라우저가 아니라 사파리여야 한다 */}
+          <circle cx="26" cy="22" r="10" className="art-line" />
+          <path d="M30.5 17.5 27 27l-9.5 3.5L21 21Z" className="art-fill-accent" />
+          <rect x="46" y="14" width="134" height="16" rx="8" className="art-soft" />
+          <text x="113" y="25.5" textAnchor="middle" className="art-text">amicicalender.web.app</text>
+          <path d="M194 18a6 6 0 1 0 2-4.5" className="art-soft-line" />
+          <path d="M196 10v4h-4" className="art-soft-line" />
+        </InstallStep>
+
+        <InstallStep step={2} label="아래 공유 버튼">
+          {/* 사파리 하단 툴바. 가운데 공유 버튼만 강조 */}
+          <path d="M33 16l-6 6 6 6" className="art-soft-line" />
+          <path d="M65 16l6 6-6 6" className="art-soft-line" />
+          <circle cx="110" cy="22" r="16" className="art-ring-accent" />
+          <path d="M110 13v12M110 13l-4 4M110 13l4 4" className="art-line" />
+          <rect x="102" y="21" width="16" height="10" rx="3" className="art-line" />
+          <path d="M152 15h12v14h-12z" className="art-soft-line" />
+          <path d="M158 15v14" className="art-soft-line" />
+          <rect x="184" y="15" width="14" height="14" rx="3" className="art-soft-line" />
+        </InstallStep>
+
+        <InstallStep step={3} label="목록에서 ‘홈 화면에 추가’">
+          <text x="16" y="26.5" className="art-text lg">홈 화면에 추가</text>
+          <rect x="182" y="12" width="20" height="20" rx="5" className="art-line" />
+          <path d="M192 17v10M187 22h10" className="art-line" />
+        </InstallStep>
+
+        <InstallStep step={4} label="‘웹 앱으로 열기’ 켜짐 확인">
+          <text x="16" y="26.5" className="art-text lg">웹 앱으로 열기</text>
+          <rect x="170" y="12" width="34" height="20" rx="10" className="art-fill-accent" />
+          <circle cx="194" cy="22" r="8" className="art-knob" />
+        </InstallStep>
+
+        <InstallStep step={5} label="오른쪽 위 ‘추가’">
+          <text x="14" y="26.5" className="art-text">취소</text>
+          <text x="110" y="26.5" textAnchor="middle" className="art-text lg">홈 화면에 추가</text>
+          <text x="206" y="26.5" textAnchor="end" className="art-text accent">추가</text>
+        </InstallStep>
+      </ol>
+      <button type="button" className="btn primary block" onClick={onClose}>확인</button>
+    </Sheet>
+  )
+}
+
 function CalendarExportCard() {
   const [mode, setMode] = useState<CalendarExportMode>(getCalendarExportMode())
   if (!isAndroidDevice()) return null // iOS·데스크톱은 항상 .ics 라 선택이 무의미

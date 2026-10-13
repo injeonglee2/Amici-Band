@@ -4,7 +4,6 @@ import { deleteEvent, newId, saveEvent, watchMemberGroups } from '../data'
 import {
   DEFAULT_REH_END,
   DEFAULT_REH_START,
-  TYPE_META,
   type BandEvent,
   type EventType,
   type MemberGroup,
@@ -17,6 +16,7 @@ import Sheet from './Sheet'
 import ColorPicker from './ColorPicker'
 import { useBackHandler } from '../backnav'
 import { searchPlaces, type PlaceHit } from '../mapsearch'
+import { getActiveWorkspaceTemplate, templateEventTypes } from '../workspaceTemplates'
 
 const OTHER_COLORS = ['#b7bac3', '#ef6f91', '#e7a94b', '#68b985', '#55a8d8', '#7e9ae6', '#a98bd4', '#d17dba']
 
@@ -31,10 +31,13 @@ export default function EventForm({
 }) {
   const { user, member } = useAuth()
   useBackHandler(onClose) // 뒤로가기로 일정 폼 닫기
+  const template = getActiveWorkspaceTemplate()
+  const typeOptions = templateEventTypes(template) // 친구 채널은 모임·번개·여행·기타
+  const defaultType: EventType = typeOptions[0]?.id ?? 'practice'
   const grapePlaceId = places.find((p) => p.name === '포도나무 합주실')?.id
-  // 유형별 기본값: 합주 → 포도나무 합주실·18:00~22:00, 그 외 → 초기화
+  // 유형별 기본값(밴드 채널): 합주 → 포도나무 합주실·18:00~22:00, 그 외 → 초기화
   function presetFor(t: EventType) {
-    if (t === 'practice') {
+    if (t === 'practice' && template.id === 'band') {
       return { placeId: grapePlaceId ?? '', loc: grapePlaceId ? '' : '포도나무 합주실', rehStart: '18:00', rehEnd: '22:00' }
     }
     return { placeId: '', loc: '', rehStart: DEFAULT_REH_START, rehEnd: DEFAULT_REH_END }
@@ -47,12 +50,14 @@ export default function EventForm({
         rehStart: editing.rehStart ?? DEFAULT_REH_START,
         rehEnd: editing.rehEnd ?? DEFAULT_REH_END,
       }
-    : presetFor('practice')
+    : presetFor(defaultType)
 
-  const [type, setType] = useState<EventType>(editing?.type ?? 'practice')
+  const [type, setType] = useState<EventType>(editing?.type ?? defaultType)
   const [otherColor, setOtherColor] = useState(editing?.color ?? OTHER_COLORS[0])
   const [title, setTitle] = useState(editing?.title ?? '')
   const [date, setDate] = useState(editing?.date ?? todayStr())
+  // 종료일: 여러 날 일정(여행·합숙)일 때만. 비우면 하루 일정이고, 시간은 시작일 시작 시각 ~ 종료일 종료 시각으로 읽는다.
+  const [endDate, setEndDate] = useState(editing?.endDate && editing.endDate > editing.date ? editing.endDate : '')
   const [rehStart, setRehStart] = useState(seed.rehStart)
   const [rehEnd, setRehEnd] = useState(seed.rehEnd)
   const [placeId, setPlaceId] = useState(seed.placeId)
@@ -100,8 +105,28 @@ export default function EventForm({
   }
 
   const canDelete = editing && user && editing.createdBy === user.uid
-  const timeValid = type === 'other' || toMin(rehEnd) > toMin(rehStart)
-  const valid = title.trim() && date && timeValid
+  const multiDayAllowed = !!template.multiDayEvents // 친구 채널만 종료 일시를 둔다
+  const endDay = multiDayAllowed && endDate ? endDate : date // 종료일이 비어 있으면 하루 일정
+  const multiDay = multiDayAllowed && endDay > date
+  const endDateValid = endDay >= date
+  // 친구 채널은 시작·종료가 각각 "날짜+시간" 한 컨트롤이라 일시 전체를 비교한다. 밴드는 같은 날의 시각만 비교.
+  const timeValid = type === 'other' || (multiDayAllowed ? `${endDay}T${rehEnd}` > `${date}T${rehStart}` : toMin(rehEnd) > toMin(rehStart))
+  const valid = title.trim() && date && timeValid && endDateValid
+
+  // datetime-local 값("YYYY-MM-DDTHH:MM")을 날짜·시각 상태로 나눠 담는다. 비우면 무시.
+  function changeStart(value: string) {
+    const [d, t] = value.split('T')
+    if (!d) return
+    setDate(d)
+    if (t) setRehStart(t.slice(0, 5))
+    if (endDate && endDate < d) setEndDate('') // 종료가 시작보다 앞서면 하루 일정으로 되돌린다
+  }
+  function changeEnd(value: string) {
+    const [d, t] = value.split('T')
+    if (!d) return
+    setEndDate(d === date ? '' : d)
+    if (t) setRehEnd(t.slice(0, 5))
+  }
 
   async function submit() {
     if (!valid || !user || busy) return
@@ -115,6 +140,7 @@ export default function EventForm({
         rehStart: type === 'other' ? '00:00' : rehStart,
         rehEnd: type === 'other' ? '00:01' : rehEnd,
         allDay: type === 'other' ? true : undefined,
+        endDate: multiDay ? endDate : undefined, // 하루 일정은 저장하지 않는다
         // 등록 장소를 골랐으면 placeId, 아니면 직접 입력(loc). 둘 중 하나만 저장
         placeId: type === 'other' ? undefined : placeId || undefined,
         loc: type === 'other' ? undefined : placeId ? undefined : loc.trim() || undefined,
@@ -162,16 +188,16 @@ export default function EventForm({
         <div className="field">
           <label>유형</label>
           <div className="type-pick">
-            {(Object.keys(TYPE_META) as EventType[]).map((k) => (
+            {typeOptions.map((option) => (
               <button
-                key={k}
+                key={option.id}
                 type="button"
-                aria-pressed={type === k}
-                style={{ ['--k' as string]: k === 'other' ? otherColor : TYPE_META[k].color }}
-                onClick={() => chooseType(k)}
+                aria-pressed={type === option.id}
+                style={{ ['--k' as string]: option.id === 'other' ? otherColor : option.color }}
+                onClick={() => chooseType(option.id)}
               >
-                <TypeGlyph type={k} className="type-ico" />
-                {TYPE_META[k].label}
+                <TypeGlyph type={option.id} className="type-ico" />
+                {option.label}
               </button>
             ))}
           </div>
@@ -182,29 +208,74 @@ export default function EventForm({
           <ColorPicker colors={OTHER_COLORS} value={otherColor} onChange={setOtherColor} />
         </div>}
 
-        {/* 제목 + 날짜 한 줄: 제목이 남는 공간, 날짜는 내용 너비 */}
-        <div className="evt-title-date">
-          <div className="field evt-title">
-            <label htmlFor="f-title">제목</label>
-            <input id="f-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} autoFocus />
+        {multiDayAllowed ? (
+          <>
+            <div className="field">
+              <label htmlFor="f-title">제목</label>
+              <input id="f-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} autoFocus />
+            </div>
+            {type === 'other' ? (
+              /* 종일 일정: 날짜만 */
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="f-date">시작일</label>
+                  <input id="f-date" type="date" value={date} onChange={(e) => changeStart(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label htmlFor="f-end-date">종료일</label>
+                  <input id="f-end-date" type="date" value={endDay} min={date} onChange={(e) => changeEnd(e.target.value)} />
+                </div>
+              </div>
+            ) : (
+              /* 친구 채널: 시작·종료를 각각 한 줄의 묶인 컨트롤로. 날짜는 달력, 시간은 시계 선택기가 뜬다.
+                 종료는 시작과 같은 날로 시작하고, 날짜를 바꾸면 여러 날 일정이 된다 */
+              <>
+                <div className="field">
+                  <label htmlFor="f-start">시작</label>
+                  <div className="datetime-pair">
+                    <input id="f-start" type="date" value={date} onChange={(e) => changeStart(e.target.value)} aria-label="시작일" />
+                    <input type="time" step={1800} value={rehStart} onChange={(e) => setRehStart(e.target.value)} aria-label="시작 시각" />
+                  </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="f-end">종료</label>
+                  <div className="datetime-pair">
+                    <input id="f-end" type="date" value={endDay} min={date} onChange={(e) => changeEnd(e.target.value)} aria-label="종료일" />
+                    <input type="time" step={1800} value={rehEnd} onChange={(e) => setRehEnd(e.target.value)} aria-label="종료 시각" />
+                  </div>
+                </div>
+              </>
+            )}
+            {!endDateValid && <p className="err small">종료일이 시작일보다 앞설 수 없어요.</p>}
+            {endDateValid && !timeValid && <p className="err small">종료가 시작보다 늦어야 해요.</p>}
+          </>
+        ) : (
+          /* 밴드: 제목 + 날짜 한 줄 — 제목이 남는 공간, 날짜는 내용 너비 */
+          <div className="evt-title-date">
+            <div className="field evt-title">
+              <label htmlFor="f-title">제목</label>
+              <input id="f-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} autoFocus />
+            </div>
+            <div className="field evt-date">
+              <label htmlFor="f-date">날짜</label>
+              <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
           </div>
-          <div className="field evt-date">
-            <label htmlFor="f-date">날짜</label>
-            <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-        </div>
+        )}
 
         {type !== 'other' && <>
-        {/* 진행 시간 (제목·날짜 바로 아래) */}
-        <div className="field">
-          <label>진행 시간</label>
-          <div className="time-range">
-            <input type="time" step={1800} value={rehStart} onChange={(e) => setRehStart(e.target.value)} />
-            <span>–</span>
-            <input type="time" step={1800} value={rehEnd} onChange={(e) => setRehEnd(e.target.value)} />
+        {/* 진행 시간 (제목·날짜 바로 아래). 친구 채널은 시작·종료 일시 컨트롤에 시간이 들어 있어 생략 */}
+        {!multiDayAllowed && (
+          <div className="field">
+            <label>진행 시간</label>
+            <div className="time-range">
+              <input type="time" step={1800} value={rehStart} onChange={(e) => setRehStart(e.target.value)} />
+              <span>–</span>
+              <input type="time" step={1800} value={rehEnd} onChange={(e) => setRehEnd(e.target.value)} />
+            </div>
+            {!timeValid && <p className="err small">종료 시간이 시작 시간보다 늦어야 해요.</p>}
           </div>
-          {!timeValid && <p className="err small">종료 시간이 시작 시간보다 늦어야 해요.</p>}
-        </div>
+        )}
 
         {/* 장소: 등록 장소 선택 + 직접 지도 검색(한 줄). 검색 후 고르면 이 일정에만 쓰이고 목록엔 저장 안 함 */}
         <div className={type === 'practice' ? 'evt-place-target-grid' : ''}>
@@ -282,7 +353,7 @@ export default function EventForm({
         </div>
         </>}
 
-        {!!member?.admin && (
+        {!!member?.admin && !template.equalMembers && (
           <div className="event-visibility-row">
             <div>
               <b>관리자만 보기</b>

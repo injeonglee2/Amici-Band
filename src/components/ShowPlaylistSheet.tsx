@@ -257,7 +257,7 @@ export default function ShowPlaylistSheet({
           message={`'${linked?.name ?? ''}' 재생목록 연결을 해제할까요?`}
           confirmLabel="해제"
           cancelLabel="닫기"
-          danger
+          confirmVariant="danger-solid"
           onConfirm={() => void unlink()}
           onCancel={() => setUnlinking(false)}
         />

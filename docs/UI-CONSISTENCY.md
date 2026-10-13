@@ -15,6 +15,27 @@
 | 아이콘 | `Icon`, `TypeGlyph` | 같은 의미에는 같은 이름과 선 굵기 사용 |
 | 기본 버튼 | `.btn` 변형 | `primary`, `subtle`, `danger` 중 의미에 맞게 선택 |
 
+## 테마 토큰
+
+색은 `styles.css`에 직접 쓰지 않고 토큰으로만 쓴다. 템플릿(밴드·개인·친구…)은 `workspaceTemplates.ts`의 `WorkspaceTheme`만 채우고, 라이트/다크 차이는 `workspaceThemeStyle`이 색상 모드에서 자동으로 만든다. 그래서 새 템플릿이나 새 화면을 만들 때 테마를 따로 맞출 일이 없어야 한다.
+
+`npm run build`가 `scripts/check-theme.cjs`를 먼저 실행해 `styles.css`에 `#hex`·`rgba()` 리터럴이 있으면 실패한다. 사진 위 오버레이처럼 테마와 무관한 고정 색만 같은 줄에 `/* literal-ok: 이유 */`(블록은 `literal-ok-start` … `literal-ok-end`)로 표시한다.
+
+| 역할 | 토큰 | 사용 원칙 |
+| --- | --- | --- |
+| 주 동작(저장·FAB·채널 추가) | `--accent-gradient` + `--on-accent` + `--accent-shadow` | `.btn.primary`·`.fab`가 기준. 새 주 동작 버튼은 이 셋을 그대로 쓴다 |
+| 단색 선택(파트·필터·탭) | `background: var(--accent); color: var(--on-accent); box-shadow: var(--accent-shadow)` | `.part-btn.on`, `.part-chip.on`, `.mine-filter.on` 과 같은 모양 |
+| 유형색(`--k`) 선택 칩 | `color-mix(var(--k) var(--selected-fill-mix) …)` + `--selected-border-mix` + `--selected-glow-mix` + `--selected-icon-mix` | 다크=틴트, 라이트=단색으로 자동 분기. `.chip`·`.type-pick`·`.ps-type-opt` 참고 |
+| 활성 탭·선택 행 배경 | `--accent-soft` | 하단 내비 `.navitem.on`, 채널 목록 `.active` |
+| 포커스 링 | `--accent-ring` | `box-shadow: 0 0 0 3px var(--accent-ring)` |
+| 표면 | `--surface` / `--surface-2` / `--surface-active` / `--surface-hover` / `--control-bg` | 카드·칩·입력은 `rgba(255,255,255,.05)` 같은 유리 값 대신 이 토큰. hover는 `--surface-hover` |
+| 글자 | `--ink` / `--ink-soft` / `--ink-faint` / `--heading` | 흰색(`#fff`) 금지. 포인트 색 위는 `--on-accent`, 참석 상태색 위는 `--on-status` |
+| 그림자·글로우 | `--card-shadow` / `--shadow-sm` / `--glow-color` | 라이트는 카드가 평면(`--card-shadow` 투명)·글로우 없음. `--shadow`·`--shadow-lift`는 시트·모달 전용 |
+| 의미색 | `--ok` `--warn` `--info` `--no` `--undecided`, 달력 `--sun` `--sat` | 뱃지·오류·요일에 임의 색 대신 의미색 사용 |
+| 오버레이 | `--scrim` | 시트·다이얼로그 배경 |
+
+새 템플릿을 추가할 때는 `WorkspaceTheme`의 필드(accent·accent2·표면·글자·의미색·sun/sat)만 채운다. 다크 계열은 `darkTheme()`, 라이트 계열은 `personalBasedTheme()`를 바탕으로 포인트 색만 바꾼다. 포인트 색이 밝아 흰 글자 대비가 모자라면(친구 템플릿의 탄·세이지) `onAccent`를 진한 색으로 둔다. 보조색(accent2)이 연한 템플릿에서도 뱃지 글자가 읽히도록 뱃지 글자색은 `color-mix(var(--accent-2), var(--ink))`로 섞는다.
+
 ## 테두리 중첩 금지
 
 테두리(또는 배경 카드)를 가진 요소를 감싸는 컨테이너에 또 테두리를 두지 않는다. 경계선이 두 겹으로 보여 답답해진다.

@@ -967,7 +967,7 @@ export function RecordingPlayer({ rec, toast, onEdit, onClose, readOnly }: { rec
           message={`'${rec.title}' 기록을 삭제할까요?`}
           confirmLabel="삭제"
           cancelLabel="닫기"
-          danger
+          confirmVariant="danger-solid"
           onConfirm={() => void doDelete()}
           onCancel={() => setConfirmDel(false)}
         />
@@ -1066,7 +1066,7 @@ function RecFolderForm({ editing, nextOrder, creatorUid, recCount, toast, onDele
           message={recCount > 0 ? `'${editing?.name}' 폴더를 삭제할까요? 폴더 안 ${recCount}개 기록은 '미분류'로 이동합니다.` : `'${editing?.name}' 폴더를 삭제할까요?`}
           confirmLabel="삭제"
           cancelLabel="닫기"
-          danger
+          confirmVariant="danger-solid"
           onConfirm={() => void doDelete()}
           onCancel={() => setConfirmDel(false)}
         />
@@ -1193,7 +1193,7 @@ function FolderSyncSheet({ folder, existingVideoIds, member, toast, onClose }: {
         </div>
       </div>
     </div>
-    {unlinkTarget && <ConfirmDialog message={`'${names[unlinkTarget] || '재생목록'}' 연결을 해제할까요? 폴더에 가져온 기존 영상은 삭제되지 않습니다.`} confirmLabel="연결 해제" cancelLabel="취소" danger onConfirm={() => void unlink(unlinkTarget)} onCancel={() => setUnlinkTarget(null)} />}
+    {unlinkTarget && <ConfirmDialog message={`'${names[unlinkTarget] || '재생목록'}' 연결을 해제할까요? 폴더에 가져온 기존 영상은 삭제되지 않습니다.`} confirmLabel="연결 해제" cancelLabel="취소" confirmVariant="danger-solid" onConfirm={() => void unlink(unlinkTarget)} onCancel={() => setUnlinkTarget(null)} />}
     </>
   )
 }

@@ -1,7 +1,11 @@
 import type { EventType } from '../types'
+import { EventIcon } from '../eventIcons'
+import { eventTypeIcon } from '../workspaceTemplates'
 
-/** 일정 유형별 워터마크 글리프 (라인아트, --k 색으로 틴트됨) */
+/** 일정 유형별 워터마크 글리프 (라인아트, --k 색으로 틴트됨). 템플릿이 아이콘을 바꾼 유형(친구 채널)은 그 아이콘을 쓴다. */
 export function TypeGlyph({ type, className }: { type: EventType; className?: string }) {
+  const templateIcon = eventTypeIcon(type)
+  if (templateIcon) return <EventIcon id={templateIcon} className={className} />
   const common = {
     className,
     viewBox: '0 0 24 24',
@@ -43,12 +47,7 @@ export function TypeGlyph({ type, className }: { type: EventType; className?: st
           <path d="M17 9h2a2 2 0 0 1 2 2v9l-3-3h-4a2 2 0 0 1-2-2v-.5" />
         </svg>
       )
-    case 'other': // 기타 (별표)
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v10M7 12h10" />
-        </svg>
-      )
+    case 'other': // 기타는 아이콘 없이 글자만 (칩·일정 카드 모두)
+      return null
   }
 }

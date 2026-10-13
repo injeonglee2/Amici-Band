@@ -3,30 +3,39 @@
  *
  * - `npm run dev` (개발 모드)에서 URL에 `?demo` 가 있을 때만 켜진다.
  *   예) http://localhost:5173/?demo
+ * - `?role=member` 를 추가하면 로그인 사용자가 밴드 관리자가 아닌 일반 멤버로 전환된다.
+ *   예) http://localhost:5173/?demo&role=member
  * - `import.meta.env.DEV` 가드로 프로덕션 빌드(배포본·APK)에는 절대 포함되지 않는다.
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, Band, BandEvent, CustomEventType, EventType, Member, MemberGroup, Place, Playlist, Recording, RecordingFolder, RunningEntry, Score, SetlistSong, Track, TrackPart } from './types'
+import type { Attendance, Band, BandEvent, CustomEventType, EventType, Member, MemberGroup, PersonalDailyMemo, Place, Playlist, Recording, RecordingFolder, RunningEntry, Score, SetlistSong, Track, TrackPart } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
   typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).has('demo')
 
+const demoIsAdmin = !(
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('role') === 'member'
+)
+
 export const DEMO_MEMBER: Member = {
   uid: 'demo-user',
   email: 'demo@amici.band',
   name: '이인정',
   part: 'keyboard',
-  admin: true,
+  admin: demoIsAdmin,
   createdAt: Date.now(),
 }
 
 const now = Date.now()
+// 마감일은 데모를 언제 열어도 '진행 중'으로 보이도록 오늘 기준 +7일
+const inAWeek = new Date(now + 7 * 86400000).toLocaleDateString('sv-SE')
 
 const initialMembers: Member[] = [
-  { uid: 'demo-user', email: 'demo@amici.band', name: '이인정', part: 'keyboard', admin: true, createdAt: now },
+  { uid: 'demo-user', email: 'demo@amici.band', name: '이인정', part: 'keyboard', admin: demoIsAdmin, createdAt: now },
   { uid: 'm-kym', email: '', name: '김용민', part: 'bass', admin: true, createdAt: now },
   { uid: 'm-sgd', email: '', name: '서광동', part: 'drum', admin: true, createdAt: now },
   { uid: 'm-ong', email: '', name: '오남규', part: 'vocal', admin: true, createdAt: now },
@@ -52,6 +61,9 @@ const initialEvents: BandEvent[] = [
   { id: 'e-hapju9', type: 'practice', title: '9월 1차 정기합주', date: '2026-09-05', rehStart: '18:00', rehEnd: '22:00', placeId: 'p-podo', note: '', createdBy: 'demo-user', createdAt: now },
   { id: 'e-hapju9b', type: 'practice', title: '9월 2차 정기합주', date: '2026-09-12', rehStart: '18:00', rehEnd: '22:00', placeId: 'p-podo', note: '', createdBy: 'demo-user', createdAt: now },
   { id: 'e-show9', type: 'show', title: '9월 공연', date: '2026-09-26', rehStart: '18:00', rehEnd: '22:00', placeId: 'p-podo', note: '', createdBy: 'demo-user', createdAt: now },
+  // 추천곡 마감 일정 — 음악 목록의 '추가중 / 투표중' 배지가 이 일정을 읽는다
+  { id: 'recommendation-vote-deadline-pl-rec', type: 'practice', title: '추천곡 투표 마감', date: inAWeek, rehStart: '23:59', rehEnd: '23:59', recommendationPlaylistId: 'pl-rec', recommendationPlaylistName: '10월 공연 추천곡', musicDeadlineKind: 'vote', voteSelectionCount: 2, note: '', createdBy: 'demo-user', createdAt: now },
+  { id: 'recommendation-deadline-pl-rec2', type: 'practice', title: '추천곡 추가 마감', date: inAWeek, rehStart: '23:59', rehEnd: '23:59', recommendationPlaylistId: 'pl-rec2', recommendationPlaylistName: '송년회 추천곡', musicDeadlineKind: 'recommendation', recommendationLimit: 2, note: '', createdBy: 'demo-user', createdAt: now },
 ]
 
 const initialAttendance: Record<string, Attendance[]> = {
@@ -103,6 +115,8 @@ function makeCollection<T>(initial: T[]): Collection<T> {
 }
 
 const initialPlaylists: Playlist[] = [
+  { id: 'pl-rec', name: '10월 공연 추천곡', templateId: 'recommendation', voteOpen: true, voteType: 'instrument', voteSelectionCount: 2, voteVoterLimits: { 'demo-user': 2, 'm-kym': 2, 'm-sgd': 2, 'm-kss': 2, 'm-pjh': 2, 'm-sjm': 3, 'm-kdh': 3 }, voteOpenedAt: now - 86400000, voteDeadline: inAWeek, createdBy: 'demo-user', createdAt: now + 1000 },
+  { id: 'pl-rec2', name: '송년회 추천곡', templateId: 'recommendation', recommendationLimit: 2, recommendationDeadline: inAWeek, createdBy: 'demo-user', createdAt: now + 999 },
   { id: 'pl-sep', name: '2026 9월 공연', createdBy: 'demo-user', createdAt: now },
   { id: 'pl-jazz', name: '재즈>_<', createdBy: 'demo-user', createdAt: now - 1000 },
 ]
@@ -112,6 +126,27 @@ const yt = (v: string) => ({ url: `https://www.youtube.com/watch?v=${v}`, videoI
 const fullBand: Record<string, TrackPart> = { 'demo-user': 'keyboard', 'm-kym': 'bass', 'm-sgd': 'drum', 'm-pjh': 'guitar', 'm-ong': 'vocal' }
 
 const initialTracks: Record<string, Track[]> = {
+  // 추천곡 — 멤버들이 올린 후보곡에 악기 파트가 투표 중
+  'pl-rec': [
+    { id: 'rc-antifreeze', ...yt('ZjDLIZC1ork'), title: '언체인드', artist: '실리카겔', order: now + 0, addedBy: 'm-pjh', addedByName: '박정환', addedAt: now + 0, candidateStatus: 'review', votes: { 'm-kym': true, 'm-sgd': true, 'm-pjh': true, 'demo-user': true } },
+    { id: 'rc-ditto', ...yt('Km71Rr9K-Bw'), title: 'Ditto', artist: 'NewJeans', order: now + 1, addedBy: 'm-khe', addedByName: '김하은', addedAt: now + 1, candidateStatus: 'review', votes: { 'm-sjm': true, 'm-kss': true, 'm-kym': true } },
+    { id: 'rc-love', ...yt('vBy0nyaZ1iU'), title: '사랑하게 될 줄 알았어', artist: '전건호', order: now + 2, addedBy: 'm-ong', addedByName: '오남규', addedAt: now + 2, candidateStatus: 'review', votes: { 'm-sgd': true } },
+    { id: 'rc-honest', ...yt('vcNzHeAR8m4'), title: '한페이지가 될 수 있게', artist: '데이식스', order: now + 3, addedBy: 'm-igi', addedByName: '이가인', addedAt: now + 3, candidateStatus: 'review', votes: {} },
+    { id: 'rc-beautiful', ...yt('4TWR90KJl84'), title: '밤하늘의 별을', artist: '경서예지', order: now + 4, addedBy: 'm-hyk', addedByName: '한유경', addedAt: now + 4, candidateStatus: 'review', votes: {} },
+  ],
+  // 합주곡 보관함 — 카드 전체를 눌러 재생하는 목록
+  'rehearsal-library': [
+    { id: 'rh-butter', ...yt('5BONQ39cP9k'), title: 'Butter-Fly [디지몬 어드벤처]', artist: '전영호', order: now + 0, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 0, participants: fullBand },
+    { id: 'rh-pret', ...yt('37W7Y2RRyiM'), title: 'Pretender', artist: 'OFFICIAL HIGE DANDISM', order: now + 1, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 1, participants: { ...fullBand, 'm-sjm': 'keyboard' } },
+    { id: 'rh-back', ...yt('sxs2LHOmmoU'), title: 'Back in Time', artist: 'Nerd Connection', order: now + 2, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 2 },
+    { id: 'rh-romeo', ...yt('KMwFTUV6u1M'), title: 'romeo n juliet', artist: '죠지, 유라', order: now + 3, addedBy: 'm-ong', addedByName: '오남규', addedAt: now + 3 },
+    { id: 'rh-jib', ...yt('XxM5yQj86s0'), title: 'ㅈㅣㅂ', artist: '한로로', order: now + 4, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 4 },
+  ],
+  // 아직 투표 전 — 멤버들이 곡을 모으는 중
+  'pl-rec2': [
+    { id: 'rc2-carol', ...yt('E8gmARGvPlI'), title: 'All I Want For Christmas Is You', artist: 'Mariah Carey', order: now + 0, addedBy: 'm-kdh', addedByName: '김담희', addedAt: now + 0, candidateStatus: 'review' },
+    { id: 'rc2-snow', ...yt('BoJ0Jh0X4tk'), title: '첫 눈', artist: 'EXO', order: now + 1, addedBy: 'm-hyk', addedByName: '한유경', addedAt: now + 1, candidateStatus: 'review' },
+  ],
   'pl-sep': [
     { id: 'tr-candidate-demo', ...yt('dQw4w9WgXc'), title: 'Never Gonna Give You Up', artist: 'Rick Astley', addedBy: 'm-pjh', addedByName: '박정환', addedAt: now + 20, candidateStatus: 'review', recommendation: '함께 연주할 후보곡이에요.', reviews: { 'm-pjh': { part: 'guitar', name: '박정환', result: '조건부 가능', note: '리듬 편곡이 필요해요.' } } },
     { id: 'tr-fly', ...yt('AuuMtPdKUf0'), title: 'Fly away', artist: '권진아', order: now + 0, addedBy: 'demo-user', addedByName: '이인정', addedAt: now + 0 },
@@ -168,7 +203,19 @@ const personalEvents: BandEvent[] = [
 ]
 const personalEventsCol = makeCollection<BandEvent>(personalEvents)
 const eventTypesCol = makeCollection<CustomEventType>(demoPersonalTypes)
-const isPersonalChannel = () => demoActiveWorkspace().templateId === 'personal'
+const dailyMemosCol = makeCollection<PersonalDailyMemo>([])
+// 친구 채널 일정 — 유형 id 는 밴드와 같지만 라벨은 모임·번개·여행·기타로 표시된다
+const friendsEvents: BandEvent[] = [
+  { id: 'fe1', type: 'meeting', title: '동창 저녁 모임', date: dstr(5), rehStart: '19:00', rehEnd: '22:00', loc: '홍대 포차거리', note: '2차는 노래방?', createdBy: DEMO_MEMBER.uid, createdAt: now },
+  { id: 'fe2', type: 'flash', title: '퇴근 후 맥주', date: dstr(2), rehStart: '19:30', rehEnd: '21:30', note: '', createdBy: 'm-kss', createdAt: now },
+  { id: 'fe3', type: 'show', title: '강릉 1박 2일', date: dstr(20), endDate: dstr(21), rehStart: '09:00', rehEnd: '18:00', note: '차 2대 필요', createdBy: 'm-pjh', createdAt: now },
+  { id: 'fe4', type: 'other', color: '#ef6f91', allDay: true, title: '수빈 생일', date: dstr(12), rehStart: '00:00', rehEnd: '00:01', note: '', createdBy: DEMO_MEMBER.uid, createdAt: now },
+]
+const friendsEventsCol = makeCollection<BandEvent>(friendsEvents)
+const activeEventsCol = () => {
+  const templateId = demoActiveWorkspace().templateId
+  return templateId === 'personal' ? personalEventsCol : templateId === 'friends' ? friendsEventsCol : eventsCol
+}
 const placesCol = makeCollection<Place>(initialPlaces)
 const membersCol = makeCollection<Member>(initialMembers)
 const memberGroupsCol = makeCollection<MemberGroup>([])
@@ -207,20 +254,21 @@ function setlistCol(eventId: string): Collection<SetlistSong> {
   return col
 }
 
-/* ---------------- 데모 채널(워크스페이스): 밴드 + 개인 ---------------- */
+/* ---------------- 데모 채널(워크스페이스): 밴드 + 개인 + 친구 ---------------- */
 export const DEMO_BAND: Band = { id: 'demo', name: 'AMICI', ownerUid: DEMO_MEMBER.uid, templateId: 'band', createdAt: now }
 export const DEMO_PERSONAL: Band = { id: 'demo-personal', name: '내 기록', ownerUid: DEMO_MEMBER.uid, templateId: 'personal', createdAt: now }
-export const DEMO_CHANNELS: Band[] = [DEMO_BAND, DEMO_PERSONAL]
+export const DEMO_FRIENDS: Band = { id: 'demo-friends', name: '고등학교 친구들', ownerUid: DEMO_MEMBER.uid, templateId: 'friends', createdAt: now }
+export const DEMO_CHANNELS: Band[] = [DEMO_BAND, DEMO_PERSONAL, DEMO_FRIENDS]
 
-// URL 의 ?demo=personal 이면 개인 채널, 그 외(?demo, ?demo=band)면 밴드 채널
+// URL 의 ?demo=personal 이면 개인 채널, ?demo=friends 면 친구 채널, 그 외(?demo, ?demo=band)면 밴드 채널
 const demoChannelParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('demo') : ''
 export function demoActiveWorkspace(): Band {
-  return demoChannelParam === 'personal' ? DEMO_PERSONAL : DEMO_BAND
+  return demoChannelParam === 'personal' ? DEMO_PERSONAL : demoChannelParam === 'friends' ? DEMO_FRIENDS : DEMO_BAND
 }
 export function setDemoChannel(bandId: string): void {
   if (typeof window === 'undefined') return
   const params = new URLSearchParams(window.location.search)
-  params.set('demo', bandId === DEMO_PERSONAL.id ? 'personal' : 'band')
+  params.set('demo', bandId === DEMO_PERSONAL.id ? 'personal' : bandId === DEMO_FRIENDS.id ? 'friends' : 'band')
   window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`)
 }
 
@@ -330,12 +378,16 @@ export const demoDb = {
   watchMemberGroups: (cb: Sub<MemberGroup[]>) => memberGroupsCol.watch(cb),
   saveMemberGroup: (group: MemberGroup) => memberGroupsCol.upsert(group, (item) => item.id),
   deleteMemberGroup: (id: string) => memberGroupsCol.remove(id, (item) => item.id),
-  watchEvents: (cb: Sub<BandEvent[]>) => (isPersonalChannel() ? personalEventsCol : eventsCol).watch(cb),
-  saveEvent: (ev: BandEvent) => (isPersonalChannel() ? personalEventsCol : eventsCol).upsert(ev, (x) => x.id),
-  deleteEvent: (id: string) => (isPersonalChannel() ? personalEventsCol : eventsCol).remove(id, (x) => x.id),
+  watchEvents: (cb: Sub<BandEvent[]>) => activeEventsCol().watch(cb),
+  saveEvent: (ev: BandEvent) => activeEventsCol().upsert(ev, (x) => x.id),
+  deleteEvent: (id: string) => activeEventsCol().remove(id, (x) => x.id),
   watchEventTypes: (cb: Sub<CustomEventType[]>) => eventTypesCol.watch((l) => cb([...l].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))),
   saveEventType: (t: CustomEventType) => eventTypesCol.upsert(t, (x) => x.id),
   deleteEventType: (id: string) => eventTypesCol.remove(id, (x) => x.id),
+  watchDailyMemo: (date: string, cb: Sub<PersonalDailyMemo | null>) => dailyMemosCol.watch((list) => cb(list.find((memo) => memo.date === date) ?? null)),
+  saveDailyMemo: (memo: PersonalDailyMemo) => memo.text.trim()
+    ? dailyMemosCol.upsert(memo, (item) => item.date)
+    : dailyMemosCol.remove(memo.date, (item) => item.date),
 
   watchPlaces: (cb: Sub<Place[]>) => {
     return placesCol.watch((list) => cb([...list].sort((a, b) => a.name.localeCompare(b.name, 'ko'))))
@@ -355,7 +407,7 @@ export const demoDb = {
     return counts
   },
   getEarliestEventDate: (): string | null => {
-    const dates = (isPersonalChannel() ? personalEventsCol : eventsCol).get().map((e) => e.date).filter(Boolean)
+    const dates = activeEventsCol().get().map((e) => e.date).filter(Boolean)
     return dates.length ? dates.sort()[0] : null
   },
   setAttendance: (eventId: string, att: Attendance) =>

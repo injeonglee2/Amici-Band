@@ -692,7 +692,7 @@ export default function SetlistSheet({
           message={`'${removing.title}'을(를) 합주곡에서 뺄까요?`}
           confirmLabel="빼기"
           cancelLabel="닫기"
-          danger
+          confirmVariant="danger-solid"
           onConfirm={() => void doRemove(removing)}
           onCancel={() => setRemoving(null)}
         />
@@ -749,7 +749,8 @@ function SongPicker({
   const [tracks, setTracks] = useState<Track[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  useEffect(() => watchPlaylists(setPlaylists), [])
+  // 합주곡으로 담을 수 있는 건 공연곡·합주곡뿐이다(추천곡·일반 목록은 제외)
+  useEffect(() => watchPlaylists((all) => setPlaylists(all.filter((p) => p.templateId === 'performance' || p.templateId === 'rehearsal'))), [])
   useEffect(() => {
     if (!open) {
       setTracks([])

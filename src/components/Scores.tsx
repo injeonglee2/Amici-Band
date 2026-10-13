@@ -452,7 +452,7 @@ function ScoreViewer({ score, toast, onClose }: { score: Score; toast: ToastStat
           message={`'${title}'을(를) 삭제할까요?`}
           confirmLabel="삭제"
           cancelLabel="닫기"
-          danger
+          confirmVariant="danger-solid"
           onConfirm={() => void doDelete()}
           onCancel={() => setConfirmDel(false)}
         />

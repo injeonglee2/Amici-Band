@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import 'pretendard/dist/web/static/pretendard.css'
 import './index.css'
 import App from './App.tsx'
+// beforeinstallprompt 는 React 마운트 전에 올 수 있어 가장 먼저 구독한다
+import './install'
 import { APP_VERSION, BUILD_TIME } from './version'
 
 const BUILD_CHECK_INTERVAL = 60 * 60 * 1000

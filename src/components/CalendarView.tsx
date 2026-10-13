@@ -1,6 +1,6 @@
 import { Fragment, useMemo, type ReactNode } from 'react'
 import { TYPE_META, type BandEvent, type EventType, type Member, type Place } from '../types'
-import { parseDate, todayStr, weekday } from '../time'
+import { eventDates, parseDate, todayStr, weekday } from '../time'
 import { resolvePlace } from '../place'
 import EventCard from './EventCard'
 import type { ToastState } from './Toast'
@@ -46,10 +46,13 @@ export default function CalendarView({
   // 날짜별 일정 (각 날은 시작시간 순 정렬)
   const byDate = useMemo(() => {
     const map = new Map<string, BandEvent[]>()
+    // 여러 날 일정은 시작일부터 종료일까지 매일 표시한다
     for (const e of events) {
-      const arr = map.get(e.date)
-      if (arr) arr.push(e)
-      else map.set(e.date, [e])
+      for (const date of eventDates(e)) {
+        const arr = map.get(date)
+        if (arr) arr.push(e)
+        else map.set(date, [e])
+      }
     }
     for (const arr of map.values()) arr.sort((a, b) => a.rehStart.localeCompare(b.rehStart))
     return map
@@ -96,7 +99,7 @@ export default function CalendarView({
               {evs && evs.length > 0 && (
                 <span className="cal-evs">
                   {evs.slice(0, 3).map((e) => (
-                    <span key={e.id} className="cal-ev" style={{ ['--k' as string]: e.color || resolveType(e.type).color }}>
+                    <span key={e.id} className={'cal-ev' + (e.date !== c.date ? ' cont' : '')} style={{ ['--k' as string]: e.color || resolveType(e.type).color }}>
                       {e.title}
                     </span>
                   ))}

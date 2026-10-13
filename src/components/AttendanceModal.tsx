@@ -9,7 +9,7 @@ import {
   type BandEvent,
   type Member,
 } from '../types'
-import { lateOptions, leaveOptions, parseDate, weekday } from '../time'
+import { lateOptions, leaveOptions, longWhen } from '../time'
 import { TypeGlyph } from './TypeGlyph'
 import ConfirmDialog from './ConfirmDialog'
 import ThemeSelect from './ThemeSelect'
@@ -19,6 +19,7 @@ import { useBackHandler } from '../backnav'
 import { NOTIFICATION_PROMPTS_ENABLED } from '../features'
 import type { ResolvedPlace } from '../place'
 import { shareVoteRequest } from '../eventShare'
+import { eventTypeLabel, getActiveWorkspaceTemplate } from '../workspaceTemplates'
 
 const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
 
@@ -122,7 +123,6 @@ export default function AttendanceModal({
       .filter((m) => !votedUids.has(m.uid))
       .map((m) => ({ uid: m.uid, name: m.name, note: undefined as string | undefined })),
   ]
-  const d = parseDate(ev.date)
 
   // 리마인더: 합주·공연 일정에서, 관리자에게만, 미정이 있을 때만
   const canRemind =
@@ -131,7 +131,8 @@ export default function AttendanceModal({
     !!member?.admin &&
     (ev.type === 'practice' || ev.type === 'show') &&
     undecided.length > 0
-  const canShareVote = !readOnly && !!member?.admin && undecided.length > 0
+  // 친구 채널은 일정을 만든 누구나 투표 요청을 돌릴 수 있다.
+  const canShareVote = !readOnly && (!!member?.admin || !!getActiveWorkspaceTemplate().equalMembers) && undecided.length > 0
 
   async function shareVote() {
     if (sharing) return
@@ -186,9 +187,9 @@ export default function AttendanceModal({
           ) : <h2>{heading}</h2>}
 
           <div className={'modal-evhead' + (mode === 'summary' ? ' summary-card' : '')} style={{ ['--k' as string]: ev.color || TYPE_META[ev.type].color }}>
-            <div className="tag"><TypeGlyph type={ev.type} className="type-ico" />{TYPE_META[ev.type].label}</div>
+            <div className="tag"><TypeGlyph type={ev.type} className="type-ico" />{eventTypeLabel(ev.type)}</div>
             <h3>{ev.title}</h3>
-            <p>{d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}){ev.allDay ? '' : ` · ${ev.rehStart}–${ev.rehEnd}`}</p>
+            <p>{longWhen(ev)}</p>
           </div>
 
           {/* ── 투표 모드 ── */}
@@ -330,7 +331,7 @@ export default function AttendanceModal({
           message={`'${mine ? STATUS_META[mine.status].label : ''}' 투표를 취소할까요?`}
           confirmLabel="투표 취소"
           cancelLabel="닫기"
-          danger
+          confirmVariant="danger-solid"
           onConfirm={doCancel}
           onCancel={() => setConfirmCancel(false)}
         />

@@ -7,6 +7,8 @@ import { EventIcon } from '../eventIcons'
 import { Icon } from '../icons'
 import { typeVars } from '../colors'
 import { useSheetSwipe } from './useSheetSwipe'
+import { FolderDoneButton, FolderEditButton } from './FolderDetailHeader'
+import { useDragScroll } from '../useDragScroll'
 
 export interface FolderEntity {
   id: string
@@ -16,6 +18,35 @@ export interface FolderEntity {
   order?: number
   templateId?: string
   tagId?: string // 일정에서 만든 유형 태그(개인 채널 공용)
+}
+
+/**
+ * 탭을 떠났다 돌아왔을 때 보던 위치(필터·열린 폴더)를 되살린다.
+ * 세션 저장소라 앱을 다시 켜면 처음 화면부터 시작한다.
+ */
+interface FolderViewState { filterId: string; openId: string | null }
+
+function folderStateKey(key: string) { return `amici.folderView.${key}` }
+
+function readFolderState(key: string): FolderViewState | null {
+  try {
+    const raw = sessionStorage.getItem(folderStateKey(key))
+    return raw ? (JSON.parse(raw) as FolderViewState) : null
+  } catch {
+    return null // 저장소가 막힌 환경
+  }
+}
+
+function writeFolderState(key: string, state: FolderViewState) {
+  try {
+    sessionStorage.setItem(folderStateKey(key), JSON.stringify(state))
+  } catch { /* 저장소가 막힌 환경 */ }
+}
+
+/** 칩 줄의 편집 토글이 제어하는 상세 화면 편집 상태 */
+export interface DetailEdit {
+  editMode: boolean
+  setEditMode: (on: boolean) => void
 }
 
 export interface FolderRepository<TFolder extends FolderEntity> {
@@ -44,6 +75,12 @@ export interface FolderModuleConfig {
   }
   emptyIcon?: ReactNode
   rowIcon?: (folder: FolderEntity) => ReactNode
+  rowBadge?: (folder: FolderEntity) => ReactNode // 이름 오른쪽에 붙는 상태 배지(예: 추천곡 추가중·투표중)
+  /**
+   * 칩이 직접 열어주는 폴더(합주곡)는 자체 헤더가 없어 편집 버튼 자리가 없다.
+   * true 를 주면 칩 줄 오른쪽 끝에 편집 토글을 띄우고 상태를 renderDetail 로 넘긴다.
+   */
+  detailEditable?: (folder: FolderEntity) => boolean
   templates?: { id: string; label: string; description: string; symbol: string }[]
   filters?: { id: string; label: string; match: (folder: FolderEntity) => boolean; openFolderId?: string }[]
   canCreate?: (filterId: string) => boolean
@@ -56,18 +93,25 @@ export default function FolderModule<TFolder extends FolderEntity>({
   repository,
   renderDetail,
   initialOpenId,
+  stateKey,
 }: {
   config: FolderModuleConfig
   repository: FolderRepository<TFolder>
-  renderDetail: (folder: TFolder, onBack: () => void) => ReactNode
+  renderDetail: (folder: TFolder, onBack: () => void, edit?: DetailEdit) => ReactNode
   initialOpenId?: string | null
+  /** 주면 탭을 떠났다 돌아왔을 때 마지막 필터·열린 폴더를 복원한다 */
+  stateKey?: string
 }) {
+  const remembered = stateKey ? readFolderState(stateKey) : null
   const [folders, setFolders] = useState<TFolder[]>([])
   const [loadErr, setLoadErr] = useState('')
-  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null)
+  // 일정에서 넘어온 딥링크가 최우선, 그 다음이 마지막으로 보던 위치
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? remembered?.openId ?? null)
   const [editing, setEditing] = useState<TFolder | 'new' | null>(null)
   const [reorderMode, setReorderMode] = useState(false)
-  const [filterId, setFilterId] = useState(() => config.filters?.[0]?.id ?? 'all')
+  const [detailEdit, setDetailEdit] = useState(false)
+  const filterDrag = useDragScroll<HTMLDivElement>()
+  const [filterId, setFilterId] = useState(() => remembered?.filterId ?? config.filters?.[0]?.id ?? 'all')
   const [tags, setTags] = useState<CustomEventType[]>([])
   useEffect(() => (config.taggable ? watchEventTypes(setTags, () => {}) : undefined), [config.taggable])
   const tagMap = new Map(tags.map((t) => [t.id, t]))
@@ -96,8 +140,20 @@ export default function FolderModule<TFolder extends FolderEntity>({
     setFilterId(id)
     setOpenId(config.filters?.find((filter) => filter.id === id)?.openFolderId ?? null)
   }
-  const filterTabs = config.filters && <div className="music-tabs folder-filter-tabs">{config.filters.map((filter) => <button key={filter.id} className={'chip' + (filterId === filter.id ? ' on' : '')} onClick={() => chooseFilter(filter.id)}>{filter.label}</button>)}</div>
+  const filterTabs = config.filters && <div {...filterDrag} className={`music-tabs folder-filter-tabs ${filterDrag.className}`}>{config.filters.map((filter) => <button key={filter.id} className={'chip' + (filterId === filter.id ? ' on' : '')} onClick={() => chooseFilter(filter.id)}>{filter.label}</button>)}</div>
   const open = folders.find((folder) => folder.id === openId) ?? null
+  useEffect(() => setDetailEdit(false), [openId])
+  /**
+   * 일정에서 한 번 건너온 딥링크는 '내가 보던 위치'가 아니므로 기억하지 않는다.
+   * 기억하면 그 뒤로 탭에 들어올 때마다 그 폴더가 계속 다시 열린다.
+   */
+  const deepOpenId = useRef(initialOpenId ?? null)
+  useEffect(() => {
+    if (!stateKey) return
+    if (openId && openId === deepOpenId.current) return
+    deepOpenId.current = null // 한 번 벗어나면 이후로는 평소대로 기억한다
+    writeFolderState(stateKey, { filterId, openId })
+  }, [stateKey, filterId, openId])
   useEffect(() => {
     if (!open || !config.filters) return
     const matching = config.filters.find((filter) => filter.match(open))
@@ -107,7 +163,18 @@ export default function FolderModule<TFolder extends FolderEntity>({
   if (open) {
     // 칩이 직접 열어준 폴더(합주곡)에서만 칩이 탐색 수단으로 남는다
     const openedByFilter = config.filters?.find((filter) => filter.id === filterId)?.openFolderId === open.id
-    return <>{openedByFilter && <div className="folder-detail-tabs">{filterTabs}</div>}{renderDetail(open, () => setOpenId(null))}</>
+    const editable = openedByFilter && (config.detailEditable?.(open) ?? false)
+    return <>
+      {openedByFilter && <div className="folder-detail-tabs">
+        {filterTabs}
+        {editable && <span className="detail-tabs-edit">
+          {detailEdit
+            ? <FolderDoneButton onClick={() => setDetailEdit(false)} />
+            : <FolderEditButton onClick={() => setDetailEdit(true)} />}
+        </span>}
+      </div>}
+      {renderDetail(open, () => setOpenId(null), editable ? { editMode: detailEdit, setEditMode: setDetailEdit } : undefined)}
+    </>
   }
 
   return (
@@ -156,6 +223,7 @@ export default function FolderModule<TFolder extends FolderEntity>({
                     </span>
                   )}
                 </div>
+                {config.rowBadge?.(folder)}
                 <svg className="playlist-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
               </button>
             ))}

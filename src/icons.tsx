@@ -9,8 +9,15 @@ export type IconName =
   | 'filter' | 'sort' | 'edit' | 'trash' | 'plus' | 'check' | 'close'
   | 'chevron-down' | 'chevron-up' | 'chevron-right' | 'chevron-left'
   | 'search' | 'sync' | 'gear' | 'calendar' | 'clock' | 'grip' | 'arrow-up' | 'arrow-down'
+  | 'eraser' | 'clover'
+
+// 네잎클로버 — 하트 모양 잎 하나를 가운데 기준으로 90도씩 돌려 네 장. 채워서 그려도 잎이 구분되도록
+// 잎 사이(대각선)에 틈을 두고, 오른쪽 아래 틈에 줄기를 넣는다. (템플릿 심볼은 fill=currentColor 로 채워 쓴다)
+const CLOVER_LEAF = 'M12 10.8C10.4 9.3 8.5 7.8 8.5 5.8A1.8 1.8 0 0 1 12 5A1.8 1.8 0 0 1 15.5 5.8C15.5 7.8 13.6 9.3 12 10.8Z'
+const CLOVER_STEM = 'M12.9 13.1l1.1-1.1 4.6 4.6-1.1 1.1Z'
 
 const PATHS: Record<IconName, ReactNode> = {
+  clover: <><path d={CLOVER_LEAF} /><path d={CLOVER_LEAF} transform="rotate(90 12 12)" /><path d={CLOVER_LEAF} transform="rotate(180 12 12)" /><path d={CLOVER_LEAF} transform="rotate(270 12 12)" /><path d={CLOVER_STEM} /></>,
   filter: <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />, // 깔때기(funnel)
   sort: <><path d="M3 6h11M3 12h8M3 18h5" /><path d="m17 6 4 4M17 6l-4 4M17 6v12" /></>,
   edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>,
@@ -28,6 +35,7 @@ const PATHS: Record<IconName, ReactNode> = {
   calendar: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   grip: <><circle cx="9" cy="6" r="1" /><circle cx="15" cy="6" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="9" cy="18" r="1" /><circle cx="15" cy="18" r="1" /></>,
+  eraser: <><path d="m7 20-3.5-3.5a2.1 2.1 0 0 1 0-3L14 3a2.1 2.1 0 0 1 3 0l4 4a2.1 2.1 0 0 1 0 3L11 20Z" /><path d="m10 7 7 7" /><path d="M7 20h14" /></>,
   'arrow-up': <path d="M12 19V5M5 12l7-7 7 7" />,
   'arrow-down': <path d="M12 5v14M19 12l-7 7-7-7" />,
 }

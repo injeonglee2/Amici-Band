@@ -23,7 +23,7 @@ import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'fi
 import { db, fbApp, storage } from './firebase'
 import { getCurrentBand, bandCol, bandDoc, bandStoragePath } from './band'
 import { DEMO, demoDb } from './demo'
-import type { Band, Attendance, BandEvent, CustomEventType, Feedback, FeedbackReply, Member, MemberGroup, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Band, Attendance, BandEvent, CustomEventType, Feedback, FeedbackReply, Member, MemberGroup, PersonalDailyMemo, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -514,6 +514,27 @@ export async function saveEventType(t: CustomEventType): Promise<void> {
 export async function deleteEventType(id: string): Promise<void> {
   if (DEMO) return demoDb.deleteEventType(id)
   await deleteDoc(bandDoc('eventTypes', id))
+}
+
+/* ---------------- 개인 채널 날짜별 메모 (bands/{band}/dailyMemos/{YYYY-MM-DD}) ---------------- */
+export function watchDailyMemo(
+  date: string,
+  cb: (memo: PersonalDailyMemo | null) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) return demoDb.watchDailyMemo(date, cb)
+  return onSnapshot(bandDoc('dailyMemos', date), (snap) => {
+    cb(snap.exists() ? (snap.data() as PersonalDailyMemo) : null)
+  }, (err) => onError?.(err))
+}
+
+export async function saveDailyMemo(memo: PersonalDailyMemo): Promise<void> {
+  if (DEMO) return demoDb.saveDailyMemo(memo)
+  if (!memo.text.trim()) {
+    await deleteDoc(bandDoc('dailyMemos', memo.date))
+    return
+  }
+  await setDoc(bandDoc('dailyMemos', memo.date), memo)
 }
 
 /** 개발자 채널 전환용 전체 채널 일회 조회. */

@@ -103,15 +103,19 @@ export function SharedTrackImport({
   )
 }
 
+import type { DetailEdit } from './FolderModule'
+
 /* ---------------- 재생목록 상세 (곡 목록) ---------------- */
 export function PlaylistDetail({
   playlist,
   toast,
   onBack,
+  edit,
 }: {
   playlist: Playlist
   toast: ToastState
   onBack: () => void
+  edit?: DetailEdit // 헤더가 없는 합주곡은 칩 줄의 편집 토글이 편집 상태를 쥔다
 }) {
   const { member } = useAuth()
   const isRecommendation = playlist.templateId === 'recommendation' || playlist.templateId === 'project'
@@ -119,6 +123,12 @@ export function PlaylistDetail({
   const isRehearsal = playlist.templateId === 'rehearsal'
   const isGeneral = !playlist.templateId || playlist.templateId === 'general'
   const isProject = isRecommendation || isPerformance
+  // 참여자 관리를 쓰는 목록 — 공연곡·추천곡에 합주곡을 더한다
+  const hasParticipation = isProject || isRehearsal
+  // 행 머리(썸네일·제목)를 눌러 재생. 펼쳐 둔 참여자 격자를 눌렀을 때 재생이 튀지 않게 한다.
+  const headPlays = isPerformance || isRehearsal
+  // 참여자 관리가 없는 목록(일반)만 카드 전체가 재생 버튼이다
+  const cardPlays = isGeneral
   // 재생목록별 옵션: 곡 추가한 사람 표시 (기본 표시)
   const showAdder = playlist.showAdder !== false
   const [tracks, setTracks] = useState<Track[]>([])
@@ -141,7 +151,10 @@ export function PlaylistDetail({
   })
   const [playingId, setPlayingId] = useState<string | null>(null)
   // 편집 모드: 제목 인라인 수정 + 곡 드래그 정렬 + 삭제 + 곡 정보 수정
-  const [editMode, setEditMode] = useState(false)
+  // 칩 줄에 편집 토글이 있는 화면(합주곡)에서는 그쪽 상태를 그대로 쓴다.
+  const [ownEditMode, setOwnEditMode] = useState(false)
+  const editMode = edit ? edit.editMode : ownEditMode
+  const setEditMode = edit ? edit.setEditMode : setOwnEditMode
   // '내 참여곡만' 필터 (내가 참여한 곡만 보기)
   const [participantUid, setParticipantUid] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
@@ -152,7 +165,8 @@ export function PlaylistDetail({
   // 삭제 확인 다이얼로그 (재생목록/곡 공용)
   const [confirm, setConfirm] = useState<{ message: string; label: string; run: () => Promise<void> } | null>(null)
   // 유튜브 내보내기
-  const [exportAsk, setExportAsk] = useState(false)
+  // 저장할 곡 목록. 추천곡 화면은 후보 곡을 직접 넘긴다 (items 는 후보를 걸러내므로 비어 있음)
+  const [exportAsk, setExportAsk] = useState<Track[] | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportDone, setExportDone] = useState<ExportResult | null>(null)
 
@@ -228,24 +242,29 @@ export function PlaylistDetail({
   }
 
   /* ----- 유튜브(=유튜브 뮤직) 재생목록으로 내보내기 ----- */
-  function startExport() {
+  function startExport(tracksToExport: Track[] = items) {
     if (DEMO) {
       toast.show('데모에서는 내보내기를 쓸 수 없어요')
       return
     }
-    if (items.length === 0) return
-    setExportAsk(true)
+    if (tracksToExport.length === 0) {
+      toast.show('저장할 곡이 없어요')
+      return
+    }
+    setExportAsk(tracksToExport)
   }
-  async function runExport() {
-    const videoIds = items.map((t) => t.videoId).filter(Boolean)
-    if (videoIds.length === 0) return
+  async function runExport(tracksToExport: Track[]) {
+    const videoIds = tracksToExport.map((t) => t.videoId).filter(Boolean)
+    if (videoIds.length === 0) {
+      toast.show('유튜브 영상이 있는 곡이 없어요')
+      return
+    }
     setExporting(true)
     try {
       const result = await exportPlaylistToYouTube(playlist.name, videoIds, (a, t) =>
         toast.show(`${a} / ${t}곡 저장 중…`),
       )
       setExportDone(result)
-      toast.show(`유튜브에 ${result.added}곡 저장했어요`)
     } catch (e) {
       const code = e instanceof YouTubeExportError ? e.code : ''
       const msg = exportErrorMessage(code)
@@ -254,6 +273,13 @@ export function PlaylistDetail({
     } finally {
       setExporting(false)
     }
+  }
+
+  // 완료 창을 닫은 뒤 토스트로 한 번 더 알린다. 진행 중 토스트("N / M곡 저장 중…")에 묻히지 않게 창이 닫힌 시점에 띄운다.
+  function finishExport() {
+    const done = exportDone
+    setExportDone(null)
+    if (done) toast.show(`유튜브에 ${done.added}곡 저장했어요`)
   }
 
   /* ----- 제목 인라인 수정 ----- */
@@ -424,9 +450,15 @@ export function PlaylistDetail({
     <>
       {!isRehearsal && <FolderDetailHeader title={playlist.name} editing={editMode} draft={titleDraft} editable
         backLabel="재생목록 목록으로" onBack={back} onEdit={enterEdit} onDraftChange={setTitleDraft}
-        onDone={() => void exitEdit()} viewActions={isRecommendation && member?.admin ? <div className="folder-header-actions"><button className="vote-share-btn recommendation-request-btn" onClick={() => playlist.voteOpen ? void requestRecommendationVotes() : setRecommendationRequestOpen(true)} aria-label={playlist.voteOpen ? '추천곡 투표 요청' : '추천곡 추가 요청'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4Z"/></svg><span>{playlist.voteOpen ? '투표 요청' : '추가 요청'}</span></button></div> : undefined} editActions={<FolderDeleteButton onClick={removePlaylistNow} label="재생목록 삭제" />} />}
+        onDone={() => void exitEdit()} viewActions={isRecommendation && member?.admin ? <div className="folder-header-actions">
+          {!playlist.voteOpen && <button className="vote-share-btn recommendation-request-btn" onClick={() => setRecommendationRequestOpen(true)} aria-label="추천곡 추가 요청"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4Z"/></svg><span>추가 요청</span></button>}
+          <button className={'vote-header-btn' + (playlist.voteOpen ? ' active' : '')} onClick={() => setVoteSettingsOpen(true)} aria-label={playlist.voteOpen ? '진행 중인 투표 관리' : playlist.lastSelectedTrackIds?.length ? '선정곡 연결' : '투표 열기'}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l2 2 4-4"/><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/></svg>
+            <span>{playlist.voteOpen ? '투표 관리' : playlist.lastSelectedTrackIds?.length ? '선정곡 연결' : '투표 열기'}</span>
+          </button>
+        </div> : undefined} editActions={<FolderDeleteButton onClick={removePlaylistNow} label="재생목록 삭제" />} />}
 
-      {isRecommendation ? <MusicCandidates playlist={playlist} toast={toast} editMode={editMode} onEditTrack={setEditingTrack} onDeleteTrack={removeTrack} onAdd={() => setAdding(true)} onExport={startExport} exporting={exporting} settingsOpen={voteSettingsOpen} onSettingsOpen={() => setVoteSettingsOpen(true)} onSettingsClose={() => setVoteSettingsOpen(false)} /> : <>
+      {isRecommendation ? <MusicCandidates playlist={playlist} toast={toast} editMode={editMode} onEditTrack={setEditingTrack} onDeleteTrack={removeTrack} onAdd={() => setAdding(true)} onExport={startExport} exporting={exporting} settingsOpen={voteSettingsOpen} onSettingsClose={() => setVoteSettingsOpen(false)} onRequestVotes={requestRecommendationVotes} /> : <>
       <main className="scroll">
         {loadErr && <div className="banner-err">{loadErr}</div>}
 
@@ -469,11 +501,11 @@ export function PlaylistDetail({
               </>
             ) : (
               <div className="setlist-actions">
-                <button className="btn primary play-all" onClick={playAll}>
+                <button className="btn play-all" onClick={playAll}>
                   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                   전체 재생
                 </button>
-                <button className="btn subtle export-btn" onClick={startExport} disabled={exporting} title="유튜브 재생목록으로 저장">
+                <button className="btn subtle export-btn" onClick={() => startExport()} disabled={exporting} title="유튜브 재생목록으로 저장">
                   {exporting ? (
                     '저장 중…'
                   ) : (
@@ -485,7 +517,7 @@ export function PlaylistDetail({
                 </button>
               </div>
             )}
-            {!editMode && isProject && participantMembers.length > 0 && (
+            {!editMode && hasParticipation && participantMembers.length > 0 && (
               <div className="track-filter">
                 {myUid && myCount > 0 && <button
                   type="button"
@@ -543,10 +575,10 @@ export function PlaylistDetail({
                 ) : (() => {
                   const open = openId === t.id
                   const joined = Object.keys(t.participants ?? {}).length
-                  const focusedPart = isProject ? participantPartOf(t, participantUid || myUid) : undefined
-                  const myPart = isProject ? participantPartOf(t, myUid) : undefined
-                  return <div key={t.id} className={'setlist-row playlist-setlist-row' + (isGeneral ? ' card-play-target' : '') + (t.id === playingId ? ' playing' : '') + (focusedPart ? ' mine' : '')} role={isGeneral ? 'button' : undefined} tabIndex={isGeneral ? 0 : undefined} onClick={isGeneral ? () => playTrack(t.id) : undefined} onKeyDown={isGeneral ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playTrack(t.id) } } : undefined}>
-                    <div className={'setlist-rowhead' + (isPerformance ? ' card-play-target performance-play-target' : '')} role={isPerformance ? 'button' : undefined} tabIndex={isPerformance ? 0 : undefined} onClick={isPerformance ? () => playTrack(t.id) : undefined} onKeyDown={isPerformance ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playTrack(t.id) } } : undefined}>
+                  const focusedPart = hasParticipation ? participantPartOf(t, participantUid || myUid) : undefined
+                  const myPart = hasParticipation ? participantPartOf(t, myUid) : undefined
+                  return <div key={t.id} className={'setlist-row playlist-setlist-row' + (cardPlays ? ' card-play-target' : '') + (t.id === playingId ? ' playing' : '') + (focusedPart ? ' mine' : '')} role={cardPlays ? 'button' : undefined} tabIndex={cardPlays ? 0 : undefined} onClick={cardPlays ? () => playTrack(t.id) : undefined} onKeyDown={cardPlays ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playTrack(t.id) } } : undefined}>
+                    <div className={'setlist-rowhead' + (headPlays ? ' card-play-target performance-play-target' : '')} role={headPlays ? 'button' : undefined} tabIndex={headPlays ? 0 : undefined} onClick={headPlays ? () => playTrack(t.id) : undefined} onKeyDown={headPlays ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playTrack(t.id) } } : undefined}>
                     {isPerformance && <span className="performance-track-no">{trackIndex + 1}</span>}
                     <button className="track-thumb-btn" onClick={(e) => { e.stopPropagation(); playTrack(t.id) }} aria-label="재생">
                       <div className="track-thumb sm">
@@ -568,19 +600,19 @@ export function PlaylistDetail({
                         {t.artist && <p>{t.artist}</p>}
                       </div>
                     </div>
-                    {(!isProject || showAdder) && <span className="playlist-track-adder">{t.addedByName || memberMap.get(t.addedBy)?.name || '알 수 없는 멤버'}</span>}
+                    {showAdder && <span className="playlist-track-adder">{t.addedByName || memberMap.get(t.addedBy)?.name || '알 수 없는 멤버'}</span>}
                     {focusedPart && <span className="track-mypart" title="선택한 멤버가 참여하는 파트">{focusedPart}</span>}
-                    {isProject && open && (
+                    {hasParticipation && open && (
                       <button type="button" className={'song-join-mini' + (myPart ? ' on' : '')} onClick={(e) => { e.stopPropagation(); setParticipatingId(t.id) }}>
                         참여
                       </button>
                     )}
-                    {isProject && <button type="button" className="setlist-toggle" onClick={(e) => { e.stopPropagation(); setOpenId(open ? null : t.id) }} aria-expanded={open} aria-label={`${t.title || '곡'} 참여자 ${open ? '접기' : '펼치기'}`}>
+                    {hasParticipation && <button type="button" className="setlist-toggle" onClick={(e) => { e.stopPropagation(); setOpenId(open ? null : t.id) }} aria-expanded={open} aria-label={`${t.title || '곡'} 참여자 ${open ? '접기' : '펼치기'}`}>
                       <span className="setlist-joined">{joined}</span>
                       <svg className={'track-open-chev' + (open ? ' open' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                     </button>}
                     </div>
-                    {isProject && open && <TrackPartGrid track={t} memberMap={memberMap} myUid={myUid} />}
+                    {hasParticipation && open && <TrackPartGrid track={t} memberMap={memberMap} myUid={myUid} />}
                   </div>
                 })(),
               )}
@@ -648,7 +680,7 @@ export function PlaylistDetail({
           message={confirm.message}
           confirmLabel={confirm.label}
           cancelLabel="취소"
-          danger
+          confirmVariant="danger-solid"
           onConfirm={() => {
             const c = confirm
             setConfirm(null)
@@ -660,14 +692,16 @@ export function PlaylistDetail({
 
       {exportAsk && (
         <ConfirmDialog
-          message={`이 재생목록(${items.length}곡)을 내 유튜브 계정에 재생목록으로 저장할까요? 유튜브 로그인·권한 창이 떠요.`}
+          message={`이 재생목록(${exportAsk.length}곡)을 내 유튜브 계정에 재생목록으로 저장할까요?`}
           confirmLabel="저장"
           cancelLabel="취소"
+          emphasis="confirm"
           onConfirm={() => {
-            setExportAsk(false)
-            void runExport()
+            const tracksToExport = exportAsk
+            setExportAsk(null)
+            void runExport(tracksToExport)
           }}
-          onCancel={() => setExportAsk(false)}
+          onCancel={() => setExportAsk(null)}
         />
       )}
 
@@ -676,12 +710,13 @@ export function PlaylistDetail({
           message={`유튜브에 "${playlist.name}" 재생목록을 저장했어요 (${exportDone.added}/${exportDone.total}곡). 유튜브 뮤직에서 열까요?`}
           confirmLabel="열기"
           cancelLabel="닫기"
+          emphasis="confirm"
           onConfirm={() => {
             const url = exportDone.url
-            setExportDone(null)
+            finishExport()
             window.open(url, '_blank', 'noopener')
           }}
-          onCancel={() => setExportDone(null)}
+          onCancel={finishExport}
         />
       )}
     </>

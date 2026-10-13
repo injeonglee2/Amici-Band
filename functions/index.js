@@ -338,6 +338,7 @@ const NOTIFIABLE_EVENT_FIELDS = [
   'title',
   'type',
   'date',
+  'endDate',
   'rehStart',
   'rehEnd',
   'placeId',
@@ -373,6 +374,9 @@ async function buildEventChangeSummary(before, after, bandId) {
   const changes = []
   if (valueChanged(before, after, 'date')) {
     changes.push(`날짜: ${displayValue(before.date)} → ${displayValue(after.date)}`)
+  }
+  if (valueChanged(before, after, 'endDate')) {
+    changes.push(`종료일: ${displayValue(before.endDate, '없음')} → ${displayValue(after.endDate, '없음')}`)
   }
   if (valueChanged(before, after, 'rehStart') || valueChanged(before, after, 'rehEnd')) {
     changes.push(
@@ -555,6 +559,7 @@ exports.notifyOnEventCreate = onDocumentCreated(
   const membersSnap = await bandRef(bandId).collection('members').get()
   const isRecommendationDeadline = !!data.recommendationPlaylistId
   const isPractice = data.type === 'practice' && !isRecommendationDeadline
+  const when = data.endDate ? `${data.date || ''}~${data.endDate}` : (data.date || '') // 여러 날 일정은 기간으로
   const delivery = await sendAllPush(eventAudience(membersSnap.docs, data), {
     title: isRecommendationDeadline
       ? `추천곡 일정: ${data.title || '추천곡 마감'}`
@@ -562,10 +567,10 @@ exports.notifyOnEventCreate = onDocumentCreated(
       ? `참석 투표 요청: ${data.title || '합주 일정'}`
       : `새 일정: ${data.title || '일정'}`,
     body: isRecommendationDeadline
-      ? `${data.date || ''} 추천곡 일정을 확인해 주세요.`
+      ? `${when} 추천곡 일정을 확인해 주세요.`
       : isPractice
-      ? `${data.date || ''} 합주 일정이 추가됐어요. 참석 여부를 투표해 주세요.`
-      : `${data.date || ''} 새 일정이 추가됐어요. 확인해 주세요.`,
+      ? `${when} 합주 일정이 추가됐어요. 참석 여부를 투표해 주세요.`
+      : `${when} 새 일정이 추가됐어요. 확인해 주세요.`,
     eventId,
   })
   console.info('event-create push complete', { bandId, eventId, delivery })
@@ -679,15 +684,27 @@ async function uniqueCode() {
   throw new HttpsError('internal', '코드 생성에 실패했어요. 다시 시도해 주세요.')
 }
 
-// 새 채널 생성 — 일반 사용자는 개인 1개 + 공동 1개까지, 앱 소유자는 제한 없이 생성한다.
+// 채널 종류: 개인 / 친구 / 그 밖의 공동(밴드·공동). 일반 사용자는 종류마다 하나씩만 가질 수 있다.
+function channelKind(templateId) {
+  if (templateId === 'personal') return 'personal'
+  if (templateId === 'friends') return 'friends'
+  return 'shared'
+}
+const KIND_LIMIT_MESSAGE = {
+  personal: '개인 채널은 하나만 만들 수 있어요.',
+  friends: '친구 채널은 하나만 만들거나 참여할 수 있어요.',
+  shared: '밴드 채널은 하나만 만들거나 참여할 수 있어요.',
+}
+
+// 새 채널 생성 — 일반 사용자는 개인·밴드·친구 각 1개까지, 앱 소유자는 제한 없이 생성한다.
 exports.createBand = onCall(async (req) => {
   if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
   const uid = req.auth.uid
   const email = (req.auth.token && req.auth.token.email) || ''
   const name = String((req.data && req.data.name) || '').trim()
   const requestedTemplate = String((req.data && req.data.templateId) || 'personal')
-  if (!['personal', 'band', 'gathering'].includes(requestedTemplate)) {
-    throw new HttpsError('failed-precondition', '개인 또는 공동 채널만 새로 만들 수 있어요.')
+  if (!['personal', 'band', 'gathering', 'friends'].includes(requestedTemplate)) {
+    throw new HttpsError('failed-precondition', '개인, 밴드, 친구 채널만 새로 만들 수 있어요.')
   }
   const templateId = requestedTemplate
   if (!name) throw new HttpsError('invalid-argument', '채널 이름을 입력해 주세요.')
@@ -699,10 +716,10 @@ exports.createBand = onCall(async (req) => {
   const knownBandIds = [...new Set([currentBandId, ...storedBandIds].filter(Boolean))]
   if (!isDeveloper && knownBandIds.length) {
     const knownBands = await Promise.all(knownBandIds.map((id) => db.collection('bands').doc(id).get()))
-    const wantsPersonal = templateId === 'personal'
-    const sameKindExists = knownBands.some((snap) => snap.exists && (snap.get('templateId') === 'personal') === wantsPersonal)
+    const kind = channelKind(templateId)
+    const sameKindExists = knownBands.some((snap) => snap.exists && channelKind(snap.get('templateId')) === kind)
     if (sameKindExists) {
-      throw new HttpsError('failed-precondition', wantsPersonal ? '개인 채널은 하나만 만들 수 있어요.' : '공동 채널은 하나만 만들거나 참여할 수 있어요.')
+      throw new HttpsError('failed-precondition', KIND_LIMIT_MESSAGE[kind])
     }
   }
 
@@ -760,9 +777,14 @@ exports.joinBand = onCall(async (req) => {
   }
   const bandId = codeSnap.get('bandId')
   if (!isDeveloper && knownBandIds.length) {
-    const knownBands = await Promise.all(knownBandIds.filter((id) => id !== bandId).map((id) => db.collection('bands').doc(id).get()))
-    if (knownBands.some((snap) => snap.exists && snap.get('templateId') !== 'personal')) {
-      throw new HttpsError('failed-precondition', '공동 채널은 하나만 만들거나 참여할 수 있어요.')
+    // 참여하려는 채널과 같은 종류(밴드/친구)를 이미 갖고 있으면 막는다.
+    const [target, ...knownBands] = await Promise.all([
+      db.collection('bands').doc(bandId).get(),
+      ...knownBandIds.filter((id) => id !== bandId).map((id) => db.collection('bands').doc(id).get()),
+    ])
+    const kind = channelKind(target.exists ? target.get('templateId') : 'band')
+    if (knownBands.some((snap) => snap.exists && channelKind(snap.get('templateId')) === kind)) {
+      throw new HttpsError('failed-precondition', KIND_LIMIT_MESSAGE[kind])
     }
   }
 
@@ -801,13 +823,22 @@ exports.joinBand = onCall(async (req) => {
   return { bandId }
 })
 
-// 초대 코드 회전 — 그 밴드 관리자만. 기존 활성 코드는 비활성화하고 새 코드 발급.
+// 채널 운영 권한: 그 채널의 관리자, 또는 역할 없이 모두가 같은 권한인 친구 채널(templateId=friends)의 모든 멤버
+async function canOperateChannel(bandId, uid) {
+  const [me, band] = await Promise.all([
+    bandRef(bandId).collection('members').doc(uid).get(),
+    bandRef(bandId).get(),
+  ])
+  if (!me.exists) return false
+  return me.get('admin') === true || band.get('templateId') === 'friends'
+}
+
+// 초대 코드 회전 — 그 밴드 관리자(친구 채널은 모든 멤버). 기존 활성 코드는 비활성화하고 새 코드 발급.
 exports.rotateInviteCode = onCall(async (req) => {
   if (!req.auth) throw new HttpsError('unauthenticated', '로그인이 필요해요.')
   const bandId = String((req.data && req.data.bandId) || '')
   if (!bandId) throw new HttpsError('invalid-argument', 'bandId 가 필요해요.')
-  const me = await bandRef(bandId).collection('members').doc(req.auth.uid).get()
-  if (!me.exists || me.get('admin') !== true) {
+  if (!(await canOperateChannel(bandId, req.auth.uid))) {
     throw new HttpsError('permission-denied', '관리자만 코드를 재발급할 수 있어요.')
   }
   const channel = await bandRef(bandId).get()
@@ -829,8 +860,7 @@ exports.kickMember = onCall(async (req) => {
   const bandId = String((req.data && req.data.bandId) || '')
   const uid = String((req.data && req.data.uid) || '')
   if (!bandId || !uid) throw new HttpsError('invalid-argument', 'bandId·uid 가 필요해요.')
-  const me = await bandRef(bandId).collection('members').doc(req.auth.uid).get()
-  if (!me.exists || me.get('admin') !== true) throw new HttpsError('permission-denied', '관리자만 내보낼 수 있어요.')
+  if (!(await canOperateChannel(bandId, req.auth.uid))) throw new HttpsError('permission-denied', '관리자만 내보낼 수 있어요.')
   if (uid === req.auth.uid) throw new HttpsError('failed-precondition', '본인은 여기서 내보낼 수 없어요.')
   const band = await bandRef(bandId).get()
   if (band.get('ownerUid') === uid) throw new HttpsError('failed-precondition', '소유자는 내보낼 수 없어요.')

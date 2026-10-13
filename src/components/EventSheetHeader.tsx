@@ -1,4 +1,4 @@
-import { parseDate, weekday } from '../time'
+import { longWhen } from '../time'
 import type { BandEvent } from '../types'
 import type { ResolvedPlace } from '../place'
 
@@ -17,8 +17,7 @@ export default function EventSheetHeader({
   showDetails?: boolean
   inlineDateTime?: boolean
 }) {
-  const d = parseDate(ev.date)
-  const dateTime = <>{d.getMonth() + 1}월 {d.getDate()}일 ({weekday(ev.date)}){ev.allDay ? '' : ` · ${ev.rehStart}–${ev.rehEnd}`}</>
+  const dateTime = <>{longWhen(ev)}</>
   return (
     <div className="setlist-head">
       <div className="setlist-head-title">
