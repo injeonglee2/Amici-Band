@@ -49,6 +49,9 @@ export interface BandEvent {
   title: string
   date: string // YYYY-MM-DD 시작일
   endDate?: string // YYYY-MM-DD 종료일(여러 날 일정). 없거나 date 와 같으면 하루 일정. 시간은 시작일 rehStart ~ 종료일 rehEnd
+  undated?: boolean // 날짜 미정 약속(친구 채널). date 에는 UNDATED_DATE 자리표시를 두고, 확정되면 실제 날짜로 바꾼다
+  period?: string // 미정 약속의 대략 시기(예: 11월 중)
+  dateOptions?: string[] // 미정 약속의 후보 날짜 YYYY-MM-DD — 친구들이 가능 여부를 표시한다
   rehStart: string // HH:MM 합주 시작 (기본 18:00)
   rehEnd: string // HH:MM 합주 종료 (기본 22:00)
   placeId?: string // 설정에서 관리하는 장소 참조
@@ -66,6 +69,26 @@ export interface BandEvent {
   targetGroupName?: string // 그룹 이름 스냅샷
   targetMemberIds?: string[] // 일정 생성 시점의 대상 멤버 uid
   createdBy: string
+  createdAt: number
+}
+
+/** 날짜 미정 약속의 date 자리표시 — 실시간 조회 창(최근 1년~미래)에 항상 들어오고 정렬에서는 맨 뒤로 간다. */
+export const UNDATED_DATE = '9999-12-31'
+
+/** 날짜 미정 약속의 후보 날짜 가능 여부 — events/{eventId}/dateVotes/{uid} */
+export interface DateVote {
+  uid: string
+  name: string // 이름 스냅샷
+  available: string[] // 갈 수 있는 후보 날짜(YYYY-MM-DD)
+  updatedAt: number
+}
+
+/** 일정 댓글 — events/{eventId}/comments/{id}. 참석 사유(상태의 부연)와 달리 일정에 대한 대화를 쌓는다 */
+export interface EventComment {
+  id: string
+  uid: string
+  name: string // 이름 스냅샷
+  text: string
   createdAt: number
 }
 

@@ -698,7 +698,8 @@ button { font-family: inherit; }
 /* 참석 현황 하단: 수정/닫기를 한 줄에 반씩 */
 .actions.att-actions .btn { flex: 1 1 0; }
 .event-note {
-  margin: 8px 0 0; background: var(--surface); border-radius: 10px; padding: 8px 10px;
+  /* 장소 메모와 같이 카드(--surface)와 다른 2차 표면색으로 메모 블록을 구분한다 */
+  margin: 8px 0 0; background: var(--surface-2); border-radius: 10px; padding: 8px 10px;
   display: flex; align-items: flex-start; gap: 6px;
 }
 .event-note-text {
@@ -761,6 +762,7 @@ button { font-family: inherit; }
 .modal-evhead.summary-card h3 { margin-top: 4px; }
 
 .vote-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 4px; }
+.vote-row.simple { grid-template-columns: repeat(2, 1fr); } /* 날짜 미정 약속: 참·불참만 */
 /* 참석/늦참/조퇴 — 단색 버튼 (그라데이션 없음), 활성 시 은은한 글로우만 */
 .vote-btn {
   appearance: none; cursor: pointer; border: 1.5px solid var(--line-strong);
@@ -1054,6 +1056,51 @@ button { font-family: inherit; }
 .field .datetime-pair input { flex: 1 1 0; min-width: 0; width: auto; border: 0; border-radius: 0; background: transparent; }
 .field .datetime-pair input:focus { box-shadow: none; }
 .field .datetime-pair input + input { border-left: 1px solid var(--line); } /* 날짜:시간 = 1:1 */
+
+/* ---------- 날짜 미정 약속 ---------- */
+.datebox.undated .d { font-size: 14px; font-weight: 800; line-height: 1.2; padding: 8px 0; }
+.undated-section { margin-top: 4px; }
+.undated-head { width: 100%; display: flex; align-items: center; gap: 6px; margin: 14px 0 8px; padding: 0; background: none; border: 0; color: var(--ink-soft); font: inherit; font-size: 12px; font-weight: 800; letter-spacing: 0.02em; cursor: pointer; }
+.undated-head b { color: var(--accent); }
+.undated-head svg { width: 14px; height: 14px; margin-left: auto; transition: transform 0.14s; }
+.undated-head svg.open { transform: rotate(180deg); }
+.poll-period { margin: -8px 2px 14px; color: var(--ink-soft); font-size: 13px; }
+.poll-list { display: flex; flex-direction: column; margin-bottom: 6px; }
+.poll-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.poll-row:last-child { border-bottom: 0; }
+.poll-day { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.poll-day b { font-size: 14px; }
+.poll-day small { color: var(--ink-faint); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poll-day small em { font-style: normal; color: var(--accent); font-weight: 800; }
+.poll-add { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.poll-add input, .poll-add .theme-select { flex: 1; min-width: 0; }
+.poll-add .btn { flex: none; white-space: nowrap; }
+.poll-confirm { margin-top: 16px; }
+
+/* ---------- 일정 카드 아래 줄: 올린 사람 · 댓글 (친구 채널) ---------- */
+.event-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; }
+.event-by { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--ink-faint); }
+.event-by svg { width: 13px; height: 13px; }
+.event-comments-btn {
+  margin-left: auto; position: relative; appearance: none; border: 0; background: transparent; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 0; color: var(--ink-soft); font: inherit; font-size: 12px; font-weight: 700;
+}
+.event-comments-btn svg { width: 14px; height: 14px; }
+.event-comments-btn:hover { color: var(--ink); }
+.event-comment-preview { flex-basis: 100%; min-width: 0; font-size: 12px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 댓글 시트 */
+.comment-empty { margin: 4px 2px 14px; }
+.comment-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.comment-row { padding: 10px 12px; background: var(--surface-2); border-radius: 12px; }
+.comment-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.comment-head b { color: var(--ink); }
+.comment-head span { color: var(--ink-faint); }
+.comment-head .edit-btn { margin-left: auto; }
+.comment-text { margin: 4px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.comment-input-row { display: flex; align-items: flex-end; gap: 8px; }
+.comment-input-row .note-input { flex: 1; min-width: 0; margin: 0; }
+.comment-input-row .btn { flex: none; padding: 12px 16px; }
 .field input::placeholder, .field textarea::placeholder { color: var(--ink-faint); }
 .time-range { display: flex; align-items: center; gap: 10px; }
 .time-range input { flex: 1; }
@@ -1280,7 +1327,8 @@ button { font-family: inherit; }
 .place-addr { margin-top: 3px; display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); }
 .place-addr span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .place-memo { margin: 9px 0 0; font-size: 13px; color: var(--ink-soft); white-space: pre-wrap; line-height: 1.55;
-  padding: 11px 12px; min-height: 46px; background: var(--surface); border-radius: 10px; }
+  /* 카드(--surface)와 다른 2차 표면색으로 메모 블록을 구분한다 — 다크는 한 단계 밝은 유리, 라이트는 베이지·패널색 */
+  padding: 11px 12px; min-height: 46px; background: var(--surface-2); border-radius: 10px; }
 
 /* ---------- 장소 지도 검색 ---------- */
 .place-search { display: flex; gap: 7px; }

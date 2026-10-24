@@ -73,7 +73,7 @@ export function weekday(dateStr: string): string {
  * 일정은 시작일(date)과 선택적 종료일(endDate)을 가진다. 종료일이 없거나 시작일과 같으면 하루 일정.
  * 여러 날 일정의 시간은 "시작일 rehStart ~ 종료일 rehEnd"로 읽고, 캘린더에는 기간의 모든 날에 표시하며,
  * 목록에서는 종료일이 지나기 전까지 '다가오는/진행 중'으로 남긴다. */
-export interface DateSpan { date: string; endDate?: string }
+export interface DateSpan { date: string; endDate?: string; undated?: boolean; period?: string }
 
 /** 일정의 마지막 날. 종료일이 없거나 시작일보다 앞이면 시작일(하루 일정). */
 export function eventEndDate(ev: DateSpan): string {
@@ -109,6 +109,7 @@ export function dayCount(ev: DateSpan): number {
 
 /** 마지막 날이 지났으면 true — 여러 날 일정은 종료일까지 '다가오는/진행 중'으로 둔다. */
 export function isPastEvent(ev: DateSpan): boolean {
+  if (ev.undated) return false // 날짜 미정 약속은 확정 전까지 늘 '다가오는' 쪽
   return dayDiff(eventEndDate(ev)) < 0
 }
 
@@ -126,6 +127,7 @@ export function dateRangeLabel(ev: DateSpan): string {
 
 /** 날짜+시간 한 줄. 하루: "10월 20일 (화) · 09:00–18:00", 여러 날: "10월 20일 (화) 09:00 – 21일 (수) 18:00" */
 export function longWhen(ev: DateSpan & { rehStart: string; rehEnd: string; allDay?: boolean }): string {
+  if (ev.undated) return ev.period || '날짜 미정'
   if (ev.allDay) return dateRangeLabel(ev)
   if (!isMultiDay(ev)) return `${shortDate(ev.date)} · ${ev.rehStart}–${ev.rehEnd}`
   return `${shortDate(ev.date)} ${ev.rehStart} – ${shortDate(eventEndDate(ev), ev.date)} ${ev.rehEnd}`
@@ -142,6 +144,7 @@ export function whenLines(ev: DateSpan & { rehStart: string; rehEnd: string; all
 
 /** D-day 라벨. 여러 날 일정이 이미 시작됐고 아직 안 끝났으면 '진행 중'. */
 export function ddayLabelFor(ev: DateSpan): string {
+  if (ev.undated) return '미정'
   const toStart = dayDiff(ev.date)
   if (isMultiDay(ev) && toStart < 0 && !isPastEvent(ev)) return '진행 중'
   return ddayLabel(toStart)

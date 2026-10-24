@@ -22,6 +22,7 @@ import { shareVoteRequest } from '../eventShare'
 import { eventTypeLabel, getActiveWorkspaceTemplate } from '../workspaceTemplates'
 
 const ORDER: AttendStatus[] = ['present', 'late', 'leave', 'absent']
+const SIMPLE_ORDER: AttendStatus[] = ['present', 'absent'] // 날짜 미정 약속: 참·불참만
 
 /** 이 길이를 넘는 사유는 좁은 반 칸에 안 들어감 → 그 항목만 한 행 전체를 쓴다 */
 const WIDE_NOTE_LEN = 8
@@ -33,6 +34,7 @@ export default function AttendanceModal({
   members,
   initialMode,
   readOnly = false,
+  simple = false,
   onClose,
 }: {
   ev: BandEvent
@@ -42,9 +44,12 @@ export default function AttendanceModal({
   /** 처음 열 때 모드: 'vote' = 투표 입력창, 'summary' = 참석 현황 요약. 시트 안에서 서로 전환 가능 */
   initialMode: 'vote' | 'summary'
   readOnly?: boolean
+  /** 참·불참 두 가지만(날짜 미정 약속). 늦참·조퇴·미정 버튼은 두지 않고, 한마디(사유)는 남길 수 있다 */
+  simple?: boolean
   onClose: () => void
 }) {
   const { user, member } = useAuth()
+  const statuses = simple ? SIMPLE_ORDER : ORDER
   useBackHandler(onClose) // 뒤로가기로 참석 모달 닫기 (내부 취소 확인창은 ConfirmDialog 가 먼저 받는다)
   // 투표 ↔ 현황을 한 시트 안에서 전환 (투표해야 현황을 볼 수 있게 진입 모드로 제어)
   const [mode, setMode] = useState<'vote' | 'summary'>(initialMode)
@@ -195,8 +200,8 @@ export default function AttendanceModal({
           {/* ── 투표 모드 ── */}
           {mode === 'vote' && (
             <>
-              <div className="vote-row">
-                {ORDER.map((s) => (
+              <div className={'vote-row' + (simple ? ' simple' : '')}>
+                {statuses.map((s) => (
                   <button
                     key={s}
                     className={'vote-btn' + (mine?.status === s ? ' on' : '')}
@@ -208,14 +213,16 @@ export default function AttendanceModal({
                   </button>
                 ))}
               </div>
-              <button
-                className={'vote-btn vote-undecided' + (mine?.status === 'undecided' ? ' on' : '')}
-                style={{ ['--k' as string]: STATUS_META.undecided.color }}
-                onClick={() => choose('undecided')}
-                disabled={saving}
-              >
-                미정
-              </button>
+              {!simple && (
+                <button
+                  className={'vote-btn vote-undecided' + (mine?.status === 'undecided' ? ' on' : '')}
+                  style={{ ['--k' as string]: STATUS_META.undecided.color }}
+                  onClick={() => choose('undecided')}
+                  disabled={saving}
+                >
+                  미정
+                </button>
+              )}
 
               {mine?.status === 'late' && (
                 <div className="time-pick">
@@ -266,8 +273,8 @@ export default function AttendanceModal({
           {mode === 'summary' && (
             <>
               {/* 인원 · 시간 상세 집계 */}
-              <div className="tally">
-                {ORDER.map((s) => {
+              <div className={'tally' + (simple ? ' simple' : '')}>
+                {statuses.map((s) => {
                   const people = byStatus(s)
                   return (
                     <div key={s} className="tally-col">

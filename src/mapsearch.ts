@@ -21,7 +21,54 @@ export function isMockSearch(): boolean {
   return !kakaoAvailable()
 }
 
-/** 키워드로 장소 검색. 실패·무결과 시 빈 배열. */
+/** 장소명(키워드) 검색 — 등록된 업체·시설만 찾는다. */
+function keywordSearch(kakao: any, q: string): Promise<PlaceHit[]> {
+  return new Promise((resolve) => {
+    const ps = new kakao.maps.services.Places()
+    ps.keywordSearch(q, (data: any[], status: string) => {
+      if (status !== kakao.maps.services.Status.OK) return resolve([]) // ZERO_RESULT / ERROR
+      resolve(
+        data.slice(0, 12).map((d) => ({
+          name: d.place_name as string,
+          address: (d.road_address_name || d.address_name) as string,
+          lat: parseFloat(d.y),
+          lng: parseFloat(d.x),
+        })),
+      )
+    })
+  })
+}
+
+/**
+ * 도로명·지번 주소 검색 — 상호가 없는 주택·건물도 번지까지 입력하면 찾는다.
+ * 번지가 없는 길·동 단위 결과(ROAD·REGION)는 좌표가 모호해 제외한다.
+ */
+function addressSearch(kakao: any, q: string): Promise<PlaceHit[]> {
+  return new Promise((resolve) => {
+    const geocoder = new kakao.maps.services.Geocoder()
+    geocoder.addressSearch(q, (data: any[], status: string) => {
+      if (status !== kakao.maps.services.Status.OK) return resolve([])
+      resolve(
+        data
+          .filter((d) => d.address_type === 'ROAD_ADDR' || d.address_type === 'REGION_ADDR')
+          .slice(0, 8)
+          .map((d) => {
+            const road = d.road_address?.address_name as string | undefined
+            const lot = (d.address?.address_name || d.address_name) as string
+            const building = (d.road_address?.building_name as string | undefined)?.trim()
+            return {
+              name: building || road || lot, // 건물명이 있으면 건물명, 없으면 주소 자체가 이름
+              address: road || lot,
+              lat: parseFloat(d.y),
+              lng: parseFloat(d.x),
+            }
+          }),
+      )
+    })
+  })
+}
+
+/** 장소명과 주소를 함께 검색. 주소 결과를 앞에 두고 같은 좌표는 하나로 합친다. 실패·무결과 시 빈 배열. */
 export async function searchPlaces(query: string): Promise<PlaceHit[]> {
   const q = query.trim()
   if (!q) return []
@@ -31,21 +78,12 @@ export async function searchPlaces(query: string): Promise<PlaceHit[]> {
   }
 
   const kakao = await loadKakao()
-  return new Promise((resolve) => {
-    const ps = new kakao.maps.services.Places()
-    ps.keywordSearch(q, (data: any[], status: string) => {
-      if (status === kakao.maps.services.Status.OK) {
-        resolve(
-          data.slice(0, 12).map((d) => ({
-            name: d.place_name as string,
-            address: (d.road_address_name || d.address_name) as string,
-            lat: parseFloat(d.y),
-            lng: parseFloat(d.x),
-          })),
-        )
-      } else {
-        resolve([]) // ZERO_RESULT / ERROR
-      }
-    })
+  const [byAddress, byKeyword] = await Promise.all([addressSearch(kakao, q), keywordSearch(kakao, q)])
+  const seen = new Set<string>()
+  return [...byAddress, ...byKeyword].filter((hit) => {
+    const key = hit.lat !== undefined && hit.lng !== undefined ? `${hit.lat.toFixed(5)},${hit.lng.toFixed(5)}` : hit.address
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
   })
 }

@@ -63,6 +63,10 @@ export interface WorkspaceTemplate {
   equalMembers?: boolean
   /** true 면 일정 폼에 종료일을 둬 여러 날 일정(여행 등)을 만들 수 있다(친구 채널). 표시는 모든 채널이 공통. */
   multiDayEvents?: boolean
+  /** true 면 날짜 미정 약속을 올리고 후보 날짜로 맞춰 확정할 수 있다(친구 채널). */
+  undatedEvents?: boolean
+  /** true 면 일정 카드 아래에 올린 사람과 댓글(대화)을 둔다(친구 채널). 푸시 알림 없이 새 댓글 점만 표시. */
+  eventComments?: boolean
   theme: WorkspaceTheme
 }
 
@@ -153,6 +157,8 @@ export const WORKSPACE_TEMPLATES: Record<WorkspaceTemplateId, WorkspaceTemplate>
     ],
     equalMembers: true,
     multiDayEvents: true,
+    undatedEvents: true,
+    eventComments: true,
     // 사용자가 고른 팔레트: 세이지 #8B9A6E · 웜화이트 #F7F2EB · 베이지 #EAE2D6 · 연회색 #EEEEEE
     // 포인트는 세이지(그라데이션은 연한 세이지 → 세이지), 바탕은 웜화이트, 칩·시트 표면은 베이지, 선택·입력은 연회색.
     theme: personalBasedTheme({

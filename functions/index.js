@@ -332,8 +332,11 @@ exports.getBillingUsageStats = onCall(async (req) => {
   }
 })
 
-// 리마인더 허용 유형
+// 리마인더(투표 독려) 허용 유형
 const REMINDABLE_TYPES = ['practice', 'show']
+// 변경 알림 제목에 붙는 유형 이름 — 유형 id 는 채널 공통이고 라벨만 다르다
+const BAND_TYPE_LABELS = { practice: '합주', show: '공연', flash: '번개', meeting: '회의', other: '기타' }
+const FRIENDS_TYPE_LABELS = { meeting: '모임', flash: '번개', show: '여행', other: '기타' }
 const NOTIFIABLE_EVENT_FIELDS = [
   'title',
   'type',
@@ -561,12 +564,16 @@ exports.notifyOnEventCreate = onDocumentCreated(
   const isPractice = data.type === 'practice' && !isRecommendationDeadline
   const when = data.endDate ? `${data.date || ''}~${data.endDate}` : (data.date || '') // 여러 날 일정은 기간으로
   const delivery = await sendAllPush(eventAudience(membersSnap.docs, data), {
-    title: isRecommendationDeadline
+    title: data.undated
+      ? `새 약속: ${data.title || '약속'}`
+      : isRecommendationDeadline
       ? `추천곡 일정: ${data.title || '추천곡 마감'}`
       : isPractice
       ? `참석 투표 요청: ${data.title || '합주 일정'}`
       : `새 일정: ${data.title || '일정'}`,
-    body: isRecommendationDeadline
+    body: data.undated
+      ? '날짜 미정 약속이 올라왔어요. 가능한 날을 골라 주세요.'
+      : isRecommendationDeadline
       ? `${when} 추천곡 일정을 확인해 주세요.`
       : isPractice
       ? `${when} 합주 일정이 추가됐어요. 참석 여부를 투표해 주세요.`
@@ -582,15 +589,33 @@ exports.notifyOnEventUpdate = onDocumentUpdated(
   async (event) => {
     const before = event.data && event.data.before.data()
     const after = event.data && event.data.after.data()
-    if (!before || !after || !eventScheduleChanged(before, after)) return
-    if (!REMINDABLE_TYPES.includes(before.type) && !REMINDABLE_TYPES.includes(after.type)) return
+    if (!before || !after) return
+    // 날짜 미정 약속이 확정되면 새 일정처럼 모두에게 알린다
+    if (before.undated === true && after.undated !== true) {
+      const { bandId, eventId } = event.params
+      const membersSnap = await bandRef(bandId).collection('members').get()
+      const delivery = await sendAllPush(eventAudience(membersSnap.docs, after), {
+        title: `일정 확정: ${after.title || '약속'}`,
+        body: `${after.date || ''}로 확정됐어요. 참석 여부를 투표해 주세요.`,
+        eventId,
+      })
+      console.info('event-confirm push complete', { bandId, eventId, delivery })
+      return
+    }
+    if (after.undated === true) return // 미정 상태에서의 변경(후보 날짜 등)은 알리지 않는다
+    if (!eventScheduleChanged(before, after)) return
 
+    // 모든 유형의 일정 변경을 알린다. 제목의 유형 이름만 채널(밴드/친구)에 맞춘다.
     const { bandId, eventId } = event.params
-    const changeSummary = await buildEventChangeSummary(before, after, bandId)
-    const membersSnap = await bandRef(bandId).collection('members').get()
-    const isShow = after.type === 'show'
+    const [band, membersSnap, changeSummary] = await Promise.all([
+      bandRef(bandId).get(),
+      bandRef(bandId).collection('members').get(),
+      buildEventChangeSummary(before, after, bandId),
+    ])
+    const labels = band.get('templateId') === 'friends' ? FRIENDS_TYPE_LABELS : BAND_TYPE_LABELS
+    const label = labels[after.type] || BAND_TYPE_LABELS[after.type] || ''
     const delivery = await sendAllPush(eventAudience(membersSnap.docs, after), {
-      title: `${isShow ? '공연' : '합주'} 일정 변경: ${after.title || '일정'}`,
+      title: `${label ? `${label} ` : ''}일정 변경: ${after.title || '일정'}`,
       body: changeSummary,
       eventId,
     })

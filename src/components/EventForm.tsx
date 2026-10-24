@@ -4,6 +4,7 @@ import { deleteEvent, newId, saveEvent, watchMemberGroups } from '../data'
 import {
   DEFAULT_REH_END,
   DEFAULT_REH_START,
+  UNDATED_DATE,
   type BandEvent,
   type EventType,
   type MemberGroup,
@@ -55,9 +56,14 @@ export default function EventForm({
   const [type, setType] = useState<EventType>(editing?.type ?? defaultType)
   const [otherColor, setOtherColor] = useState(editing?.color ?? OTHER_COLORS[0])
   const [title, setTitle] = useState(editing?.title ?? '')
-  const [date, setDate] = useState(editing?.date ?? todayStr())
+  const [date, setDate] = useState(editing && !editing.undated ? editing.date : todayStr()) // 미정 약속의 자리표시 날짜는 쓰지 않는다
   // 종료일: 여러 날 일정(여행·합숙)일 때만. 비우면 하루 일정이고, 시간은 시작일 시작 시각 ~ 종료일 종료 시각으로 읽는다.
   const [endDate, setEndDate] = useState(editing?.endDate && editing.endDate > editing.date ? editing.endDate : '')
+  // 날짜 미정 약속(친구 채널): 날짜 대신 시기와 후보 날짜를 받고, 투표로 맞춘 뒤 확정한다
+  const undatedAllowed = !!template.undatedEvents
+  const [undated, setUndated] = useState(!!editing?.undated)
+  const [period, setPeriod] = useState(editing?.period ?? '')
+  const [dateOptions, setDateOptions] = useState<string[]>(editing?.dateOptions ?? [])
   const [rehStart, setRehStart] = useState(seed.rehStart)
   const [rehEnd, setRehEnd] = useState(seed.rehEnd)
   const [placeId, setPlaceId] = useState(seed.placeId)
@@ -111,7 +117,7 @@ export default function EventForm({
   const endDateValid = endDay >= date
   // 친구 채널은 시작·종료가 각각 "날짜+시간" 한 컨트롤이라 일시 전체를 비교한다. 밴드는 같은 날의 시각만 비교.
   const timeValid = type === 'other' || (multiDayAllowed ? `${endDay}T${rehEnd}` > `${date}T${rehStart}` : toMin(rehEnd) > toMin(rehStart))
-  const valid = title.trim() && date && timeValid && endDateValid
+  const valid = title.trim() && (undated || (date && timeValid && endDateValid))
 
   // datetime-local 값("YYYY-MM-DDTHH:MM")을 날짜·시각 상태로 나눠 담는다. 비우면 무시.
   function changeStart(value: string) {
@@ -140,7 +146,7 @@ export default function EventForm({
         rehStart: type === 'other' ? '00:00' : rehStart,
         rehEnd: type === 'other' ? '00:01' : rehEnd,
         allDay: type === 'other' ? true : undefined,
-        endDate: multiDay ? endDate : undefined, // 하루 일정은 저장하지 않는다
+        endDate: multiDay && !undated ? endDate : undefined, // 하루 일정은 저장하지 않는다
         // 등록 장소를 골랐으면 placeId, 아니면 직접 입력(loc). 둘 중 하나만 저장
         placeId: type === 'other' ? undefined : placeId || undefined,
         loc: type === 'other' ? undefined : placeId ? undefined : loc.trim() || undefined,
@@ -154,7 +160,16 @@ export default function EventForm({
         createdBy: editing?.createdBy ?? user.uid,
         createdAt: editing?.createdAt ?? Date.now(),
       }
-      await saveEvent({ ...baseEvent, id: editing?.id ?? newId(), date })
+      const cleanOptions = [...new Set(dateOptions.filter(Boolean))].sort()
+      await saveEvent({
+        ...baseEvent,
+        id: editing?.id ?? newId(),
+        // 미정 약속은 자리표시 날짜로 저장하고, 확정(토글 해제) 시 실제 날짜와 함께 미정 필드를 비운다
+        date: undated ? UNDATED_DATE : date,
+        undated: undated || undefined,
+        period: undated && period.trim() ? period.trim() : undefined,
+        dateOptions: undated && cleanOptions.length ? cleanOptions : undefined,
+      })
       onClose()
     } catch (e) {
       const code = (e as { code?: string })?.code ?? ''
@@ -214,7 +229,36 @@ export default function EventForm({
               <label htmlFor="f-title">제목</label>
               <input id="f-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} autoFocus />
             </div>
-            {type === 'other' ? (
+            {undatedAllowed && (
+              <div className="event-visibility-row">
+                <div>
+                  <b>날짜 미정</b>
+                  <span>후보 날짜로 친구들과 맞춘 뒤 확정</span>
+                </div>
+                <button type="button" className={'switch' + (undated ? ' on' : '')} aria-label="날짜 미정" aria-pressed={undated} onClick={() => setUndated((v) => !v)}>
+                  <span className="switch-knob" />
+                </button>
+              </div>
+            )}
+            {undated ? (
+              /* 날짜 미정: 시기와 후보 날짜만. 날짜·시간은 확정할 때 들어간다 */
+              <>
+                <div className="field">
+                  <label htmlFor="f-period">시기</label>
+                  <input id="f-period" type="text" value={period} onChange={(e) => setPeriod(e.target.value)} maxLength={30} placeholder="예) 11월 중, 연말" />
+                </div>
+                <div className="field">
+                  <label>후보 날짜</label>
+                  {dateOptions.map((d, i) => (
+                    <div className="poll-add" key={i}>
+                      <input type="date" value={d} aria-label={`후보 날짜 ${i + 1}`} onChange={(e) => setDateOptions((list) => list.map((v, j) => (j === i ? e.target.value : v)))} />
+                      <button type="button" className="btn subtle sm" onClick={() => setDateOptions((list) => list.filter((_, j) => j !== i))}>삭제</button>
+                    </div>
+                  ))}
+                  <button type="button" className="btn subtle sm" onClick={() => setDateOptions((list) => [...list, ''])}>+ 후보 날짜</button>
+                </div>
+              </>
+            ) : type === 'other' ? (
               /* 종일 일정: 날짜만 */
               <div className="field-row">
                 <div className="field">
@@ -246,8 +290,8 @@ export default function EventForm({
                 </div>
               </>
             )}
-            {!endDateValid && <p className="err small">종료일이 시작일보다 앞설 수 없어요.</p>}
-            {endDateValid && !timeValid && <p className="err small">종료가 시작보다 늦어야 해요.</p>}
+            {!undated && !endDateValid && <p className="err small">종료일이 시작일보다 앞설 수 없어요.</p>}
+            {!undated && endDateValid && !timeValid && <p className="err small">종료가 시작보다 늦어야 해요.</p>}
           </>
         ) : (
           /* 밴드: 제목 + 날짜 한 줄 — 제목이 남는 공간, 날짜는 내용 너비 */

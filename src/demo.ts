@@ -9,7 +9,8 @@
  * - Firebase 를 전혀 건드리지 않고, 아래 인메모리 스토어가 실시간 구독을 흉내낸다.
  *   (새로고침하면 초기 데이터로 리셋됨)
  */
-import type { Attendance, Band, BandEvent, CustomEventType, EventType, Member, MemberGroup, PersonalDailyMemo, Place, Playlist, Recording, RecordingFolder, RunningEntry, Score, SetlistSong, Track, TrackPart } from './types'
+import type { Attendance, Band, BandEvent, CustomEventType, DateVote, EventComment, EventType, Member, MemberGroup, PersonalDailyMemo, Place, Playlist, Recording, RecordingFolder, RunningEntry, Score, SetlistSong, Track, TrackPart } from './types'
+import { UNDATED_DATE } from './types'
 
 export const DEMO =
   import.meta.env.DEV &&
@@ -210,6 +211,8 @@ const friendsEvents: BandEvent[] = [
   { id: 'fe2', type: 'flash', title: '퇴근 후 맥주', date: dstr(2), rehStart: '19:30', rehEnd: '21:30', note: '', createdBy: 'm-kss', createdAt: now },
   { id: 'fe3', type: 'show', title: '강릉 1박 2일', date: dstr(20), endDate: dstr(21), rehStart: '09:00', rehEnd: '18:00', note: '차 2대 필요', createdBy: 'm-pjh', createdAt: now },
   { id: 'fe4', type: 'other', color: '#ef6f91', allDay: true, title: '수빈 생일', date: dstr(12), rehStart: '00:00', rehEnd: '00:01', note: '', createdBy: DEMO_MEMBER.uid, createdAt: now },
+  // 날짜 미정 약속 — 후보 날짜에 가능 여부를 모아 확정한다
+  { id: 'fe5', type: 'meeting', undated: true, period: '이번 달 주말', dateOptions: [dstr(25), dstr(26)], title: '송년회 겸 집들이', date: UNDATED_DATE, rehStart: '18:00', rehEnd: '22:00', note: '명지네 집', createdBy: DEMO_MEMBER.uid, createdAt: now - 3600000 },
 ]
 const friendsEventsCol = makeCollection<BandEvent>(friendsEvents)
 const activeEventsCol = () => {
@@ -222,6 +225,28 @@ const memberGroupsCol = makeCollection<MemberGroup>([])
 const playlistsCol = makeCollection<Playlist>(initialPlaylists)
 
 // 참석은 이벤트별 컬렉션
+// 날짜 미정 약속의 후보 날짜 투표도 이벤트별 컬렉션
+const dateVoteCols = new Map<string, Collection<DateVote>>()
+function dateVoteCol(eventId: string): Collection<DateVote> {
+  let col = dateVoteCols.get(eventId)
+  if (!col) {
+    col = makeCollection<DateVote>(eventId === 'fe5' ? [{ uid: 'm-kss', name: '김성수', available: [dstr(25)], updatedAt: now }] : [])
+    dateVoteCols.set(eventId, col)
+  }
+  return col
+}
+
+// 일정 댓글도 이벤트별 컬렉션
+const commentCols = new Map<string, Collection<EventComment>>()
+function commentCol(eventId: string): Collection<EventComment> {
+  let col = commentCols.get(eventId)
+  if (!col) {
+    col = makeCollection<EventComment>(eventId === 'fe3' ? [{ id: 'c1', uid: 'm-kss', name: '김성수', text: '차는 제가 한 대 가져갈게요', createdAt: now - 7200000 }] : [])
+    commentCols.set(eventId, col)
+  }
+  return col
+}
+
 const attendanceCols = new Map<string, Collection<Attendance>>()
 function attendanceCol(eventId: string): Collection<Attendance> {
   let col = attendanceCols.get(eventId)
@@ -413,6 +438,11 @@ export const demoDb = {
   setAttendance: (eventId: string, att: Attendance) =>
     attendanceCol(eventId).upsert(att, (x) => x.uid),
   clearAttendance: (eventId: string, uid: string) => attendanceCol(eventId).remove(uid, (x) => x.uid),
+  watchDateVotes: (eventId: string, cb: Sub<DateVote[]>) => dateVoteCol(eventId).watch(cb),
+  setDateVote: (eventId: string, vote: DateVote) => dateVoteCol(eventId).upsert(vote, (x) => x.uid),
+  watchEventComments: (eventId: string, cb: Sub<EventComment[]>) => commentCol(eventId).watch((list) => cb([...list].sort((a, b) => a.createdAt - b.createdAt))),
+  addEventComment: (eventId: string, comment: EventComment) => commentCol(eventId).upsert(comment, (x) => x.id),
+  deleteEventComment: (eventId: string, id: string) => commentCol(eventId).remove(id, (x) => x.id),
 
   watchPlaylists: (cb: Sub<Playlist[]>) => {
     return playlistsCol.watch((list) => cb([...list].sort((a, b) => b.createdAt - a.createdAt)))

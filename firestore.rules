@@ -292,6 +292,18 @@ service cloud.firestore {
                            || request.auth.uid in get(/databases/$(database)/documents/bands/$(bandId)/events/$(eventId)).data.targetMemberIds
                            || isBandAdmin(bandId));
         }
+        // 날짜 미정 약속의 후보 날짜 가능 여부 — 본인 문서만 쓴다
+        match /dateVotes/{uid} {
+          allow read: if isDeveloper() || isBandMember(bandId);
+          allow write: if isBandMember(bandId) && request.auth.uid == uid;
+        }
+        // 일정 댓글 — 본인 글만 쓰고, 삭제는 본인·관리자·친구 채널 멤버
+        match /comments/{commentId} {
+          allow read: if isDeveloper() || isBandMember(bandId);
+          allow create: if isBandMember(bandId) && request.resource.data.uid == request.auth.uid;
+          allow delete: if isBandMember(bandId)
+                        && (resource.data.uid == request.auth.uid || isBandAdmin(bandId) || isFriendsChannel(bandId));
+        }
         match /setlist/{songId} {
           allow read: if isDeveloper() || isBandMember(bandId);
           allow write: if isBandAdmin(bandId);

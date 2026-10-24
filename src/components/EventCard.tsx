@@ -7,12 +7,14 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
 import { useAuth } from '../auth'
-import { deleteEvent, watchAttendance } from '../data'
+import { deleteEvent, watchAttendance, watchDateVotes, watchEventComments } from '../data'
 import {
   STATUS_META,
   TYPE_META,
   type Attendance,
   type BandEvent,
+  type DateVote,
+  type EventComment,
   type Member,
 } from '../types'
 import { dayCount, eventEndDate, isMultiDay, isPastEvent, shortDate, weekday, parseDate } from '../time'
@@ -23,6 +25,8 @@ import { CopyButton } from './CopyButton'
 import AttendanceModal from './AttendanceModal'
 import SetlistSheet from './SetlistSheet'
 import ShowPlaylistSheet from './ShowPlaylistSheet'
+import DatePollSheet from './DatePollSheet'
+import EventCommentsSheet from './EventCommentsSheet'
 import ConfirmDialog from './ConfirmDialog'
 import type { ToastState } from './Toast'
 import { getActiveWorkspaceTemplate } from '../workspaceTemplates'
@@ -52,15 +56,35 @@ export default function EventCard({
   const [noteOverflow, setNoteOverflow] = useState(false)
   const [showCalendarExport, setShowCalendarExport] = useState(false)
   const [setlistOpen, setSetlistOpen] = useState(false)
+  const [pollOpen, setPollOpen] = useState(false) // 날짜 미정 약속의 '가능한 날 고르기'
+  const [dateVotes, setDateVotes] = useState<DateVote[]>([])
+  // 댓글(친구 채널): 목록 구독 + 마지막으로 본 시각(기기 저장)으로 새 댓글 점 표시
+  const [comments, setComments] = useState<EventComment[]>([])
+  const [commentsOpen, setCommentsOpen] = useState(false)
+  const [commentsSeenAt, setCommentsSeenAt] = useState(() => {
+    try { return Number(localStorage.getItem(`amici.commentsSeen.${ev.id}`) || 0) } catch { return 0 }
+  })
   const noteRef = useRef<HTMLParagraphElement>(null)
   const deepLinkOpened = useRef(false)
   const t = TYPE_META[ev.type]
   const d = parseDate(ev.date)
   const past = isPastEvent(ev) // 여러 날 일정은 종료일이 지나야 '지난 일정'
   const multiDay = isMultiDay(ev)
+  const undated = !!ev.undated // 날짜 미정 약속: 카드 본문을 누르면 가능한 날 고르기, 오른쪽 아래는 참·불참 투표
   const isAdmin = !!member?.admin
   const template = getActiveWorkspaceTemplate()
   const canEdit = isAdmin || !!template.equalMembers // 친구 채널은 누구나 수정
+  // 카드 아래 줄(친구 채널): 올린 사람 + 댓글. 새 댓글은 내가 쓴 것을 빼고 마지막으로 본 시각 이후 것이 있을 때
+  const withComments = !!template.eventComments
+  const creatorName = members.find((m) => m.uid === ev.createdBy)?.name
+  const latestComment = comments.length ? comments[comments.length - 1] : null
+  const hasUnread = comments.some((c) => c.createdAt > commentsSeenAt && c.uid !== user?.uid)
+  function openComments() {
+    const seenAt = Date.now()
+    setCommentsSeenAt(seenAt)
+    try { localStorage.setItem(`amici.commentsSeen.${ev.id}`, String(seenAt)) } catch { /* 저장소가 막힌 환경 */ }
+    setCommentsOpen(true)
+  }
   const isRecommendationDeadline = !!ev.recommendationPlaylistId
   const deadlineTitle = ev.musicDeadlineKind === 'vote' ? '추천곡 투표 마감' : '추천곡 추가 마감'
   const deadlinePlaylistName = ev.recommendationPlaylistName || ev.title.replace(/\s+(추천곡|투표)\s*마감$/, '')
@@ -80,8 +104,13 @@ export default function EventCard({
   // 곡이 필요한 유형(밴드 채널만): 합주=합주곡(곡 하나씩), 공연=재생목록(통째로 연결)
   const hasSetlist = template.id === 'band' && !isRecommendationDeadline && (ev.type === 'practice' || ev.type === 'show')
   const setlistLabel = ev.type === 'show' ? '재생목록' : '합주곡'
+  const tappable = hasSetlist || isRecommendationDeadline || undated
 
   function openSetlist() {
+    if (undated) {
+      setPollOpen(true)
+      return
+    }
     if (ev.recommendationPlaylistId) {
       onOpenRecommendation?.(ev.recommendationPlaylistId)
       return
@@ -95,18 +124,35 @@ export default function EventCard({
     }
   }
 
+  // 날짜 미정 약속도 참·불참 투표를 받는다(종일 유형이어도)
   useEffect(() => {
-    if (ev.type === 'other') {
+    if (ev.type === 'other' && !undated) {
       setAtt([])
       return
     }
     return watchAttendance(ev.id, setAtt)
-  }, [ev.id, ev.type])
+  }, [ev.id, ev.type, undated])
+  // 날짜 미정 약속은 참석 대신 후보 날짜 가능 여부를 구독한다
   useEffect(() => {
-    if (ev.type === 'other' || !autoOpenVote || deepLinkOpened.current) return
+    if (!undated) {
+      setDateVotes([])
+      return
+    }
+    return watchDateVotes(ev.id, setDateVotes)
+  }, [ev.id, undated])
+  useEffect(() => {
+    if (!withComments) {
+      setComments([])
+      return
+    }
+    return watchEventComments(ev.id, setComments)
+  }, [ev.id, withComments])
+  useEffect(() => {
+    if ((ev.type === 'other' && !undated) || !autoOpenVote || deepLinkOpened.current) return
     deepLinkOpened.current = true
-    setModal('vote')
-  }, [autoOpenVote, ev.type])
+    if (undated) setPollOpen(true)
+    else setModal('vote')
+  }, [autoOpenVote, ev.type, undated])
   useEffect(() => {
     let active = true
     calendarExportSupported().then((supported) => {
@@ -140,18 +186,22 @@ export default function EventCard({
       <div className={'event' + (isRecommendationDeadline ? ' recommendation-event' : '')} style={{ ['--k' as string]: isRecommendationDeadline ? 'var(--undecided)' : ev.color || t.color }}>
         {/* 합주·공연이면 본문(날짜·제목·시간) 탭 → 합주곡 시트. 우측 버튼·장소 복사는 전파를 막아 기존 동작 유지 */}
         <div
-          className={'event-row' + (hasSetlist || isRecommendationDeadline ? ' tappable' : '')}
-          role={hasSetlist || isRecommendationDeadline ? 'button' : undefined}
-          tabIndex={hasSetlist || isRecommendationDeadline ? 0 : undefined}
-          aria-label={isRecommendationDeadline ? `${ev.title} 추천곡 열기` : hasSetlist ? `${ev.title} ${setlistLabel}` : undefined}
-          onClick={hasSetlist || isRecommendationDeadline ? openSetlist : undefined}
-          onKeyDown={hasSetlist || isRecommendationDeadline ? onRowKeyDown : undefined}
+          className={'event-row' + (tappable ? ' tappable' : '')}
+          role={tappable ? 'button' : undefined}
+          tabIndex={tappable ? 0 : undefined}
+          aria-label={isRecommendationDeadline ? `${ev.title} 추천곡 열기` : undated ? `${ev.title} 날짜 투표 현황` : hasSetlist ? `${ev.title} ${setlistLabel}` : undefined}
+          onClick={tappable ? openSetlist : undefined}
+          onKeyDown={tappable ? onRowKeyDown : undefined}
         >
-          <div className="datebox">
-            <div className="m">{d.getMonth() + 1}월</div>
-            <div className="d">{d.getDate()}</div>
-            <div className="w">({weekday(ev.date)})</div>
-          </div>
+          {undated ? (
+            <div className="datebox undated"><div className="d">미정</div></div>
+          ) : (
+            <div className="datebox">
+              <div className="m">{d.getMonth() + 1}월</div>
+              <div className="d">{d.getDate()}</div>
+              <div className="w">({weekday(ev.date)})</div>
+            </div>
+          )}
           <div className="einfo">
             <div className="etitle">
               <TypeGlyph type={ev.type} className="type-ico" />
@@ -160,8 +210,8 @@ export default function EventCard({
               {ev.adminOnly && isAdmin && <span className="admin-only-badge">관리자</span>}
               {!ev.adminOnly && ev.targetGroupName && <span className="event-target-badge">{ev.targetGroupName}</span>}
             </div>
-            {(!ev.allDay || multiDay || isRecommendationDeadline || place) && <div className="sub">
-              {isRecommendationDeadline ? <>
+            {(!ev.allDay || multiDay || isRecommendationDeadline || undated || place || (withComments && !!creatorName)) && <div className="sub">
+              {undated ? (ev.period ? <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>{ev.period}</span> : null) : isRecommendationDeadline ? <>
                 <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>{deadlinePlaylistName}</span>
                 <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>{deadlineSummary}</span>
               </> : multiDay ? (
@@ -185,7 +235,7 @@ export default function EventCard({
                   이동 <span aria-hidden="true">›</span>
                 </button>
               )}
-              {!past && showCalendarExport && !isRecommendationDeadline && (
+              {!past && showCalendarExport && !isRecommendationDeadline && !undated && (
                 <button className="edit-btn" onClick={() => void addToDeviceCalendar(ev, place)} aria-label="캘린더에 추가" title="캘린더에 추가">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
                 </button>
@@ -202,7 +252,8 @@ export default function EventCard({
               )}
             </div>
             {/* 아랫줄: 내 참석 상태(미투표=점 / 투표함=내 상태 색 pill) */}
-            {!isRecommendationDeadline && ev.type !== 'other' && <div className="ca-bottom">
+            {/* 아랫줄: 내 참석 상태. 날짜 미정 약속도 참·불참 투표를 받는다 */}
+            {!isRecommendationDeadline && (ev.type !== 'other' || undated) && <div className="ca-bottom">
               {mine ? (
                 <button className="card-vote-pill" style={{ ['--k' as string]: STATUS_META[mine.status].color }} onClick={() => setModal('summary')} aria-label="참석 현황" title="참석 현황">
                   {STATUS_META[mine.status].label}
@@ -240,10 +291,27 @@ export default function EventCard({
           </div>
         )}
 
+        {/* 친구 채널: 올린 사람 · 댓글(개수, 새 댓글 점) · 최근 댓글 한 줄 */}
+        {withComments && !isRecommendationDeadline && (
+          <div className="event-foot">
+            {creatorName && (
+              <span className="event-by">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                {creatorName}
+              </span>
+            )}
+            <button type="button" className="event-comments-btn" onClick={openComments} aria-label={comments.length > 0 ? `댓글 ${comments.length}개 보기` : '댓글 남기기'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+              {comments.length > 0 ? `댓글 ${comments.length}` : '댓글 남기기'}
+              {hasUnread && <span className="vote-dot" aria-hidden="true" />}
+            </button>
+            {latestComment && <span className="event-comment-preview">{latestComment.name}: {latestComment.text}</span>}
+          </div>
+        )}
       </div>
 
-      {modal && !isRecommendationDeadline && ev.type !== 'other' && (
-        <AttendanceModal ev={ev} place={place} list={eligibleAtt} members={eligibleMembers} initialMode={modal} readOnly={past} onClose={() => setModal(null)} />
+      {modal && !isRecommendationDeadline && (ev.type !== 'other' || undated) && (
+        <AttendanceModal ev={ev} place={place} list={eligibleAtt} members={eligibleMembers} initialMode={modal} readOnly={past} simple={undated} onClose={() => setModal(null)} />
       )}
 
       {setlistOpen &&
@@ -265,6 +333,14 @@ export default function EventCard({
           />
         ))}
 
+
+      {pollOpen && (
+        <DatePollSheet ev={ev} votes={dateVotes} members={members} toast={toast} onClose={() => setPollOpen(false)} />
+      )}
+
+      {commentsOpen && (
+        <EventCommentsSheet ev={ev} place={place} comments={comments} toast={toast} onClose={() => setCommentsOpen(false)} />
+      )}
 
       {confirmDelete && (
         <ConfirmDialog

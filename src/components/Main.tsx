@@ -93,6 +93,7 @@ export default function Main() {
   const [placesErr, setPlacesErr] = useState('')
   const [editing, setEditing] = useState<BandEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
+  const [undatedOpen, setUndatedOpen] = useState(true) // 날짜 미정 묶음 펼침 여부
   const [menuOpen, setMenuOpen] = useState(false)
   // 커스텀 탭에서 '앱으로 설치'를 눌러 크롬으로 넘어온 경우, 설치 행이 있는 설정을 바로 연다
   const [settingsOpen, setSettingsOpen] = useState(arrivedToInstall)
@@ -243,7 +244,7 @@ export default function Main() {
 
   const sorted = useMemo(
     () => [...events, ...olderEvents]
-      .filter((e) => isAdmin || (!e.adminOnly && (!e.targetMemberIds?.length || (!!member?.uid && e.targetMemberIds.includes(member.uid)))))
+      .filter((e) => !e.undated && (isAdmin || (!e.adminOnly && (!e.targetMemberIds?.length || (!!member?.uid && e.targetMemberIds.includes(member.uid))))))
       .sort((a, b) => (a.date + a.rehStart).localeCompare(b.date + b.rehStart)),
     [events, olderEvents, isAdmin, member?.uid],
   )
@@ -251,6 +252,8 @@ export default function Main() {
   const upcoming = useMemo(() => sorted.filter((e) => !isPastEvent(e)), [sorted])
   // 지난 일정: 최신순(방금 끝난 것부터)
   const past = useMemo(() => sorted.filter((e) => isPastEvent(e)).reverse(), [sorted])
+  // 날짜 미정 약속: 다가오는/지난 목록과 캘린더에는 섞지 않고 별도 묶음으로(최근 만든 순)
+  const undatedList = useMemo(() => events.filter((e) => e.undated).sort((a, b) => b.createdAt - a.createdAt), [events])
   const matchesFilter = (event: BandEvent) => filter === 'all' || (!event.recommendationPlaylistId && event.type === filter)
   const next = upcoming.find(matchesFilter)
   const base = tab === 'upcoming' ? upcoming : past
@@ -444,21 +447,43 @@ export default function Main() {
           <div className="hero empty">
             <p>
               다가오는 일정이 없어요.
-              {canManageEvents && (
-                <>
-                  <br />
-                  아래 <b>+ 일정 추가</b>로 첫 일정을 등록해 보세요.
-                </>
-              )}
             </p>
           </div>
         ))}
 
+        {/* 날짜 미정 약속 묶음 — 다음 일정 아래, 접을 수 있게 */}
+        {tab === 'upcoming' && undatedList.length > 0 && (
+          <section className="undated-section">
+            <button type="button" className="undated-head" onClick={() => setUndatedOpen((v) => !v)} aria-expanded={undatedOpen}>
+              날짜 미정 <b>{undatedList.length}</b>
+              <svg className={undatedOpen ? 'open' : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+            {undatedOpen && (
+              <div className="list">
+                {undatedList.map((ev) => (
+                  <EventCard
+                    key={ev.id}
+                    ev={ev}
+                    place={resolvePlace(ev, placesMap)}
+                    members={members}
+                    onEdit={() => openEdit(ev)}
+                    toast={toast}
+                    autoOpenVote={ev.id === deepEventId}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {list.length === 0 ? (
-          <div className="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-            <p>{tab === 'past' ? '지난 일정이 없어요.' : '표시할 일정이 없어요.'}</p>
-          </div>
+          // 다가오는 탭은 날짜 미정 약속까지 없을 때만 빈 상태를 보인다(미정 묶음이 위에 있으면 생략)
+          tab === 'upcoming' && undatedList.length > 0 ? null : (
+            <div className="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+              <p>{tab === 'past' ? '지난 일정이 없어요.' : '표시할 일정이 없어요.'}</p>
+            </div>
+          )
         ) : (
           groups.map((g) => (
             <div key={g.key}>

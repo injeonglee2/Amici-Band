@@ -23,7 +23,7 @@ import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'fi
 import { db, fbApp, storage } from './firebase'
 import { getCurrentBand, bandCol, bandDoc, bandStoragePath } from './band'
 import { DEMO, demoDb } from './demo'
-import type { Band, Attendance, BandEvent, CustomEventType, Feedback, FeedbackReply, Member, MemberGroup, PersonalDailyMemo, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
+import type { Band, Attendance, BandEvent, CustomEventType, DateVote, EventComment, Feedback, FeedbackReply, Member, MemberGroup, PersonalDailyMemo, PersonalRecordEntry, PersonalVideo, Place, Playlist, RecipeIngredient, Recording, RecordingFolder, RunningEntry, Score, ScoreFile, SetlistSong, Track, TrackPart, WebPushSubscription } from './types'
 
 const FUNCTIONS_REGION = 'asia-northeast3'
 
@@ -395,6 +395,57 @@ export async function setAttendance(eventId: string, att: Attendance): Promise<v
 export async function clearAttendance(eventId: string, uid: string): Promise<void> {
   if (DEMO) return demoDb.clearAttendance(eventId, uid)
   await deleteDoc(bandDoc('events', eventId, 'attendance', uid))
+}
+
+/* ---------------- 날짜 미정 약속의 후보 날짜 투표 (events/{id}/dateVotes/{uid}) ---------------- */
+export function watchDateVotes(
+  eventId: string,
+  cb: (list: DateVote[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) return demoDb.watchDateVotes(eventId, cb)
+  return onSnapshot(
+    bandCol('events', eventId, 'dateVotes'),
+    (snap) => cb(snap.docs.map((d) => d.data() as DateVote)),
+    (err) => {
+      console.error('watchDateVotes', err)
+      onError?.(err)
+    },
+  )
+}
+
+/** 내 가능 날짜 저장(문서 id = uid, 덮어쓰기) */
+export async function setDateVote(eventId: string, vote: DateVote): Promise<void> {
+  if (DEMO) return demoDb.setDateVote(eventId, vote)
+  await setDoc(bandDoc('events', eventId, 'dateVotes', vote.uid), vote)
+}
+
+/* ---------------- 일정 댓글 (events/{id}/comments) — 오래된 순 ---------------- */
+export function watchEventComments(
+  eventId: string,
+  cb: (list: EventComment[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  if (DEMO) return demoDb.watchEventComments(eventId, cb)
+  return onSnapshot(
+    query(bandCol('events', eventId, 'comments'), orderBy('createdAt', 'asc')),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<EventComment, 'id'>) }))),
+    (err) => {
+      console.error('watchEventComments', err)
+      onError?.(err)
+    },
+  )
+}
+
+export async function addEventComment(eventId: string, comment: EventComment): Promise<void> {
+  if (DEMO) return demoDb.addEventComment(eventId, comment)
+  const { id, ...rest } = comment
+  await setDoc(bandDoc('events', eventId, 'comments', id), rest)
+}
+
+export async function deleteEventComment(eventId: string, commentId: string): Promise<void> {
+  if (DEMO) return demoDb.deleteEventComment(eventId, commentId)
+  await deleteDoc(bandDoc('events', eventId, 'comments', commentId))
 }
 
 /* ---------------- playlists (bands/{band}/playlists) ---------------- */

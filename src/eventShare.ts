@@ -16,6 +16,18 @@ function eventUrl(eventId: string): string {
 }
 
 export function voteRequestMessage(event: BandEvent, place: ResolvedPlace | null, undecidedCount: number): string {
+  // 날짜 미정 약속: 참석이 아니라 가능한 날을 골라 달라는 요청
+  if (event.undated) {
+    return [
+      '[Amici 날짜 투표 요청]',
+      `${eventTypeLabel(event.type)} · ${event.title}`,
+      ...(event.period ? [`시기 · ${event.period}`] : []),
+      `후보 ${event.dateOptions?.length ?? 0}일 중 갈 수 있는 날과 참석 여부를 골라 주세요.`,
+      '',
+      '아래 Amici 앱에서 가능한 날과 참·불참을 선택해 주세요.',
+      eventUrl(event.id),
+    ].join('\n')
+  }
   return [
     '[Amici 참석 투표 요청]',
     `${eventTypeLabel(event.type)} · ${event.title}`,
@@ -32,7 +44,7 @@ export async function shareVoteRequest(event: BandEvent, place: ResolvedPlace | 
   const text = voteRequestMessage(event, place, undecidedCount)
   if (navigator.share) {
     try {
-      await navigator.share({ title: `${event.title} 참석 투표`, text })
+      await navigator.share({ title: `${event.title} ${event.undated ? '날짜 투표' : '참석 투표'}`, text })
       return 'shared'
     } catch (error) {
       if ((error as { name?: string })?.name === 'AbortError') return 'cancelled'
